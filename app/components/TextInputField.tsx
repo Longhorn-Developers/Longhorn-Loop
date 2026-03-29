@@ -15,8 +15,8 @@ interface TextInputFieldProps extends TextInputProps {
 }
 
 const CLEARABLE_ICON_COLORS = {
-  border: 'hsla(0,0%,78%,1)',
-  active: 'hsla(27, 93%, 32%, 1)',
+  border: 'hsla(0,0%,78%,1)', // lhlBorderColor
+  active: 'hsla(27, 93%, 32%, 1)', // lhlBurntOrange
 };
 
 export default function TextInputField({
@@ -73,7 +73,7 @@ export default function TextInputField({
 
   // --- RENDER: TEXT INPUT FIELD ---
   return (
-    <View className="mb-4">
+    <View>
       {/* LABEL */}
       {label && (
         <Pressable onPress={focusInput}>
@@ -86,7 +86,7 @@ export default function TextInputField({
         className={`
           flex-row items-center
           border rounded-lg
-          px-3
+          px-3 h-[33] gap-2
           ${borderColorClass}
         `}
       >
@@ -99,12 +99,11 @@ export default function TextInputField({
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`
-            flex-1 mx-2
+            flex-1
             text-sm border-none
             focus:ring-0 focus:outline-none
             placeholder:text-lhlSecondaryTextGrey
           `}
-          style={{ marginVertical: 6 }}
           underlineColorAndroid="transparent"
           onFocus={handleFocus}
           onBlur={handleBlur}
