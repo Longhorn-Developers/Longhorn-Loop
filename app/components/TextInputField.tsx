@@ -12,6 +12,7 @@ interface TextInputFieldProps extends TextInputProps {
   label?: string;
   leftIcon?: React.ReactNode;
   clearable?: boolean;
+  borderRadius?: number; // px
 }
 
 const CLEARABLE_ICON_COLORS = {
@@ -23,6 +24,7 @@ export default function TextInputField({
   label,
   leftIcon,
   clearable,
+  borderRadius=8,
   ...props
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -85,10 +87,13 @@ export default function TextInputField({
       <View
         className={`
           flex-row items-center
-          border rounded-lg
+          border
           px-3 h-[33] gap-2
           ${borderColorClass}
         `}
+        style={{
+          borderRadius: borderRadius
+        }}
       >
         {/* Left Icon */}
         {leftIcon && <View>{leftIcon}</View>}
