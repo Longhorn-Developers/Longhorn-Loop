@@ -105,7 +105,7 @@ export default function TextInputField({
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`
-            flex-1
+            flex-1 leading-[0px]
             text-sm border-none
             focus:ring-0 focus:outline-none
             placeholder:text-lhlSecondaryTextGrey
