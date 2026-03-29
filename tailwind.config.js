@@ -9,6 +9,7 @@ module.exports = {
         lhlBorderColor: 'hsla(0,0%,78%,1)',
         lhlBurntOrange: 'hsla(27, 93%, 32%, 1)',
         lhlSecondaryTextGrey: 'hsla(180, 9%, 31%, 1)',
+        lhlBackgroundColor: 'hsla(45, 25%, 97%, 1)',
       },
     },
   },
