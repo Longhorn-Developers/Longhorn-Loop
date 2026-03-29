@@ -90,6 +90,7 @@ export default function TextInputField({
           border
           px-3 h-[33] gap-2
           ${borderColorClass}
+          bg-white
         `}
         style={{
           borderRadius: borderRadius
