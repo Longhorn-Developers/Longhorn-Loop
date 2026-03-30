@@ -19,6 +19,8 @@ import SpiritualityIcon from '@/assets/images/spirituality.svg';
 import TechIcon from '@/assets/images/technology.svg';
 import TravelIcon from '@/assets/images/travel.svg';
 import VideoGameIcon from '@/assets/images/Video_Game.svg';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Keyboard,
@@ -61,12 +63,9 @@ const CATEGORIES: Category[] = [
   { id: 'spirituality', label: 'Spirituality & Religion', icon: SpiritualityIcon, tags: ['Meditation & Mindfulness', 'Yoga & Spiritual Practice', 'Religious Services', 'Interfaith Dialogue', 'Buddhist Teachings', 'Christian Fellowship', 'Jewish Community Events', 'Islamic Gatherings', 'New Age & Metaphysical', 'Prayer Groups'] },
 ];
 
-interface InterestSelectionProps {
-  onNext?: () => void;
-  onBack?: () => void;
-}
-
-export default function InterestSelection({ onNext, onBack }: InterestSelectionProps) {
+export default function InterestSelection() {
+  const router = useRouter();
+  const { update } = useOnboarding();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -116,7 +115,7 @@ export default function InterestSelection({ onNext, onBack }: InterestSelectionP
       <ScrollView className="flex-1 px-8 pt-6" keyboardShouldPersistTaps="handled">
 
         {/* Back Arrow */}
-        <TouchableOpacity onPress={onBack} className="mb-8 self-start">
+        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
         </TouchableOpacity>
 
@@ -208,10 +207,10 @@ export default function InterestSelection({ onNext, onBack }: InterestSelectionP
                       </View>
                     )}
                   </View>
-                  <DropdownArrow 
-                    width={16} 
-                    height={16} 
-                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }} 
+                  <DropdownArrow
+                    width={16}
+                    height={16}
+                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
                   />
                 </TouchableOpacity>
 
@@ -247,7 +246,10 @@ export default function InterestSelection({ onNext, onBack }: InterestSelectionP
           className={`rounded-lg py-4 items-center justify-center mt-2 mb-16 ${
             allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allFilled ? onNext : undefined}
+          onPress={allFilled ? () => {
+            update({ selectedTags });
+            router.push('/TermsAndConditions');
+          } : undefined}
           activeOpacity={allFilled ? 0.8 : 1}
         >
           <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>

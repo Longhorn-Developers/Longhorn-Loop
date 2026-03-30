@@ -1,3 +1,5 @@
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
   NativeSyntheticEvent,
@@ -9,13 +11,9 @@ import {
   View,
 } from 'react-native';
 
-interface AccountVerificationProps {
-  onVerify?: () => void;
-  onBack?: () => void;
-  onResend?: () => void;
-}
-
-export default function AccountVerification({ onVerify, onBack, onResend }: AccountVerificationProps) {
+export default function AccountVerification() {
+  const router = useRouter();
+  const { data, update } = useOnboarding();
   const [code, setCode] = useState(['', '', '', '']);
   const inputs = useRef<(TextInput | null)[]>([]);
 
@@ -47,7 +45,7 @@ export default function AccountVerification({ onVerify, onBack, onResend }: Acco
       <View className="flex-1 px-6 pt-4">
 
         {/* Back Arrow */}
-        <TouchableOpacity onPress={onBack} className="mb-8 self-start">
+        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
         </TouchableOpacity>
 
@@ -79,7 +77,10 @@ export default function AccountVerification({ onVerify, onBack, onResend }: Acco
           className={`rounded-lg py-4 items-center justify-center mb-4 ${
             allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allFilled ? onVerify : undefined}
+          onPress={allFilled ? () => {
+            // TODO: call backend /auth/verify-code here
+            router.push('/CreateAccount');
+          } : undefined}
           activeOpacity={allFilled ? 0.8 : 1}
         >
           <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>
@@ -90,7 +91,9 @@ export default function AccountVerification({ onVerify, onBack, onResend }: Acco
         {/* Resend Code */}
         <View className="flex-row justify-center mt-2">
           <Text className="text-sm text-gray-500">Didn't receive the code? </Text>
-          <TouchableOpacity onPress={onResend}>
+          <TouchableOpacity onPress={() => {
+            // TODO: call backend /auth/resend-code here
+          }}>
             <Text className="text-sm text-orange-700 font-semibold">Resend Code</Text>
           </TouchableOpacity>
         </View>

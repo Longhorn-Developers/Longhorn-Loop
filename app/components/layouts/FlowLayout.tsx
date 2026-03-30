@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { ArrowLeftIcon } from 'phosphor-react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { ArrowLeftIcon } from "phosphor-react-native";
+import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
+// Onboarding, Auth, Reporting Layouts
 interface FlowLayoutProps {
   title?: string;
   subTitle?: string;
@@ -13,22 +14,19 @@ interface FlowLayoutProps {
 }
 
 export default function FlowLayout({
-  title, 
-  subTitle, 
+  title,
+  subTitle,
   children,
-  onBackPress=()=>{}, 
+  onBackPress = () => {},
 }: FlowLayoutProps) {
   return (
-
     <KeyboardAwareScrollView
-      className='bg-lhlBackgroundColor'
+      className="bg-lhlBackgroundColor"
       contentContainerStyle={{ flexGrow: 1 }}
       enableOnAndroid
       keyboardShouldPersistTaps="handled"
     >
-      <View 
-        className='min-h-screen pt-[70px] px-5'
-      >
+      <View className="min-h-screen pt-[70px] px-5">
         {/* Back Icon */}
         <Pressable onPress={onBackPress}>
           <ArrowLeftIcon size={24} />
@@ -38,19 +36,17 @@ export default function FlowLayout({
         {/* TODO */}
 
         {/* Title */}
-        {title && <Text
-          className='mt-[42px] font-semibold text-[32px]'
-        >{title}</Text>}
+        {title && (
+          <Text className="mt-[42px] font-semibold text-[32px]">{title}</Text>
+        )}
 
         {/* Sub Title */}
-        {subTitle && <Text
-          className='font-semibold text-base'
-        >{subTitle}</Text>}
+        {subTitle && (
+          <Text className="font-semibold text-base">{subTitle}</Text>
+        )}
 
         {/* Body content */}
-        <View>
-          {children}
-        </View>
+        <View>{children}</View>
       </View>
     </KeyboardAwareScrollView>
   );

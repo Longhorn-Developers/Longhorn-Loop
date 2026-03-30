@@ -1,15 +1,15 @@
 import PrimaryButton from '@/app/components/buttons/PrimaryButton';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import InlineAlert from '@/app/components/alerts/InlineAlert';
 
-interface RegisterPageProps {
-}
-
-export default function RegisterPage({
-}: RegisterPageProps) {
+export default function RegisterPage() {
+  const router = useRouter();
+  const { update } = useOnboarding();
 
   const [fieldFirstName, setFieldFirstName] = useState('');
   const [fieldLastName, setFieldLastName] = useState('');
@@ -31,13 +31,21 @@ export default function RegisterPage({
     return '';
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const error = validateForm();
     if (error) {
       setAlertMessage(error);
       return;
     }
-    // TODO: needs more checks and backend support
+
+    // TODO: call backend /auth/send-code here
+    // Store user info and navigate to verification
+    update({
+      firstName: fieldFirstName.trim(),
+      lastName: fieldLastName.trim(),
+      email: fieldEmail.trim().toLowerCase(),
+    });
+    router.push('/AccountVerification');
   };
 
   return (
@@ -45,7 +53,7 @@ export default function RegisterPage({
       title='Welcome!'
       subTitle='Start by creating an account.'
     >
-      
+
       {alertMessage && (
         <View className='mt-4'>
           <InlineAlert

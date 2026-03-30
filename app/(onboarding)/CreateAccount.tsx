@@ -1,4 +1,6 @@
 import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Keyboard,
@@ -137,12 +139,9 @@ const UNIQUE_CLASS_OPTIONS = [
   'Non Applicable',
 ];
 
-interface CreateAccountProps {
-  onNext?: () => void;
-  onBack?: () => void;
-}
-
-export default function CreateAccount({ onNext, onBack }: CreateAccountProps) {
+export default function CreateAccount() {
+  const router = useRouter();
+  const { update } = useOnboarding();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMajors, setSelectedMajors] = useState<string[]>([]);
   const [showMajorDropdown, setShowMajorDropdown] = useState(false);
@@ -185,7 +184,7 @@ export default function CreateAccount({ onNext, onBack }: CreateAccountProps) {
       <ScrollView className="flex-1 px-8 pt-6" keyboardShouldPersistTaps="handled">
 
         {/* Back Arrow */}
-        <TouchableOpacity onPress={onBack} className="mb-8 self-start">
+        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
         </TouchableOpacity>
 
@@ -328,7 +327,14 @@ export default function CreateAccount({ onNext, onBack }: CreateAccountProps) {
           className={`rounded-lg py-4 items-center justify-center mt-8 mb-16 ${
             allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allFilled ? onNext : undefined}
+          onPress={allFilled ? () => {
+            update({
+              selectedMajors,
+              selectedYear,
+              uniqueClassification: selectedUnique,
+            });
+            router.push('/InterestSelection');
+          } : undefined}
           activeOpacity={allFilled ? 0.8 : 1}
         >
           <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>

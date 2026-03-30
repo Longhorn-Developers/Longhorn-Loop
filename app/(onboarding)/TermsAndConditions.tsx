@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
 
@@ -16,12 +17,8 @@ const TERMS = [
   },
 ];
 
-interface TermsAndConditionsProps {
-  onNext?: () => void;
-  onBack?: () => void;
-}
-
-export default function TermsAndConditions({ onNext, onBack }: TermsAndConditionsProps) {
+export default function TermsAndConditions() {
+  const router = useRouter();
   const [checked, setChecked] = useState<Record<string, boolean>>({
     responsible: false,
     visible: false,
@@ -37,9 +34,9 @@ export default function TermsAndConditions({ onNext, onBack }: TermsAndCondition
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-4">
-        
+
         {/* Back Arrow */}
-        <TouchableOpacity onPress={onBack} className="mb-4 self-start">
+        <TouchableOpacity onPress={() => router.back()} className="mb-4 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
         </TouchableOpacity>
 
@@ -87,7 +84,10 @@ export default function TermsAndConditions({ onNext, onBack }: TermsAndCondition
               ? 'bg-orange-700'
               : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allChecked ? onNext : undefined}
+          onPress={allChecked ? () => {
+            // Replace so the user can't swipe back to onboarding
+            router.replace('/(tabs)/home');
+          } : undefined}
           activeOpacity={allChecked ? 0.8 : 1}
         >
           <Text
