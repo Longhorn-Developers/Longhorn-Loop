@@ -52,6 +52,7 @@ export default function RegisterPage() {
     <FlowLayout
       title='Welcome!'
       subTitle='Start by creating an account.'
+      onBackPress={() => router.back()}
     >
 
       {alertMessage && (

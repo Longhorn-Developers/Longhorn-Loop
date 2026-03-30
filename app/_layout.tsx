@@ -5,7 +5,7 @@ export default function RootLayout() {
   return (
     <OnboardingProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Entry: Login */}
+        {/* Entry: FrontPage */}
         <Stack.Screen name="index" />
 
         {/* Auth flow */}
