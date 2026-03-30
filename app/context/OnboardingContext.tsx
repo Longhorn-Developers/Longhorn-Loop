@@ -14,6 +14,9 @@ interface OnboardingData {
 
   // Interests
   selectedTags: string[];
+
+  // Avatar
+  avatar: number | null;
 }
 
 interface OnboardingContextType {
@@ -31,6 +34,7 @@ const DEFAULT_DATA: OnboardingData = {
   selectedYear: '',
   uniqueClassification: '',
   selectedTags: [],
+  avatar: null,
 };
 
 const OnboardingContext = createContext<OnboardingContextType>({

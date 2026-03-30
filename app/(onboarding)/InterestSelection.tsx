@@ -248,7 +248,7 @@ export default function InterestSelection() {
           }`}
           onPress={allFilled ? () => {
             update({ selectedTags });
-            router.push('/TermsAndConditions');
+            router.push('/Avatar');
           } : undefined}
           activeOpacity={allFilled ? 0.8 : 1}
         >
