@@ -2,6 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import authRoutes from "./routes/auth";
+import userRoutes from "./routes/users"; // ADD THIS
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/users", userRoutes); 
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
