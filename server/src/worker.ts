@@ -1,12 +1,13 @@
 // Cloudflare Worker entry point -- replaces Express index.ts for production
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { authRoutes } from "./routes/auth.worker-1";
-import { userRoutes } from "./routes/users.worker-1";
+import { authRoutes } from "./routes/auth.worker";
+import { userRoutes } from "./routes/users.worker";
 
 export type Env = {
   DB: D1Database;
   JWT_SECRET: string;
+  RESEND_API_KEY: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();

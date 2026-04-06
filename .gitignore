@@ -32,6 +32,10 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+
+# Cloudflare
+.wrangler/
 
 # typescript
 *.tsbuildinfo

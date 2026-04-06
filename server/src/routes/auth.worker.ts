@@ -25,6 +25,42 @@ function isValidUTEmail(email: string): boolean {
   return email.toLowerCase().endsWith("@utexas.edu");
 }
 
+// Send verification email via Resend
+async function sendVerificationEmail(
+  to: string,
+  code: string,
+  apiKey: string,
+): Promise<void> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "Longhorn Loop <verify@longhornloop.com>",
+      to: [to],
+      subject: "Your Longhorn Loop Verification Code",
+      html: `
+        <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #BF5700;">Longhorn Loop</h2>
+          <p>Your verification code is:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">
+            ${code}
+          </div>
+          <p style="color: #666; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+        </div>
+      `,
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    console.error("Resend error:", error);
+    throw new Error("Failed to send verification email");
+  }
+}
+
 // POST /auth/send-code
 authRoutes.post("/send-code", async (c) => {
   const { email } = await c.req.json();
@@ -71,9 +107,8 @@ authRoutes.post("/send-code", async (c) => {
     .bind(normalizedEmail, codeHash, Date.now() + CODE_EXPIRY_MS, Date.now())
     .run();
 
-  // TODO: Send actual email via Resend, SendGrid, etc.
-  // For now, log to console (visible in Workers logs)
-  console.log(`Verification code for ${normalizedEmail}: ${code}`);
+  // Send verification email
+  await sendVerificationEmail(normalizedEmail, code, c.env.RESEND_API_KEY);
 
   return c.json({ message: "VERIFICATION_CODE_SENT" });
 });
@@ -191,8 +226,8 @@ authRoutes.post("/resend-code", async (c) => {
     .bind(normalizedEmail, codeHash, Date.now() + CODE_EXPIRY_MS, Date.now())
     .run();
 
-  // TODO: Send actual email
-  console.log(`Verification code for ${normalizedEmail}: ${code}`);
+  // Send verification email
+  await sendVerificationEmail(normalizedEmail, code, c.env.RESEND_API_KEY);
 
   return c.json({ message: "VERIFICATION_CODE_SENT" });
 });
