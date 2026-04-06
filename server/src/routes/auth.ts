@@ -1,3 +1,5 @@
+// This is to have email verication code sent.
+
 import { Request, Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import { AuthRequest, requireAuth } from "../middleware/requireAuth";
@@ -5,7 +7,7 @@ import { hashCode, verificationStore } from "../store/authStore";
 import { sendVerificationEmail } from "../utils/sendEmail";
 
 const MAX_ATTEMPTS = 5;
-const RESEND_COOLDOWN_MS = 60 * 1000;   // 1 minute
+const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute
 const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 const router = Router();
@@ -33,10 +35,12 @@ router.post("/send-code", async (req: Request, res: Response) => {
   }
 
   const existingRecord = verificationStore.get(normalizedEmail);
-  if(existingRecord && Date.now() - existingRecord.lastSentAt < RESEND_COOLDOWN_MS) {
+  if (
+    existingRecord &&
+    Date.now() - existingRecord.lastSentAt < RESEND_COOLDOWN_MS
+  ) {
     return res.status(429).json({ error: "RESEND TOO SOON" });
   }
-
 
   const code = generateCode();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
@@ -76,7 +80,7 @@ router.post("/verify-code", (req: Request, res: Response) => {
     return res.status(400).json({ error: "CODE_EXPIRED" });
   }
 
-  if(record.usedAt) {
+  if (record.usedAt) {
     return res.status(400).json({ error: "CODE_ALREADY_USED" });
   }
 
@@ -84,12 +88,12 @@ router.post("/verify-code", (req: Request, res: Response) => {
     return res.status(400).json({ error: "INVALID_CODE" });
   }
 
-  if(Date.now() > record.expiresAt){
+  if (Date.now() > record.expiresAt) {
     verificationStore.delete(normalizedEmail);
     return res.status(400).json({ error: "CODE_EXPIRED" });
   }
 
-  if(record.attempts >= MAX_ATTEMPTS) {
+  if (record.attempts >= MAX_ATTEMPTS) {
     verificationStore.delete(normalizedEmail);
     return res.status(400).json({ error: "TOO_MANY_ATTEMPTS" });
   }
@@ -119,16 +123,19 @@ router.post("/resend-code", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "MISSING_EMAIL" });
   }
   const normalizedEmail = email.trim().toLowerCase();
-  if(!isValidUTEmail(normalizedEmail)) {
+  if (!isValidUTEmail(normalizedEmail)) {
     return res.status(400).json({ error: "INVALID_UT_EMAIL" });
   }
 
   const existingRecord = verificationStore.get(normalizedEmail);
-  if(existingRecord && Date.now() - existingRecord.lastSentAt < RESEND_COOLDOWN_MS) {
+  if (
+    existingRecord &&
+    Date.now() - existingRecord.lastSentAt < RESEND_COOLDOWN_MS
+  ) {
     return res.status(429).json({ error: "RESEND TOO SOON" });
   }
 
-  const code  = generateCode();
+  const code = generateCode();
   verificationStore.set(normalizedEmail, {
     codeHash: hashCode(code),
     expiresAt: Date.now() + CODE_EXPIRY_MS,
