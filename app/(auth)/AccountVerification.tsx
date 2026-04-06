@@ -1,4 +1,3 @@
-import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
@@ -13,7 +12,6 @@ import {
 
 export default function AccountVerification() {
   const router = useRouter();
-  const { data, update } = useOnboarding();
   const [code, setCode] = useState(['', '', '', '']);
   const inputs = useRef<(TextInput | null)[]>([]);
 
@@ -52,7 +50,7 @@ export default function AccountVerification() {
         {/* Title */}
         <Text className="text-2xl font-bold text-gray-900 mb-2">Account Verification</Text>
         <Text className="text-sm text-gray-500 mb-8">
-          We've sent you a verification link to your email.{'\n'}Enter the code below.
+          We&apos;ve sent you a verification link to your email.{'\n'}Enter the code below.
         </Text>
 
         {/* Code Input Boxes */}
@@ -90,7 +88,7 @@ export default function AccountVerification() {
 
         {/* Resend Code */}
         <View className="flex-row justify-center mt-2">
-          <Text className="text-sm text-gray-500">Didn't receive the code? </Text>
+          <Text className="text-sm text-gray-500">Didn&apos;t receive the code? </Text>
           <TouchableOpacity onPress={() => {
             // TODO: call backend /auth/resend-code here
           }}>
