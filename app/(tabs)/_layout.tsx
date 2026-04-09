@@ -1,51 +1,70 @@
-import { Ionicons } from "@expo/vector-icons";
+import TabCreateActiveIcon from '@/assets/images/tab-create-active.svg';
+import TabCreateIcon from '@/assets/images/tab-create.svg';
+import TabExploreActiveIcon from '@/assets/images/tab-explore-active.svg';
+import TabExploreIcon from '@/assets/images/tab-explore.svg';
+import TabHomeInactiveIcon from '@/assets/images/tab-home-inactive.svg';
+import TabHomeIcon from '@/assets/images/tab-home.svg';
+import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
+import TabProfileIcon from '@/assets/images/tab-profile.svg';
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
-        tabBarActiveTintColor: "#BF5700",
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarActiveTintColor: 'transparent',
+        tabBarInactiveTintColor: 'transparent',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E5E5E5',
+          height: 72,
+          paddingTop: 0,
+          paddingBottom: 0,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 0,
+        },
+        tabBarIconStyle: {
+          width: 42,
+          height: 42,
+        },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => focused
+            ? <TabHomeIcon width={42} height={39} />
+            : <TabHomeInactiveIcon width={42} height={39} />,
         }}
       />
 
       <Tabs.Screen
         name="explore"
         options={{
-          title: "Explore",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => focused
+            ? <TabExploreActiveIcon width={42} height={38} />
+            : <TabExploreIcon width={42} height={38} />,
         }}
       />
 
       <Tabs.Screen
         name="saved"
         options={{
-          title: "Saved",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bookmark-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => focused
+            ? <TabCreateActiveIcon width={42} height={38} />
+            : <TabCreateIcon width={42} height={38} />,
         }}
       />
 
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => focused
+            ? <TabProfileActiveIcon width={42} height={38} />
+            : <TabProfileIcon width={42} height={38} />,
         }}
       />
     </Tabs>
