@@ -13,7 +13,11 @@ export type Env = {
 const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
-app.use("*", cors());
+app.use("*", cors({
+  origin: "*",
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+}));
 
 // Health check
 app.get("/health", (c) => c.json({ status: "ok" }));
