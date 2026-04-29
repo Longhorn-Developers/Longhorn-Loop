@@ -84,11 +84,12 @@ export default function TextInputField({
       )}
 
       {/* INPUT CONTAINER */}
-      <View
+      <Pressable
+        onPress={focusInput}
         className={`
           flex-row items-center
           border
-          px-3 h-[33] gap-2
+          px-3 h-[48] gap-2
           ${borderColorClass}
           bg-white
         `}
@@ -105,11 +106,12 @@ export default function TextInputField({
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`
-            flex-1 leading-[0px]
-            text-sm border-none
+            flex-1
+            text-base border-none
             focus:ring-0 focus:outline-none
             placeholder:text-lhlSecondaryTextGrey
           `}
+          style={{ height: '100%', textAlignVertical: 'center', fontSize: 16 }}
           underlineColorAndroid="transparent"
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -129,7 +131,7 @@ export default function TextInputField({
             />
           </Pressable>
         )}
-      </View>
+      </Pressable>
     </View>
   );
 }
