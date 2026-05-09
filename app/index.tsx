@@ -1,6 +1,3 @@
+// App entry point — loads global styles and renders FrontPage as the initial screen.
 import "./globals.css";
-import { Redirect } from "expo-router";
-
-export default function Index() {
-  return <Redirect href="/(tabs)/home" />;
-}
+export { default } from "./(auth)/FrontPage";

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { authRoutes } from "./routes/auth.worker";
 import { userRoutes } from "./routes/users.worker";
+import { eventRoutes } from "./routes/events.worker";
 
 export type Env = {
   DB: D1Database;
@@ -13,7 +14,11 @@ export type Env = {
 const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
-app.use("*", cors());
+app.use("*", cors({
+  origin: "*",
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+}));
 
 // Health check
 app.get("/health", (c) => c.json({ status: "ok" }));
@@ -21,5 +26,6 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 // Routes
 app.route("/auth", authRoutes);
 app.route("/users", userRoutes);
+app.route("/events", eventRoutes);
 
 export default app;

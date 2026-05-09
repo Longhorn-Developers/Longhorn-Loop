@@ -3,9 +3,12 @@ import BookmarkIcon from '@/assets/images/bookmark.svg';
 import HookemIcon from '@/assets/images/hookem.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
-import React from 'react';
+import { API_BASE_URL } from '@/app/config/api';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
+  Image,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -13,47 +16,100 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const UPCOMING_EVENTS = [
-  { id: '1', title: 'Casino Night', org: 'SAN JAC', location: 'BLT 2.503', date: 'Fri, 2/26 • 4:00 PM', verified: true, color: '#B4B2B2' },
-  { id: '2', title: "Women's History Month", org: 'Convergent', location: 'BLT 2.503', date: 'Fri, 2/26 • 4:00 PM', verified: true, color: '#B4B2B2' },
-  { id: '3', title: 'Hackathon 2026', org: 'IEEE', location: 'EER 1.518', date: 'Sat, 3/27 • 9:00 AM', verified: true, color: '#B4B2B2' },
-  { id: '4', title: 'Longhorn Startup Fair', org: 'Texas Venture Labs', location: 'GDC Atrium', date: 'Mon, 3/29 • 2:00 PM', verified: false, color: '#B4B2B2' },
-];
+// ---------- Types ----------
 
-const INTEREST_1 = [
-  { id: '1', title: 'Game Night in WCP!', org: 'Convergent', location: 'MCP 2.120', date: 'Fri, 2/26 • 4:00 PM', verified: true, color: '#1B3A6B' },
-  { id: '2', title: 'Boutique Day', org: 'Project Princess', location: 'Union Ballroom', date: 'Fri, 2/26 • 4:00 PM', verified: false, color: '#6B1B4A' },
-  { id: '3', title: 'Board Game Bonanza', org: 'UT Game Club', location: 'SAC 2.302', date: 'Sat, 2/27 • 3:00 PM', verified: true, color: '#2D4A1B' },
-];
-
-const INTEREST_2 = [
-  { id: '1', title: 'Jazz Night', org: 'UT Jazz Ensemble', location: 'Bates Recital Hall', date: 'Fri, 3/5 • 7:00 PM', verified: true, color: '#3D1B6B' },
-  { id: '2', title: 'Open Mic Night', org: 'Cactus Cafe', location: 'Cactus Cafe', date: 'Sat, 3/6 • 8:00 PM', verified: false, color: '#6B3D1B' },
-  { id: '3', title: 'Battle of the Bands', org: 'KVRX Radio', location: "Emo's Austin", date: 'Sun, 3/7 • 6:00 PM', verified: true, color: '#1B4A6B' },
-];
-
-const INTEREST_3 = [
-  { id: '1', title: 'Rock Climbing Social', org: 'UT Climbing Club', location: 'Gregory Gym', date: 'Fri, 3/12 • 5:00 PM', verified: true, color: '#4A3D1B' },
-  { id: '2', title: '5K Fun Run', org: 'Longhorn Running', location: 'Zilker Park', date: 'Sat, 3/13 • 8:00 AM', verified: true, color: '#1B6B3D' },
-  { id: '3', title: 'Yoga on the Lawn', org: 'UT Wellness', location: 'Main Mall', date: 'Sun, 3/14 • 10:00 AM', verified: false, color: '#6B1B1B' },
-];
-
-type Event = {
-  id: string;
+interface ApiEvent {
+  id: number;
+  source: string;
+  source_event_id: string;
   title: string;
-  org: string;
-  location: string;
-  date: string;
-  verified: boolean;
-  color: string;
-};
+  description: string | null;
+  start_datetime: string;
+  end_datetime: string | null;
+  location_short: string | null;
+  location_full: string | null;
+  host_organization_id: number;
+  host_organization_name: string;
+  event_url: string | null;
+  image_url: string | null;
+  image_aspect_ratio: string | null;
+  theme: string | null;
+  visibility: string;
+  rsvp_total: number;
+  org_profile_picture: string | null;
+  categories: { id: string; name: string }[];
+  benefits: string[];
+}
 
-function EventCard({ item }: { item: Event }) {
+// ---------- Helpers ----------
+
+/**
+ * Format ISO datetime to "Fri, 4/29 • 6:00 PM"
+ */
+function formatEventDate(isoString: string): string {
+  const date = new Date(isoString);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const day = days[date.getDay()];
+  const month = date.getMonth() + 1;
+  const dayNum = date.getDate();
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  const timeStr = minutes === 0 ? `${hours}:00 ${ampm}` : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+  return `${day}, ${month}/${dayNum} • ${timeStr}`;
+}
+
+/**
+ * Get a greeting based on time of day
+ */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning,';
+  if (hour < 17) return 'Good afternoon,';
+  return 'Good evening,';
+}
+
+// ---------- Components ----------
+
+function EventCard({ item }: { item: ApiEvent }) {
+  const hasImage = !!item.image_url;
+  const hasBenefits = item.benefits && item.benefits.length > 0;
+
   return (
     <View style={{ width: 180 }} className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey">
       {/* Image area */}
       <View style={{ backgroundColor: '#D9D9D9', height: 160 }} className="w-full">
-        {/* Bookmark button — white circle with shadow */}
+        {hasImage && (
+          <Image
+            source={{ uri: item.image_url! }}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Benefits badge (e.g., Free Food) */}
+        {hasBenefits && (
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              left: 8,
+              backgroundColor: '#BF5700',
+              borderRadius: 12,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+              {item.benefits[0]}
+            </Text>
+          </View>
+        )}
+
+        {/* Bookmark button */}
         <TouchableOpacity
           style={{
             position: 'absolute',
@@ -85,26 +141,30 @@ function EventCard({ item }: { item: Event }) {
           {item.title}
         </Text>
 
-        {/* Posted by + verified badge */}
+        {/* Posted by + org profile pic */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-          <Text style={{ fontSize: 12, color: '#020B12', flex: 1 }} numberOfLines={1}>
-            Posted by {item.org}
-          </Text>
-          {item.verified && (
-            <VerifiedIcon width={16} height={16} style={{ marginLeft: 4, flexShrink: 0 }} />
+          {item.org_profile_picture && (
+            <Image
+              source={{ uri: item.org_profile_picture }}
+              style={{ width: 14, height: 14, borderRadius: 7, marginRight: 4 }}
+            />
           )}
+          <Text style={{ fontSize: 12, color: '#020B12', flex: 1 }} numberOfLines={1}>
+            {item.host_organization_name}
+          </Text>
+          <VerifiedIcon width={16} height={16} style={{ marginLeft: 4, flexShrink: 0 }} />
         </View>
 
         {/* Date */}
         <Text style={{ fontSize: 12, color: '#9A9A9A', marginBottom: 4 }}>
-          {item.date}
+          {formatEventDate(item.start_datetime)}
         </Text>
 
         {/* Location */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <LocationIcon width={14} height={14} />
           <Text style={{ fontSize: 12, color: '#9A9A9A' }} numberOfLines={1}>
-            {item.location}
+            {item.location_short || 'TBD'}
           </Text>
         </View>
       </View>
@@ -112,10 +172,39 @@ function EventCard({ item }: { item: Event }) {
   );
 }
 
-function CarouselSection({ title, data }: { title: string; data: Event[] }) {
+function CarouselSection({
+  title,
+  data,
+  loading,
+}: {
+  title: string;
+  data: ApiEvent[];
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <View style={{ marginBottom: 28, paddingHorizontal: 20 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12', marginBottom: 12 }}>
+          {title}
+        </Text>
+        <ActivityIndicator size="small" color="#BF5700" />
+      </View>
+    );
+  }
+
+  if (data.length === 0) return null;
+
   return (
     <View style={{ marginBottom: 28 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+          marginBottom: 12,
+        }}
+      >
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12' }}>{title}</Text>
         <TouchableOpacity>
           <Text style={{ fontSize: 22, color: '#9A9A9A' }}>›</Text>
@@ -126,27 +215,74 @@ function CarouselSection({ title, data }: { title: string; data: Event[] }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20 }}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
         renderItem={({ item }) => <EventCard item={item} />}
       />
     </View>
   );
 }
 
+// ---------- Main Screen ----------
+
 export default function HomeScreen() {
+  const [upcoming, setUpcoming] = useState<ApiEvent[]>([]);
+  const [freeFood, setFreeFood] = useState<ApiEvent[]>([]);
+  const [social, setSocial] = useState<ApiEvent[]>([]);
+  const [academic, setAcademic] = useState<ApiEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      // Fetch multiple sections in parallel
+      const [upcomingRes, freeFoodRes, socialRes, academicRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/events?limit=10`),
+        fetch(`${API_BASE_URL}/events?limit=10&benefit=Free Food`),
+        fetch(`${API_BASE_URL}/events?limit=10&theme=Social`),
+        fetch(`${API_BASE_URL}/events?limit=10&category=Academic`),
+      ]);
+
+      const [upcomingData, freeFoodData, socialData, academicData] = await Promise.all([
+        upcomingRes.json(),
+        freeFoodRes.json(),
+        socialRes.json(),
+        academicRes.json(),
+      ]);
+
+      setUpcoming(upcomingData.events || []);
+      setFreeFood(freeFoodData.events || []);
+      setSocial(socialData.events || []);
+      setAcademic(academicData.events || []);
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 90, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View
+          style={{
+            paddingHorizontal: 20,
+            paddingTop: 90,
+            paddingBottom: 16,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <View>
             <Text style={{ fontSize: 16, fontWeight: '400', color: '#9A9A9A' }}>
-              Good morning,
+              {getGreeting()}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>
-                User
-              </Text>
+              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>User</Text>
               <HookemIcon width={31} height={31} />
             </View>
           </View>
@@ -154,30 +290,34 @@ export default function HomeScreen() {
           {/* Bell */}
           <TouchableOpacity style={{ position: 'relative', padding: 4 }}>
             <BellIcon width={22} height={25} />
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              backgroundColor: '#EF4444',
-              borderRadius: 8,
-              width: 16,
-              height: 16,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                backgroundColor: '#EF4444',
+                borderRadius: 8,
+                width: 16,
+                height: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>1</Text>
             </View>
           </TouchableOpacity>
         </View>
 
         {/* Divider */}
-        <View style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }} />
+        <View
+          style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }}
+        />
 
-        {/* Carousels */}
-        <CarouselSection title="Upcoming" data={UPCOMING_EVENTS} />
-        <CarouselSection title="Interest 1" data={INTEREST_1} />
-        <CarouselSection title="Interest 2" data={INTEREST_2} />
-        <CarouselSection title="Interest 3" data={INTEREST_3} />
+        {/* Event Carousels — real data from API */}
+        <CarouselSection title="Upcoming" data={upcoming} loading={loading} />
+        <CarouselSection title="Free Food" data={freeFood} loading={loading} />
+        <CarouselSection title="Social" data={social} loading={loading} />
+        <CarouselSection title="Academic" data={academic} loading={loading} />
 
         <View style={{ height: 32 }} />
       </ScrollView>

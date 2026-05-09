@@ -72,8 +72,12 @@ export default function AccountVerification() {
           setError("Code has expired. Please request a new one.");
         } else if (result.error === "TOO_MANY_ATTEMPTS") {
           setError("Too many attempts. Please request a new code.");
+        } else if (result.error === "CODE_NOT_FOUND") {
+          setError("No verification code found. Please request a new one.");
+        } else if (result.error === "INVALID_UT_EMAIL") {
+          setError("Please use a valid @utexas.edu email address.");
         } else {
-          setError("Something went wrong. Please try again.");
+          setError(result.error || "Something went wrong. Please try again.");
         }
         return;
       }
@@ -83,8 +87,9 @@ export default function AccountVerification() {
         update({ token: result.token });
       }
       router.push("/CreateAccount");
-    } catch (err) {
-      setError("Network error. Please check your connection.");
+    } catch (err: any) {
+      console.error("Verify error:", err);
+      setError(`Debug: ${err.message || err}`);
     } finally {
       setLoading(false);
     }
@@ -108,8 +113,10 @@ export default function AccountVerification() {
       if (!res.ok) {
         if (result.error === "RESEND_TOO_SOON") {
           setError("Please wait before requesting a new code.");
+        } else if (result.error === "INVALID_UT_EMAIL") {
+          setError("Please use a valid @utexas.edu email address.");
         } else {
-          setError("Failed to resend code. Please try again.");
+          setError(result.error || "Failed to resend code. Please try again.");
         }
         return;
       }

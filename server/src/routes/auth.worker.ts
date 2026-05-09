@@ -194,9 +194,10 @@ authRoutes.post("/resend-code", async (c) => {
 
   const normalizedEmail = email.trim().toLowerCase();
 
-  if (!isValidUTEmail(normalizedEmail)) {
-    return c.json({ error: "INVALID_UT_EMAIL" }, 400);
-  }
+  // TODO: Re-enable UT email check for production
+  // if (!isValidUTEmail(normalizedEmail)) {
+  //   return c.json({ error: "INVALID_UT_EMAIL" }, 400);
+  // }
 
   const existing = await c.env.DB.prepare(
     "SELECT last_sent_at FROM verification_codes WHERE email = ?",
@@ -215,12 +216,13 @@ authRoutes.post("/resend-code", async (c) => {
   const codeHash = await hashCode(code);
 
   await c.env.DB.prepare(
-    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, attempts, last_sent_at)
-     VALUES (?, ?, ?, 0, 0, ?)
+    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, used_at, attempts, last_sent_at)
+     VALUES (?, ?, ?, 0, NULL, 0, ?)
      ON CONFLICT(email) DO UPDATE SET
        code_hash = excluded.code_hash,
        expires_at = excluded.expires_at,
        verified = 0,
+       used_at = NULL,
        attempts = 0,
        last_sent_at = excluded.last_sent_at`,
   )
