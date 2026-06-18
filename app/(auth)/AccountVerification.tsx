@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "@/app/config/api";
 import { useOnboarding } from "@/app/context/OnboardingContext";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   NativeSyntheticEvent,
@@ -20,9 +20,54 @@ export default function AccountVerification() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [sendingInitialCode, setSendingInitialCode] = useState(true);
   const inputs = useRef<(TextInput | null)[]>([]);
+  const hasSentInitialCode = useRef(false);
 
   const allFilled = code.every((digit) => digit !== "");
+
+  // Send a verification code as soon as this screen mounts, so the page
+  // works correctly regardless of how the user landed here (fresh signup,
+  // back-navigation, hot reload, etc.) instead of relying solely on the
+  // Register page having already triggered the send.
+  useEffect(() => {
+    if (hasSentInitialCode.current || !data.email) {
+      setSendingInitialCode(false);
+      return;
+    }
+    hasSentInitialCode.current = true;
+
+    const sendInitialCode = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/send-code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: data.email }),
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          if (result.error === "RESEND_TOO_SOON") {
+            // A code was already sent very recently (e.g. RegisterPage
+            // already triggered one) -- this is not an error state.
+          } else if (result.error === "INVALID_UT_EMAIL") {
+            setError("Please use a valid @utexas.edu email address.");
+          } else {
+            setError(
+              result.error || "Failed to send verification code. Please try again.",
+            );
+          }
+        }
+      } catch (err) {
+        setError("Network error. Please check your connection.");
+      } finally {
+        setSendingInitialCode(false);
+      }
+    };
+
+    sendInitialCode();
+  }, [data.email]);
 
   const handleChange = (text: string, index: number) => {
     const newCode = [...code];
@@ -147,7 +192,10 @@ export default function AccountVerification() {
           Account Verification
         </Text>
         <Text className="text-sm text-gray-500 mb-8">
-          We've sent a verification code to{"\n"}
+          {sendingInitialCode
+            ? "Sending a verification code to"
+            : "We've sent a verification code to"}
+          {"\n"}
           <Text className="font-semibold text-gray-700">{data.email}</Text>
         </Text>
 

@@ -7,5 +7,11 @@ binding = "DB"
 database_name = "longhorn-loop-db"
 database_id = "caa7fe52-5852-4fbe-b656-add810de2d5d"
 
+# Runs the scheduled() handler in worker.ts, which checks saved/bookmarked
+# events for upcoming start times and creates reminder notifications.
+# "*/15 * * * *" = every 15 minutes.
+[triggers]
+crons = ["*/15 * * * *"]
+
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET

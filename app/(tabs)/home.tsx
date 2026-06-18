@@ -4,6 +4,8 @@ import HookemIcon from '@/assets/images/hookem.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { API_BASE_URL } from '@/app/config/api';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -74,7 +76,15 @@ function getGreeting(): string {
 
 // ---------- Components ----------
 
-function EventCard({ item }: { item: ApiEvent }) {
+function EventCard({
+  item,
+  isSaved,
+  onToggleSave,
+}: {
+  item: ApiEvent;
+  isSaved: boolean;
+  onToggleSave: (eventId: number) => void;
+}) {
   const hasImage = !!item.image_url;
   const hasBenefits = item.benefits && item.benefits.length > 0;
 
@@ -111,6 +121,7 @@ function EventCard({ item }: { item: ApiEvent }) {
 
         {/* Bookmark button */}
         <TouchableOpacity
+          onPress={() => onToggleSave(item.id)}
           style={{
             position: 'absolute',
             top: 10,
@@ -127,7 +138,7 @@ function EventCard({ item }: { item: ApiEvent }) {
             elevation: 3,
           }}
         >
-          <BookmarkIcon width={10} height={14} />
+          <BookmarkIcon width={10} height={14} color={isSaved ? '#BF5700' : '#020B12'} />
         </TouchableOpacity>
       </View>
 
@@ -176,10 +187,14 @@ function CarouselSection({
   title,
   data,
   loading,
+  savedIds,
+  onToggleSave,
 }: {
   title: string;
   data: ApiEvent[];
   loading?: boolean;
+  savedIds: Set<number>;
+  onToggleSave: (eventId: number) => void;
 }) {
   if (loading) {
     return (
@@ -216,7 +231,13 @@ function CarouselSection({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20 }}
         keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
-        renderItem={({ item }) => <EventCard item={item} />}
+        renderItem={({ item }) => (
+          <EventCard
+            item={item}
+            isSaved={savedIds.has(item.id)}
+            onToggleSave={onToggleSave}
+          />
+        )}
       />
     </View>
   );
@@ -225,15 +246,68 @@ function CarouselSection({
 // ---------- Main Screen ----------
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const { data } = useOnboarding();
+  const token = data.token;
   const [upcoming, setUpcoming] = useState<ApiEvent[]>([]);
   const [freeFood, setFreeFood] = useState<ApiEvent[]>([]);
   const [social, setSocial] = useState<ApiEvent[]>([]);
   const [academic, setAcademic] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  useEffect(() => {
+    if (token) fetchSavedIds();
+  }, [token]);
+
+  const fetchSavedIds = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/saved`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await res.json();
+      if (res.ok && Array.isArray(result.events)) {
+        setSavedIds(new Set(result.events.map((e: ApiEvent) => e.id)));
+      }
+    } catch (err) {
+      console.error('Failed to fetch saved events:', err);
+    }
+  };
+
+  const handleToggleSave = async (eventId: number) => {
+    if (!token) return;
+
+    const wasSaved = savedIds.has(eventId);
+
+    // Optimistic update
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (wasSaved) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/saved/${eventId}`, {
+        method: wasSaved ? 'DELETE' : 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Request failed');
+    } catch (err) {
+      console.error('Failed to toggle saved event:', err);
+      // Revert on failure
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        if (wasSaved) next.add(eventId);
+        else next.delete(eventId);
+        return next;
+      });
+    }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -288,7 +362,10 @@ export default function HomeScreen() {
           </View>
 
           {/* Bell */}
-          <TouchableOpacity style={{ position: 'relative', padding: 4 }}>
+          <TouchableOpacity
+            style={{ position: 'relative', padding: 4 }}
+            onPress={() => router.push('/notifications')}
+          >
             <BellIcon width={22} height={25} />
             <View
               style={{
@@ -314,10 +391,34 @@ export default function HomeScreen() {
         />
 
         {/* Event Carousels — real data from API */}
-        <CarouselSection title="Upcoming" data={upcoming} loading={loading} />
-        <CarouselSection title="Free Food" data={freeFood} loading={loading} />
-        <CarouselSection title="Social" data={social} loading={loading} />
-        <CarouselSection title="Academic" data={academic} loading={loading} />
+        <CarouselSection
+          title="Upcoming"
+          data={upcoming}
+          loading={loading}
+          savedIds={savedIds}
+          onToggleSave={handleToggleSave}
+        />
+        <CarouselSection
+          title="Free Food"
+          data={freeFood}
+          loading={loading}
+          savedIds={savedIds}
+          onToggleSave={handleToggleSave}
+        />
+        <CarouselSection
+          title="Social"
+          data={social}
+          loading={loading}
+          savedIds={savedIds}
+          onToggleSave={handleToggleSave}
+        />
+        <CarouselSection
+          title="Academic"
+          data={academic}
+          loading={loading}
+          savedIds={savedIds}
+          onToggleSave={handleToggleSave}
+        />
 
         <View style={{ height: 32 }} />
       </ScrollView>

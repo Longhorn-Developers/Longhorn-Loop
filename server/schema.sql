@@ -112,3 +112,28 @@ CREATE TABLE IF NOT EXISTS categories (
   name TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT 'hornslink'
 );
+
+-- Saved events -- user bookmarks, drives the home screen bookmark icon
+-- and the event-reminder notification cron job
+CREATE TABLE IF NOT EXISTS saved_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  reminder_sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, event_id)
+);
+
+-- Notifications -- activity center entries per user
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'general',
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  avatar_url TEXT,
+  thumbnail_url TEXT,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
