@@ -10,8 +10,11 @@ import FlagIcon from '@/assets/images/flag.svg';
 import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
+import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
+import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { addRsvp, isRsvped as isRsvpedInStore, removeRsvp } from '@/app/lib/rsvpStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
@@ -27,6 +30,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BURNT_ORANGE = '#BF5700';
+const GOING_BLUE = '#2591D4';
 const BADGE_BROWN = '#9D4A06';
 const BG_OFFWHITE = '#F7F4EF';
 const TEXT_PRIMARY = '#020B12';
@@ -165,6 +169,13 @@ export default function EventDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
+  // RSVP state — local-only for now, persisted via AsyncStorage in rsvpStore.
+  const [isRsvped, setIsRsvped] = useState(false);
+  const [showOpenLinkModal, setShowOpenLinkModal] = useState(false);
+  const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     fetchEvent();
@@ -173,6 +184,11 @@ export default function EventDetailScreen() {
   useEffect(() => {
     if (token && id) checkIfSaved();
   }, [token, id]);
+
+  useEffect(() => {
+    if (!id) return;
+    isRsvpedInStore(Number(id)).then(setIsRsvped);
+  }, [id]);
 
   const fetchEvent = async () => {
     setLoading(true);
@@ -223,11 +239,41 @@ export default function EventDetailScreen() {
     }
   };
 
-  const handleRsvp = async () => {
+  // Top-level entry point for the RSVP button. Branches on current state
+  // and whether the event has a dedicated rsvp_url.
+  const handleRsvpPress = () => {
     if (!event) return;
-    const target = event.rsvp_url ?? event.event_url;
-    if (!target) return;
-    await WebBrowser.openBrowserAsync(target);
+    if (isRsvped) {
+      setShowCancelModal(true);
+      return;
+    }
+    if (event.rsvp_url) {
+      setShowOpenLinkModal(true);
+      return;
+    }
+    confirmRsvp();
+  };
+
+  const confirmRsvp = async () => {
+    if (!event) return;
+    await addRsvp(event.id);
+    setIsRsvped(true);
+    setShowToast(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!event) return;
+    await removeRsvp(event.id);
+    setIsRsvped(false);
+    setShowCancelModal(false);
+  };
+
+  const openExternalRsvp = async () => {
+    if (!event?.rsvp_url) return;
+    setShowOpenLinkModal(false);
+    await WebBrowser.openBrowserAsync(event.rsvp_url);
+    // After the browser closes, ask whether they actually RSVPed.
+    setShowDidYouRsvpModal(true);
   };
 
   if (loading) {
@@ -382,16 +428,72 @@ export default function EventDetailScreen() {
             <BookmarkIcon width={14} height={18} color={isSaved ? BURNT_ORANGE : TEXT_PRIMARY} />
           </TouchableOpacity>
 
-          <Pressable onPress={handleRsvp} style={styles.rsvpButton}>
-            <Text style={styles.rsvpButtonText}>RSVP</Text>
-            {hasRsvpLink && (
+          <Pressable
+            onPress={handleRsvpPress}
+            style={[
+              styles.rsvpButton,
+              { backgroundColor: isRsvped ? GOING_BLUE : BURNT_ORANGE },
+            ]}
+          >
+            <Text style={styles.rsvpButtonText}>
+              {isRsvped ? "I'm Going" : 'RSVP'}
+            </Text>
+            {isRsvped ? (
+              <Text style={{ color: '#fff', fontSize: 16, marginLeft: 6 }}>✓</Text>
+            ) : hasRsvpLink ? (
               <View style={{ marginLeft: 8 }}>
                 <ExternalLinkIcon width={16} height={16} />
               </View>
-            )}
+            ) : null}
           </Pressable>
         </View>
       </SafeAreaView>
+
+      {/* Confirmation: open external RSVP link */}
+      <ConfirmModal
+        visible={showOpenLinkModal}
+        title="Open external link?"
+        body="This RSVP will take you to an external page."
+        emphasis="Do you trust this link?"
+        primaryLabel="Yes, Continue"
+        secondaryLabel="Cancel"
+        onPrimary={openExternalRsvp}
+        onSecondary={() => setShowOpenLinkModal(false)}
+      />
+
+      {/* After returning from the browser: did you actually RSVP? */}
+      <ConfirmModal
+        visible={showDidYouRsvpModal}
+        title="Did you RSVP?"
+        body={`You clicked on the external link to RSVP for "${event.title}".`}
+        emphasis="Were you able to RSVP through the external link?"
+        primaryLabel="Yes"
+        secondaryLabel="No"
+        onPrimary={() => {
+          setShowDidYouRsvpModal(false);
+          confirmRsvp();
+        }}
+        onSecondary={() => setShowDidYouRsvpModal(false)}
+      />
+
+      {/* Cancel RSVP confirmation */}
+      <ConfirmModal
+        visible={showCancelModal}
+        title="Cancel RSVP?"
+        body={`You're about to cancel your RSVP for "${event.title}."`}
+        emphasis="Are you sure you don't want to go?"
+        primaryLabel="Yes, cancel RSVP"
+        secondaryLabel="Keep my RSVP"
+        primaryDestructive
+        onPrimary={confirmCancel}
+        onSecondary={() => setShowCancelModal(false)}
+      />
+
+      <RsvpSuccessToast
+        visible={showToast}
+        eventTitle={event.title}
+        onClose={() => setShowToast(false)}
+      />
     </View>
   );
 }
