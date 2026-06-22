@@ -6,6 +6,8 @@ import { userRoutes } from "./routes/users.worker";
 import { eventRoutes } from "./routes/events.worker";
 import { notificationRoutes } from "./routes/notifications.worker";
 import { savedRoutes } from "./routes/saved.worker";
+import { run as runTexasToday } from "./scrapers/texasToday";
+import { run as runHornsLink } from "./scrapers/hornslink";
 
 export type Env = {
   DB: D1Database;
@@ -32,19 +34,19 @@ app.route("/events", eventRoutes);
 app.route("/notifications", notificationRoutes);
 app.route("/saved", savedRoutes);
 
+// Cron schedules, configured in wrangler.toml under [triggers]. The
+// scheduled() handler below dispatches on event.cron since the two jobs
+// run at different cadences.
+const REMINDER_CRON = "*/15 * * * *";
+
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 /**
- * Cron handler -- scans saved (bookmarked) events that are starting soon
- * and haven't been reminded about yet, and inserts a notification row for
- * each one. Configure the schedule in wrangler.toml under [triggers].
+ * Scans saved (bookmarked) events that are starting soon and haven't been
+ * reminded about yet, and inserts a notification row for each one.
  */
-async function handleScheduled(
-  _event: ScheduledEvent,
-  env: Env,
-  _ctx: ExecutionContext,
-): Promise<void> {
+async function sendEventReminders(env: Env): Promise<void> {
   const now = new Date();
   const windowEnd = new Date(now.getTime() + REMINDER_LEAD_TIME_MS);
 
@@ -103,7 +105,23 @@ async function handleScheduled(
   }
 }
 
+// Export fetch + scheduled handlers together.
+// Hono's default export is a fetch handler; wrapping lets us add cron support.
 export default {
-  fetch: app.fetch,
-  scheduled: handleScheduled,
+  fetch: app.fetch.bind(app),
+
+  async scheduled(
+    event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    if (event.cron === REMINDER_CRON) {
+      ctx.waitUntil(sendEventReminders(env));
+      return;
+    }
+
+    // The 6-hour scrape cron.
+    ctx.waitUntil(runTexasToday(env));
+    ctx.waitUntil(runHornsLink(env));
+  },
 };
