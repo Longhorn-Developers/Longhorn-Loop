@@ -1,24 +1,28 @@
 import { ArrowLeft } from 'phosphor-react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
-  Animated,
+  Dimensions,
   Image,
   SectionList,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { API_BASE_URL } from '@/app/config/api';
-import { useOnboarding } from '@/app/context/OnboardingContext';
 
 // ---------- Types ----------
 
 interface Notification {
   id: number;
-  user_id: number;
   type: string;
   title: string;
   subtitle: string | null;
@@ -34,17 +38,108 @@ interface Section {
   data: Notification[];
 }
 
-// ---------- Helpers ----------
+// ---------- Mock Data ----------
 
-function relativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
+const now = new Date();
+const todayStr = (hoursAgo: number) =>
+  new Date(now.getTime() - hoursAgo * 60 * 60 * 1000).toISOString();
+
+const yesterdayBase = new Date(now);
+yesterdayBase.setDate(yesterdayBase.getDate() - 1);
+const yesterdayStr = (hour: number) => {
+  const d = new Date(yesterdayBase);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+
+const daysAgoStr = (days: number, hour: number) => {
+  const d = new Date(now);
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: 1,
+    type: 'event_reminder',
+    title: "Converge's Social Extravaganza",
+    subtitle: 'is happening in 2 hours!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 101,
+    read_at: null,
+    created_at: todayStr(0.5),
+  },
+  {
+    id: 2,
+    type: 'event_reminder',
+    title: 'Game Night @ WCP',
+    subtitle: 'is happening in 3 hours!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 102,
+    read_at: null,
+    created_at: todayStr(1),
+  },
+  {
+    id: 3,
+    type: 'event_reminder',
+    title: 'Game Night @ SAL JAC MPR',
+    subtitle: 'is happening in 1 hour!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 103,
+    read_at: null,
+    created_at: todayStr(2),
+  },
+  {
+    id: 4,
+    type: 'event_reminder',
+    title: "Converge's Social Extravaganza",
+    subtitle: 'is happening in 2 hours!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 104,
+    read_at: yesterdayStr(14),
+    created_at: yesterdayStr(12),
+  },
+  {
+    id: 5,
+    type: 'event_reminder',
+    title: 'College of Sciences Career Fair',
+    subtitle: 'is happening in 1 hour!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 105,
+    read_at: yesterdayStr(10),
+    created_at: yesterdayStr(9),
+  },
+  {
+    id: 6,
+    type: 'event_reminder',
+    title: 'Sana Associates',
+    subtitle: 'is happening in 3 hours!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 106,
+    read_at: daysAgoStr(3, 15),
+    created_at: daysAgoStr(3, 12),
+  },
+  {
+    id: 7,
+    type: 'event_reminder',
+    title: 'SHPE General Meeting',
+    subtitle: 'is happening in 2 hours!',
+    avatar_url: null,
+    thumbnail_url: null,
+    event_id: 107,
+    read_at: daysAgoStr(5, 20),
+    created_at: daysAgoStr(5, 18),
+  },
+];
+
+// ---------- Helpers ----------
 
 function groupByDate(items: Notification[]): Section[] {
   const now = new Date();
@@ -74,6 +169,10 @@ function groupByDate(items: Notification[]): Section[] {
 
 // ---------- NotificationRow ----------
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SNAP_THRESHOLD = 90; // px to reveal delete button
+const DELETE_THRESHOLD = SCREEN_WIDTH * 0.35; // full-swipe delete
+
 function NotificationRow({
   item,
   onDelete,
@@ -81,57 +180,203 @@ function NotificationRow({
   item: Notification;
   onDelete: (id: number) => void;
 }) {
-  const renderRightActions = () => (
-    <TouchableOpacity
-      onPress={() => onDelete(item.id)}
-      className="bg-red-500 justify-center items-center w-[76px] my-1 mr-2 rounded-xl"
-    >
-      <Text className="text-white font-bold text-[13px]">Delete</Text>
-    </TouchableOpacity>
-  );
+  const isUnread = !item.read_at;
+  const translateX = useSharedValue(0);
+  const rowHeight = useSharedValue(72);
+  const rowOpacity = useSharedValue(1);
+  const isSnapped = useSharedValue(false); // locked at delete-button position
+  const startX = useSharedValue(0);
+  const isDeletingRef = useRef(false);
+
+  const triggerDelete = useCallback(() => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
+    onDelete(item.id);
+  }, [item.id, onDelete]);
+
+  const collapseAndDelete = useCallback(() => {
+    'worklet';
+    translateX.value = withTiming(-SCREEN_WIDTH, { duration: 200 }, () => {
+      rowHeight.value = withTiming(0, { duration: 200 });
+      rowOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(triggerDelete)();
+      });
+    });
+  }, [translateX, rowHeight, rowOpacity, triggerDelete]);
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-15, 15]) // must move 15px horizontally before activating (fixes scroll conflict)
+    .failOffsetY([-10, 10])   // cancel if vertical movement > 10px (lets scroll take over)
+    .onStart(() => {
+      startX.value = translateX.value;
+    })
+    .onUpdate((e) => {
+      const newX = startX.value + e.translationX;
+      // Allow left swipe only, clamp at 0
+      translateX.value = Math.min(0, newX);
+    })
+    .onEnd((e) => {
+      const currentX = translateX.value;
+      const velocity = e.velocityX;
+
+      // Full swipe delete — past threshold or fast flick
+      if (currentX < -DELETE_THRESHOLD || velocity < -800) {
+        collapseAndDelete();
+        return;
+      }
+
+      // Snap to show delete button — between half-snap and threshold
+      if (currentX < -(SNAP_THRESHOLD * 0.5)) {
+        isSnapped.value = true;
+        translateX.value = withSpring(-SNAP_THRESHOLD, {
+          damping: 20,
+          stiffness: 200,
+        });
+        return;
+      }
+
+      // Snap back to closed
+      isSnapped.value = false;
+      translateX.value = withSpring(0, {
+        damping: 20,
+        stiffness: 200,
+      });
+    });
+
+  const handleDeleteTap = useCallback(() => {
+    // Animate off-screen then collapse
+    translateX.value = withTiming(-SCREEN_WIDTH, { duration: 200 }, () => {
+      rowHeight.value = withTiming(0, { duration: 200 });
+      rowOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(triggerDelete)();
+      });
+    });
+  }, [translateX, rowHeight, rowOpacity, triggerDelete]);
+
+  // Animated styles
+  const rowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    height: rowHeight.value,
+    opacity: rowOpacity.value,
+    overflow: 'hidden' as const,
+  }));
+
+  const deleteBackgroundStyle = useAnimatedStyle(() => {
+    const progress = Math.min(Math.abs(translateX.value) / DELETE_THRESHOLD, 1);
+    return {
+      opacity: 0.3 + progress * 0.7,
+    };
+  });
 
   return (
-    <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
-      <View className="flex-row items-center px-5 py-3 bg-lhlBackgroundColor gap-3">
-        {item.avatar_url ? (
-          <Image
-            source={{ uri: item.avatar_url }}
-            className="w-10 h-10 rounded-full shrink-0"
-          />
-        ) : (
-          <View className="w-10 h-10 rounded-full shrink-0 bg-[#D9D9D9]" />
-        )}
-
-        <View className="flex-1 gap-0.5">
-          <Text
-            className="text-sm font-bold text-[#020B12] leading-5"
-            numberOfLines={2}
+    <Animated.View style={containerAnimatedStyle}>
+      <View style={{ position: 'relative', flex: 1 }}>
+        {/* Red delete background — sits behind the row */}
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#EF4444',
+              justifyContent: 'center',
+              alignItems: 'flex-end',
+            },
+            deleteBackgroundStyle,
+          ]}
+        >
+          {/* Tappable delete button area */}
+          <TouchableOpacity
+            onPress={handleDeleteTap}
+            activeOpacity={0.7}
+            style={{
+              width: SNAP_THRESHOLD,
+              height: '100%',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
           >
-            {item.title}
-          </Text>
-          {item.subtitle ? (
-            <Text
-              className="text-[13px] text-[#9A9A9A] leading-[18px]"
-              numberOfLines={1}
-            >
-              {item.subtitle}
-            </Text>
-          ) : null}
-          <Text className="text-xs text-[#C7C5C5] leading-4">
-            {relativeTime(item.created_at)}
-          </Text>
-        </View>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Delete</Text>
+          </TouchableOpacity>
+        </Animated.View>
 
-        {item.thumbnail_url ? (
-          <Image
-            source={{ uri: item.thumbnail_url }}
-            className="w-14 h-14 rounded-lg shrink-0"
-          />
-        ) : (
-          <View className="w-14 h-14 rounded-lg shrink-0 bg-[#D9D9D9]" />
-        )}
+        {/* Foreground row that slides */}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={rowAnimatedStyle}>
+            <View className="flex-row items-center px-5 py-3 bg-lhlBackgroundColor gap-3">
+              {/* Unread dot */}
+              {isUnread && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: 8,
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: '#BF5700',
+                  }}
+                />
+              )}
+
+              {/* Avatar */}
+              {item.avatar_url ? (
+                <Image
+                  source={{ uri: item.avatar_url }}
+                  className="w-10 h-10 rounded-full shrink-0"
+                />
+              ) : (
+                <View
+                  className="w-10 h-10 rounded-full shrink-0 items-center justify-center"
+                  style={{ backgroundColor: '#BF5700' }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+                    {item.title.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
+              {/* Text content */}
+              <View className="flex-1 gap-0.5">
+                <Text
+                  className="text-sm leading-5"
+                  style={{
+                    fontWeight: isUnread ? '700' : '400',
+                    color: isUnread ? '#020B12' : '#6B7280',
+                  }}
+                  numberOfLines={2}
+                >
+                  {item.title}
+                </Text>
+                {item.subtitle ? (
+                  <Text
+                    className="text-[13px] leading-[18px]"
+                    style={{ color: isUnread ? '#6B7280' : '#9CA3AF' }}
+                    numberOfLines={1}
+                  >
+                    {item.subtitle}
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Event thumbnail */}
+              {item.thumbnail_url ? (
+                <Image
+                  source={{ uri: item.thumbnail_url }}
+                  className="w-14 h-14 rounded-lg shrink-0"
+                />
+              ) : (
+                <View className="w-14 h-14 rounded-lg shrink-0 bg-[#D9D9D9]" />
+              )}
+            </View>
+          </Animated.View>
+        </GestureDetector>
       </View>
-    </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -139,98 +384,54 @@ function NotificationRow({
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { data } = useOnboarding();
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [toastVisible, setToastVisible] = useState(false);
 
-  const pendingDeleteRef = useRef<{ id: number; item: Notification } | null>(null);
+  const pendingDeleteRef = useRef<{ id: number; item: Notification; index: number } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastOpacityVal = useSharedValue(0);
 
-  useEffect(() => {
-    fetchNotifications();
+  const sections = groupByDate(notifications);
+  const isEmpty = notifications.length === 0;
 
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        const pending = pendingDeleteRef.current;
-        if (pending) {
-          fetch(`${API_BASE_URL}/notifications/${pending.id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${data.token}` },
-          }).catch(console.error);
-        }
-      }
-    };
-  }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/notifications`, {
-        headers: { Authorization: `Bearer ${data.token}` },
-      });
-      const json = await res.json() as { notifications?: Notification[] };
-      setNotifications(json.notifications ?? []);
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const toastAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: toastOpacityVal.value,
+  }));
 
   const showToast = () => {
     setToastVisible(true);
-    Animated.timing(toastOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
+    toastOpacityVal.value = withTiming(1, { duration: 200 });
   };
 
   const hideToast = (callback?: () => void) => {
-    Animated.timing(toastOpacity, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
+    toastOpacityVal.value = withTiming(0, { duration: 200 });
+    setTimeout(() => {
       setToastVisible(false);
       callback?.();
-    });
+    }, 220);
   };
 
   const handleDelete = (id: number) => {
-    const item = notifications.find((n) => n.id === id);
-    if (!item) return;
+    const index = notifications.findIndex((n) => n.id === id);
+    if (index === -1) return;
+    const item = notifications[index];
 
-    // Commit any already-pending delete before starting a new one
+    // Commit any already-pending delete
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
-      const prev = pendingDeleteRef.current;
-      if (prev) {
-        fetch(`${API_BASE_URL}/notifications/${prev.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${data.token}` },
-        }).catch(console.error);
-      }
     }
 
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    pendingDeleteRef.current = { id, item };
+    pendingDeleteRef.current = { id, item, index };
     showToast();
 
     timerRef.current = setTimeout(() => {
-      const pending = pendingDeleteRef.current;
-      if (!pending) return;
       pendingDeleteRef.current = null;
       timerRef.current = null;
-      fetch(`${API_BASE_URL}/notifications/${pending.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${data.token}` },
-      }).catch(console.error);
       hideToast();
+      // TODO: call DELETE /notifications/:id when backend is ready
     }, 4000);
   };
 
@@ -244,19 +445,17 @@ export default function NotificationsScreen() {
     pendingDeleteRef.current = null;
 
     if (pending) {
-      setNotifications((prev) =>
-        [...prev, pending.item].sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        ),
-      );
+      setNotifications((prev) => {
+        const newList = [...prev];
+        newList.splice(pending.index, 0, pending.item);
+        return newList;
+      });
     }
 
     hideToast();
   };
 
-  const handleClearAll = async () => {
-    // Cancel any in-flight pending delete — clear all supersedes it
+  const handleClearAll = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -264,19 +463,8 @@ export default function NotificationsScreen() {
     pendingDeleteRef.current = null;
     hideToast();
     setNotifications([]);
-
-    try {
-      await fetch(`${API_BASE_URL}/notifications`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${data.token}` },
-      });
-    } catch (err) {
-      console.error('Failed to clear notifications:', err);
-    }
+    // TODO: call DELETE /notifications (clear all) when backend is ready
   };
-
-  const sections = groupByDate(notifications);
-  const isEmpty = !loading && notifications.length === 0;
 
   return (
     <GestureHandlerRootView className="flex-1">
@@ -290,7 +478,7 @@ export default function NotificationsScreen() {
             <ArrowLeft size={24} color="#020B12" />
           </TouchableOpacity>
 
-          <Text className="text-lg font-bold text-[#020B12]">Activity</Text>
+          <Text className="text-lg font-bold text-[#020B12]">Notifications</Text>
 
           {notifications.length > 0 ? (
             <TouchableOpacity
@@ -308,8 +496,14 @@ export default function NotificationsScreen() {
 
         {/* Content */}
         {isEmpty ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-base text-[#9A9A9A]">No new notifications</Text>
+          <View className="flex-1 items-center justify-center px-10">
+            <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+            <Text className="text-base text-[#374151] font-semibold mb-2 text-center">
+              No new notifications
+            </Text>
+            <Text className="text-sm text-[#9CA3AF] text-center">
+              When you have upcoming events or activity, they'll show up here.
+            </Text>
           </View>
         ) : (
           <SectionList
@@ -319,7 +513,7 @@ export default function NotificationsScreen() {
               <NotificationRow item={item} onDelete={handleDelete} />
             )}
             renderSectionHeader={({ section: { title } }) => (
-              <Text className="text-[13px] font-semibold text-[#9A9A9A] px-5 pt-4 pb-2 bg-lhlBackgroundColor">
+              <Text className="text-[13px] font-semibold text-lhlBurntOrange px-5 pt-4 pb-2 bg-lhlBackgroundColor">
                 {title}
               </Text>
             )}
@@ -329,17 +523,19 @@ export default function NotificationsScreen() {
           />
         )}
 
-        {/* Toast */}
+        {/* Undo Toast */}
         {toastVisible && (
           <Animated.View
             className="absolute bottom-[100px] left-5 right-5 bg-[#020B12] rounded-xl px-4 py-[14px] flex-row items-center justify-between"
-            style={{
-              opacity: toastOpacity,
-              shadowColor: '#000',
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 6,
-            }}
+            style={[
+              toastAnimatedStyle,
+              {
+                shadowColor: '#000',
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 6,
+              },
+            ]}
           >
             <Text className="text-white text-sm flex-1">Notification deleted</Text>
             <TouchableOpacity onPress={handleUndo}>
