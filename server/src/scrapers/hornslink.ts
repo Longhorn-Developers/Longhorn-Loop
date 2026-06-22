@@ -8,6 +8,8 @@
  * Image base: https://se-images.campuslabs.com/clink/images/
  */
 
+import type { Env } from "../worker";
+
 // ---------- Types ----------
 
 interface HornsLinkEvent {
@@ -49,6 +51,7 @@ interface ScraperResult {
   eventsProcessed: number;
   eventsInserted: number;
   eventsUpdated: number;
+  eventsSkipped: number;
   errors: string[];
   durationMs: number;
 }
@@ -69,6 +72,16 @@ const PAGE_SIZE = 20;
 const MAX_PAGES = 5; // Start small: 100 events max
 const REQUEST_DELAY_MS = 500; // 500ms between requests
 const MAX_RETRIES = 3;
+const DAYS_AHEAD = 30;
+
+// Cron settings: 25 pages * 20/page = up to 500 events, matching the
+// 200-500 events/run target for the scheduled scrape.
+const CRON_MAX_PAGES = 25;
+// Stay well under the Workers CPU/wall-clock limit for scheduled handlers —
+// if we run long, stop early and pick up the remaining pages next run
+// (safe because results are ordered by endsOn ascending, so we always make
+// progress on the soonest-ending events first).
+const TIME_BUDGET_MS = 25_000;
 
 // ---------- Helpers ----------
 
@@ -138,12 +151,15 @@ function stripHtml(html: string | null): string | null {
 function buildSearchUrl(page: number): string {
   const now = new Date();
   const startsAfter = now.toISOString();
-  // Look 30 days ahead
-  const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  // Look DAYS_AHEAD days ahead. The API doesn't reliably honor an upper
+  // bound param, so this is a best-effort hint — the real enforcement
+  // happens client-side in scrapeHornsLink via the endsOn cutoff check.
+  const endDate = new Date(now.getTime() + DAYS_AHEAD * 24 * 60 * 60 * 1000);
   const endsBefore = endDate.toISOString();
 
   const params = new URLSearchParams({
     endsAfter: startsAfter,
+    endsBefore,
     orderByField: "endsOn",
     orderByDirection: "ascending",
     status: "Approved",
@@ -359,16 +375,19 @@ async function insertCategoriesAndBenefits(
 
 export async function scrapeHornsLink(
   db: D1Database,
-  options?: { maxPages?: number; dryRun?: boolean },
+  options?: { maxPages?: number; dryRun?: boolean; timeBudgetMs?: number },
 ): Promise<ScraperResult> {
   const startTime = Date.now();
   const maxPages = options?.maxPages ?? MAX_PAGES;
   const dryRun = options?.dryRun ?? false;
+  const timeBudgetMs = options?.timeBudgetMs ?? TIME_BUDGET_MS;
+  const cutoffMs = startTime + DAYS_AHEAD * 24 * 60 * 60 * 1000;
 
   const result: ScraperResult = {
     eventsProcessed: 0,
     eventsInserted: 0,
     eventsUpdated: 0,
+    eventsSkipped: 0,
     errors: [],
     durationMs: 0,
   };
@@ -378,6 +397,13 @@ export async function scrapeHornsLink(
   );
 
   for (let page = 0; page < maxPages; page++) {
+    if (page > 0 && Date.now() - startTime > timeBudgetMs) {
+      console.warn(
+        `[HornsLink] Time budget (${timeBudgetMs}ms) exceeded after page ${page}, stopping early. Remaining pages will be picked up next run.`,
+      );
+      break;
+    }
+
     try {
       const url = buildSearchUrl(page);
       console.log(`[HornsLink] Fetching page ${page + 1}/${maxPages}...`);
@@ -398,6 +424,14 @@ export async function scrapeHornsLink(
       for (const event of data.value) {
         try {
           result.eventsProcessed++;
+
+          // Defense in depth: enforce the 30-day window client-side in case
+          // the API ignores the endsBefore hint.
+          const startMs = new Date(event.startsOn).getTime();
+          if (!isNaN(startMs) && startMs > cutoffMs) {
+            result.eventsSkipped++;
+            continue;
+          }
 
           if (dryRun) {
             console.log(
@@ -436,8 +470,30 @@ export async function scrapeHornsLink(
 
   result.durationMs = Date.now() - startTime;
   console.log(
-    `[HornsLink] Scrape complete: ${result.eventsProcessed} processed, ${result.eventsInserted} inserted, ${result.eventsUpdated} updated, ${result.errors.length} errors in ${result.durationMs}ms`,
+    `[HornsLink] Scrape complete: ${result.eventsProcessed} fetched, ` +
+      `${result.eventsInserted + result.eventsUpdated} upserted ` +
+      `(${result.eventsInserted} inserted, ${result.eventsUpdated} updated), ` +
+      `${result.eventsSkipped} skipped, ${result.errors.length} errors ` +
+      `in ${result.durationMs}ms`,
   );
 
   return result;
+}
+
+/**
+ * Cron entrypoint — called by the scheduled handler in worker.ts every 6h.
+ * Uses a larger page budget than the manual /events/scrape route to reach
+ * the 200-500 events/run target.
+ */
+export async function run(env: Env): Promise<void> {
+  console.log("[HornsLink] Cron scrape started");
+
+  const result = await scrapeHornsLink(env.DB, { maxPages: CRON_MAX_PAGES });
+
+  if (result.errors.length > 0) {
+    console.error(
+      `[HornsLink] Cron run had ${result.errors.length} event-level error(s):`,
+      result.errors,
+    );
+  }
 }

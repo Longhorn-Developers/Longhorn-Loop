@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 name = "longhorn-loop-api"
 main = "src/worker.ts"
 compatibility_date = "2024-01-01"
@@ -15,3 +16,24 @@ crons = ["*/15 * * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
+=======
+name = "longhorn-loop-api"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "longhorn-loop-db"
+database_id = "caa7fe52-5852-4fbe-b656-add810de2d5d"
+
+[triggers]
+# Both schedules fire the same scheduled() handler in worker.ts, which
+# dispatches on event.cron:
+#   "0 */6 * * *"  -> scrapes Texas Today + HornsLink for new/updated events
+#   "*/15 * * * *" -> checks saved/bookmarked events for upcoming start
+#                      times and creates reminder notifications
+crons = ["0 */6 * * *", "*/15 * * * *"]
+
+# Set your JWT secret as a Workers secret (not in this file):
+#   wrangler secret put JWT_SECRET
+>>>>>>> upstream/main

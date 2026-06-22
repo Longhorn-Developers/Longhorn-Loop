@@ -45,3 +45,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Project context
+Longhorn_Loop_Readme.md

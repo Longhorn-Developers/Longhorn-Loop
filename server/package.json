@@ -16,15 +16,18 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "hono": "^4.12.26",
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260415.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.9",
     "wrangler": "^4.83.0"
   }
 }
