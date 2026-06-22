@@ -85,8 +85,19 @@ export default function AccountVerification() {
     e: NativeSyntheticEvent<TextInputKeyPressEventData>,
     index: number,
   ) => {
-    if (e.nativeEvent.key === "Backspace" && !code[index] && index > 0) {
-      inputs.current[index - 1]?.focus();
+    if (e.nativeEvent.key === "Backspace") {
+      if (code[index]) {
+        // Clear current digit immediately
+        const newCode = [...code];
+        newCode[index] = "";
+        setCode(newCode);
+      } else if (index > 0) {
+        // Already empty — clear previous digit and move focus back
+        const newCode = [...code];
+        newCode[index - 1] = "";
+        setCode(newCode);
+        inputs.current[index - 1]?.focus();
+      }
     }
   };
 
@@ -222,7 +233,6 @@ export default function AccountVerification() {
               onKeyPress={(e) => handleKeyPress(e, index)}
               keyboardType="number-pad"
               maxLength={1}
-              selectTextOnFocus
             />
           ))}
         </View>
