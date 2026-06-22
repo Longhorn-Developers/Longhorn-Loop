@@ -27,6 +27,11 @@ export interface ApiEvent {
   org_profile_picture: string | null;
   categories: { id: string; name: string }[];
   benefits: string[];
+  expires_at: string | null;
+  is_featured: number;
+  created_by_user_id: number | null;
+  is_archived: number;
+  archived_at: string | null;
 }
 
 // Formats an ISO datetime as "Fri, 4/29 • 6:00 PM".

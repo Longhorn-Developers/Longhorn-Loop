@@ -231,6 +231,15 @@ async function upsertOrganization(
     .run();
 }
 
+// Purge target for the cleanup job (LOOP-150): end time + 7 days, falling
+// back to the start time when an event has no end time.
+const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+function computeExpiresAt(endsOn: string | null, startsOn: string): string {
+  const base = endsOn ?? startsOn;
+  return new Date(new Date(base).getTime() + EXPIRES_AFTER_MS).toISOString();
+}
+
 async function upsertEvent(
   db: D1Database,
   event: HornsLinkEvent,
@@ -240,6 +249,7 @@ async function upsertEvent(
   const locationShort = truncateLocation(event.location);
   const eventUrl = `${HORNSLINK_EVENT_URL_BASE}${event.id}`;
   const cleanDescription = stripHtml(event.description);
+  const expiresAt = computeExpiresAt(event.endsOn, event.startsOn);
 
   // Check if event already exists
   const existing = await db
@@ -258,7 +268,7 @@ async function upsertEvent(
           location_short = ?, location_full = ?, latitude = ?, longitude = ?,
           host_organization_id = ?, host_organization_name = ?,
           event_url = ?, image_url = ?, image_aspect_ratio = ?,
-          theme = ?, visibility = ?, rsvp_total = ?,
+          theme = ?, visibility = ?, rsvp_total = ?, expires_at = ?,
           status = 'active', updated_at = datetime('now')
         WHERE source = 'hornslink' AND source_event_id = ?`,
       )
@@ -279,6 +289,7 @@ async function upsertEvent(
         event.theme,
         event.visibility,
         event.rsvpTotal,
+        expiresAt,
         event.id,
       )
       .run();
@@ -306,13 +317,13 @@ async function upsertEvent(
           start_datetime, end_datetime, location_short, location_full,
           latitude, longitude, host_organization_id, host_organization_name,
           event_url, image_url, image_aspect_ratio, theme,
-          visibility, rsvp_total, status
+          visibility, rsvp_total, expires_at, status
         ) VALUES (
           'hornslink', ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, 'active'
+          ?, ?, ?, 'active'
         )`,
       )
       .bind(
@@ -333,6 +344,7 @@ async function upsertEvent(
         event.theme,
         event.visibility,
         event.rsvpTotal,
+        expiresAt,
       )
       .run();
 
@@ -497,3 +509,7 @@ export async function run(env: Env): Promise<void> {
     );
   }
 }
+
+
+
+

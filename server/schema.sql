@@ -86,8 +86,22 @@ CREATE TABLE IF NOT EXISTS events (
   status TEXT DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Purge target for the cleanup job (LOOP-150); defaults to end_datetime + 7 days
+  expires_at TEXT,
+  -- Pins an event to the top of feeds
+  is_featured INTEGER NOT NULL DEFAULT 0,
+  -- NULL for scraped events; set for user-created events
+  created_by_user_id INTEGER REFERENCES users(id),
+  -- Soft-delete flag set by the cleanup job instead of a hard delete, so
+  -- past user-linked events remain visible in profile history (LOOP-200)
+  is_archived INTEGER NOT NULL DEFAULT 0,
+  archived_at TEXT,
   UNIQUE(source, source_event_id)
 );
+
+-- Cleanup job (LOOP-150) and past-events view (LOOP-200) both filter on these
+CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
+CREATE INDEX IF NOT EXISTS idx_events_created_by_user_id ON events(created_by_user_id);
 
 -- Event categories -- many-to-many
 CREATE TABLE IF NOT EXISTS event_categories (
