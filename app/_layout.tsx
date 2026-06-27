@@ -21,8 +21,10 @@ export default function RootLayout() {
         {/* Main tabs — disable swipe back to prevent returning to onboarding */}
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
-        {/* Event detail */}
-        <Stack.Screen name="event/[id]" />
+        {/* Event detail + nested screens */}
+        <Stack.Screen name="event/[id]/index" />
+        <Stack.Screen name="event/[id]/report" />
+        <Stack.Screen name="event/[id]/report-success" />
       </Stack>
 
       {!splashDone && <SplashScreen onFinish={() => setSplashDone(true)} />}

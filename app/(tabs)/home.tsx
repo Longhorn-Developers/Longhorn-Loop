@@ -3,8 +3,8 @@ import HookemIcon from '@/assets/images/hookem.svg';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -103,6 +103,15 @@ export default function HomeScreen() {
     if (token) fetchSavedIds();
   }, [token]);
 
+  // Re-fetch whenever the home tab regains focus. Keeps the feed fresh after
+  // mutations on other screens (RSVP, save, report).
+  useFocusEffect(
+    useCallback(() => {
+      fetchEvents();
+      if (token) fetchSavedIds();
+    }, [token]),
+  );
+
   const fetchSavedIds = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/saved`, {
@@ -150,12 +159,14 @@ export default function HomeScreen() {
 
   const fetchEvents = async () => {
     try {
-      // Fetch multiple sections in parallel
+      // Send the auth header so the backend can hide events this user has
+      // reported (in addition to the global threshold filter).
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [upcomingRes, freeFoodRes, socialRes, academicRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/events?limit=10`),
-        fetch(`${API_BASE_URL}/events?limit=10&benefit=Free Food`),
-        fetch(`${API_BASE_URL}/events?limit=10&theme=Social`),
-        fetch(`${API_BASE_URL}/events?limit=10&category=Academic`),
+        fetch(`${API_BASE_URL}/events?limit=10`, { headers }),
+        fetch(`${API_BASE_URL}/events?limit=10&benefit=Free Food`, { headers }),
+        fetch(`${API_BASE_URL}/events?limit=10&theme=Social`, { headers }),
+        fetch(`${API_BASE_URL}/events?limit=10&category=Academic`, { headers }),
       ]);
 
       const [upcomingData, freeFoodData, socialData, academicData] = await Promise.all([

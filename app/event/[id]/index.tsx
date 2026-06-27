@@ -412,8 +412,10 @@ export default function EventDetailScreen() {
           <Text style={styles.sectionHeader}>Attendees</Text>
           <AttendeesRow />
 
-          {/* TODO: wire up reporting flow. */}
-          <TouchableOpacity disabled style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            onPress={() => router.push(`/event/${id}/report`)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+          >
             <FlagIcon width={12} height={14} />
             <Text style={{ color: REPORT_RED, fontSize: 14, fontWeight: '600' }}>
               Report this event
