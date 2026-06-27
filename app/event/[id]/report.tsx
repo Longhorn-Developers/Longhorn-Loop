@@ -11,8 +11,10 @@
 //   - show inline red banner if validation fails
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
-import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { api } from '@/app/lib/api';
+import { events as eventsKeys } from '@/app/lib/queryKeys';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -48,14 +50,14 @@ export default function ReportEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
-  const token = onboarding.token;
+  const token = onboarding.token || null;
+  const queryClient = useQueryClient();
 
   const [selectedReasons, setSelectedReasons] = useState<Set<ReasonCode>>(
     new Set(),
   );
   const [description, setDescription] = useState('');
   const [showError, setShowError] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const isValid =
     selectedReasons.size > 0 && description.trim().length > 0;
@@ -70,40 +72,37 @@ export default function ReportEventScreen() {
     });
   };
 
-  const handleSubmit = async () => {
-    if (!isValid) {
-      setShowError(true);
-      return;
-    }
-    if (!token) {
-      setShowError(true);
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/events/${id}/report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+  const submitReport = useMutation({
+    mutationFn: () =>
+      api.post(`/events/${id}/report`, {
+        token,
+        body: {
           reasons: Array.from(selectedReasons),
           description: description.trim(),
-        }),
-      });
-      if (!res.ok) {
-        console.error('Report failed:', await res.text());
-        setShowError(true);
-        return;
-      }
+        },
+      }),
+    onSuccess: () => {
+      // The reported event is filtered out of /events list queries, so
+      // refresh the home carousels. Detail-screen queries don't need
+      // refetching: each detail screen the user already viewed will
+      // 404 if they revisit it, which is the correct behavior.
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
       router.replace(`/event/${id}/report-success`);
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error('Report request failed:', err);
       setShowError(true);
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const submitting = submitReport.isPending;
+
+  const handleSubmit = () => {
+    if (!isValid || !token) {
+      setShowError(true);
+      return;
     }
+    submitReport.mutate();
   };
 
   return (

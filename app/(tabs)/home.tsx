@@ -1,10 +1,16 @@
 import BellIcon from '@/assets/images/bell.svg';
 import HookemIcon from '@/assets/images/hookem.svg';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
-import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { api } from '@/app/lib/api';
+import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -20,6 +26,26 @@ function getGreeting(): string {
   if (hour < 12) return 'Good morning,';
   if (hour < 17) return 'Good afternoon,';
   return 'Good evening,';
+}
+
+// Shape the events list endpoint returns.
+type EventsListResponse = { events: ApiEvent[] };
+type SavedListResponse = { events: ApiEvent[] };
+
+// Tiny helper: fetch one carousel's worth of events.
+function eventListQueryOptions(
+  filterKey: string,
+  search: string,
+  token: string | null,
+) {
+  return {
+    queryKey: eventsKeys.list({ filter: filterKey }),
+    queryFn: () =>
+      api.get<EventsListResponse>(`/events?${search}`, { token }),
+    // Use a slightly longer staleTime so the four carousels don't re-fire
+    // back-to-back. They still refetch on focus.
+    staleTime: 30_000,
+  };
 }
 
 function CarouselSection({
@@ -82,110 +108,97 @@ function CarouselSection({
   );
 }
 
-// ---------- Main Screen ----------
-
 export default function HomeScreen() {
   const router = useRouter();
   const { data } = useOnboarding();
-  const token = data.token;
-  const [upcoming, setUpcoming] = useState<ApiEvent[]>([]);
-  const [freeFood, setFreeFood] = useState<ApiEvent[]>([]);
-  const [social, setSocial] = useState<ApiEvent[]>([]);
-  const [academic, setAcademic] = useState<ApiEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  const token = data.token || null;
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  useEffect(() => {
-    if (token) fetchSavedIds();
-  }, [token]);
-
-  // Re-fetch whenever the home tab regains focus. Keeps the feed fresh after
-  // mutations on other screens (RSVP, save, report).
-  useFocusEffect(
-    useCallback(() => {
-      fetchEvents();
-      if (token) fetchSavedIds();
-    }, [token]),
+  // Four event carousels — each its own query so they cache independently.
+  const upcomingQuery = useQuery(
+    eventListQueryOptions('upcoming', 'limit=10', token),
+  );
+  const freeFoodQuery = useQuery(
+    eventListQueryOptions('free-food', 'limit=10&benefit=Free Food', token),
+  );
+  const socialQuery = useQuery(
+    eventListQueryOptions('social', 'limit=10&theme=Social', token),
+  );
+  const academicQuery = useQuery(
+    eventListQueryOptions('academic', 'limit=10&category=Academic', token),
   );
 
-  const fetchSavedIds = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/saved`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const result = await res.json();
-      if (res.ok && Array.isArray(result.events)) {
-        setSavedIds(new Set(result.events.map((e: ApiEvent) => e.id)));
+  // Saved IDs — only run when signed in.
+  const savedQuery = useQuery({
+    queryKey: savedKeys.list(),
+    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
+    enabled: !!token,
+  });
+
+  const savedIds = React.useMemo(
+    () => new Set((savedQuery.data?.events ?? []).map((e) => e.id)),
+    [savedQuery.data],
+  );
+
+  // Toggle save with optimistic UI. onMutate flips the cache instantly,
+  // onError rolls back, onSettled re-fetches to sync with the server.
+  const toggleSave = useMutation({
+    mutationFn: async ({
+      eventId,
+      wasSaved,
+    }: {
+      eventId: number;
+      wasSaved: boolean;
+    }) => {
+      if (wasSaved) {
+        await api.delete(`/saved/${eventId}`, { token });
+      } else {
+        await api.post(`/saved/${eventId}`, { token });
       }
-    } catch (err) {
-      console.error('Failed to fetch saved events:', err);
-    }
-  };
+    },
+    onMutate: async ({ eventId, wasSaved }) => {
+      await queryClient.cancelQueries({ queryKey: savedKeys.list() });
+      const previous = queryClient.getQueryData<SavedListResponse>(
+        savedKeys.list(),
+      );
+      queryClient.setQueryData<SavedListResponse>(
+        savedKeys.list(),
+        (old) => {
+          const list = old?.events ?? [];
+          if (wasSaved) {
+            return { events: list.filter((e) => e.id !== eventId) };
+          }
+          // We don't have the full event here; the placeholder shape is fine
+          // for membership checks until onSettled re-fetches the real list.
+          return {
+            events: [...list, { id: eventId } as ApiEvent],
+          };
+        },
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(savedKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: savedKeys.list() });
+    },
+  });
 
-  const handleToggleSave = async (eventId: number) => {
+  const handleToggleSave = (eventId: number) => {
     if (!token) return;
-
-    const wasSaved = savedIds.has(eventId);
-
-    // Optimistic update
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (wasSaved) next.delete(eventId);
-      else next.add(eventId);
-      return next;
-    });
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/saved/${eventId}`, {
-        method: wasSaved ? 'DELETE' : 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Request failed');
-    } catch (err) {
-      console.error('Failed to toggle saved event:', err);
-      // Revert on failure
-      setSavedIds((prev) => {
-        const next = new Set(prev);
-        if (wasSaved) next.add(eventId);
-        else next.delete(eventId);
-        return next;
-      });
-    }
+    toggleSave.mutate({ eventId, wasSaved: savedIds.has(eventId) });
   };
 
-  const fetchEvents = async () => {
-    try {
-      // Send the auth header so the backend can hide events this user has
-      // reported (in addition to the global threshold filter).
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [upcomingRes, freeFoodRes, socialRes, academicRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/events?limit=10`, { headers }),
-        fetch(`${API_BASE_URL}/events?limit=10&benefit=Free Food`, { headers }),
-        fetch(`${API_BASE_URL}/events?limit=10&theme=Social`, { headers }),
-        fetch(`${API_BASE_URL}/events?limit=10&category=Academic`, { headers }),
-      ]);
-
-      const [upcomingData, freeFoodData, socialData, academicData] = await Promise.all([
-        upcomingRes.json(),
-        freeFoodRes.json(),
-        socialRes.json(),
-        academicRes.json(),
-      ]);
-
-      setUpcoming(upcomingData.events || []);
-      setFreeFood(freeFoodData.events || []);
-      setSocial(socialData.events || []);
-      setAcademic(academicData.events || []);
-    } catch (err) {
-      console.error('Failed to fetch events:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // While any carousel is on its first fetch we show the loader; subsequent
+  // background refetches are silent.
+  const loading =
+    upcomingQuery.isPending ||
+    freeFoodQuery.isPending ||
+    socialQuery.isPending ||
+    academicQuery.isPending;
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>
@@ -242,31 +255,30 @@ export default function HomeScreen() {
           style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }}
         />
 
-        {/* Event Carousels — real data from API */}
         <CarouselSection
           title="Upcoming"
-          data={upcoming}
+          data={upcomingQuery.data?.events ?? []}
           loading={loading}
           savedIds={savedIds}
           onToggleSave={handleToggleSave}
         />
         <CarouselSection
           title="Free Food"
-          data={freeFood}
+          data={freeFoodQuery.data?.events ?? []}
           loading={loading}
           savedIds={savedIds}
           onToggleSave={handleToggleSave}
         />
         <CarouselSection
           title="Social"
-          data={social}
+          data={socialQuery.data?.events ?? []}
           loading={loading}
           savedIds={savedIds}
           onToggleSave={handleToggleSave}
         />
         <CarouselSection
           title="Academic"
-          data={academic}
+          data={academicQuery.data?.events ?? []}
           loading={loading}
           savedIds={savedIds}
           onToggleSave={handleToggleSave}
