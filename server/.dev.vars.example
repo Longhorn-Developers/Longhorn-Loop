@@ -1,0 +1,14 @@
+# Local secrets for `wrangler dev`. Copy to .dev.vars and fill in.
+# .dev.vars is git-ignored; .dev.vars.example is the template.
+
+# Used to sign JWT tokens. Any string works for local dev.
+JWT_SECRET=local-dev-jwt-secret-change-me
+
+# Resend API key. Only needed if RESEND_DEV_MODE != "true".
+# Get one at https://resend.com (free tier OK).
+RESEND_API_KEY=
+
+# When "true", the Worker logs verification codes to the console instead of
+# emailing them. Lets you test signup locally without a verified Resend
+# domain. Never set this in production.
+RESEND_DEV_MODE=true

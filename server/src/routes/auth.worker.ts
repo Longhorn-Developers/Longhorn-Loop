@@ -25,6 +25,24 @@ function isValidUTEmail(email: string): boolean {
   return email.toLowerCase().endsWith("@utexas.edu");
 }
 
+// Decide how to deliver the verification code. In dev mode we just log it
+// so devs can test signup without a verified Resend domain. Otherwise we
+// call Resend.
+async function deliverVerificationCode(
+  to: string,
+  code: string,
+  env: Env,
+): Promise<void> {
+  if (env.RESEND_DEV_MODE === "true") {
+    console.log(
+      `\n[DEV] Verification code for ${to}: ${code}\n` +
+        `      (RESEND_DEV_MODE=true — skipping Resend)\n`,
+    );
+    return;
+  }
+  await sendVerificationEmail(to, code, env.RESEND_API_KEY);
+}
+
 // Send verification email via Resend
 async function sendVerificationEmail(
   to: string,
@@ -109,7 +127,7 @@ authRoutes.post("/send-code", async (c) => {
     .run();
 
   // Send verification email
-  await sendVerificationEmail(normalizedEmail, code, c.env.RESEND_API_KEY);
+  await deliverVerificationCode(normalizedEmail, code, c.env);
 
   return c.json({ message: "VERIFICATION_CODE_SENT" });
 });
@@ -230,7 +248,7 @@ authRoutes.post("/resend-code", async (c) => {
     .run();
 
   // Send verification email
-  await sendVerificationEmail(normalizedEmail, code, c.env.RESEND_API_KEY);
+  await deliverVerificationCode(normalizedEmail, code, c.env);
 
   return c.json({ message: "VERIFICATION_CODE_SENT" });
 });
