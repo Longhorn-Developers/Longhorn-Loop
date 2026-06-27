@@ -1,9 +1,17 @@
+import { API_BASE_URL } from '@/app/config/api';
+import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function OnboardingComplete() {
   const router = useRouter();
+  const { data } = useOnboarding();
+
+  // Has the user tapped the CTA at least once? Drives the button label.
+  // false → "GO TO HOME PAGE", true → "TRY AGAIN" after a failed attempt.
+  const [hasAttempted, setHasAttempted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const checkScale = useRef(new Animated.Value(0)).current;
   const checkOpacity = useRef(new Animated.Value(0)).current;
@@ -28,6 +36,60 @@ export default function OnboardingComplete() {
       ]),
     ]).start();
   }, []);
+
+  // Save the collected onboarding data to the backend, then navigate home.
+  // Two calls: profile first (creates the user row), agreements second
+  // (the agreements endpoint UPDATEs and assumes the row exists).
+  const submitOnboarding = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${data.token}`,
+      };
+
+      const profileRes = await fetch(`${API_BASE_URL}/users/me/profile`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          first_name: data.firstName,
+          last_name: data.lastName,
+          avatar: data.avatar,
+          year_classification: data.selectedYear,
+          unique_classification: data.uniqueClassification,
+          majors: data.selectedMajors,
+          tags: data.selectedTags,
+        }),
+      });
+      if (!profileRes.ok) throw new Error('profile failed');
+
+      const agreementsRes = await fetch(`${API_BASE_URL}/users/me/agreements`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          agreed_responsible_use: true,
+          agreed_visibility_acknowledgment: true,
+          agreed_community_guidelines: true,
+          notifications_enabled: true,
+        }),
+      });
+      if (!agreementsRes.ok) throw new Error('agreements failed');
+
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      console.error('Onboarding submit failed:', err);
+      setHasAttempted(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const buttonLabel = submitting
+    ? 'SAVING…'
+    : hasAttempted
+      ? 'TRY AGAIN'
+      : 'GO TO HOME PAGE';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -66,11 +128,12 @@ export default function OnboardingComplete() {
           ]}
         >
           <TouchableOpacity
-            style={styles.button}
-            onPress={() => router.replace('/(tabs)/home')}
+            style={[styles.button, submitting && styles.buttonDisabled]}
+            onPress={submitOnboarding}
+            disabled={submitting}
             activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>GO TO HOME PAGE</Text>
+            <Text style={styles.buttonText}>{buttonLabel}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -126,6 +189,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
