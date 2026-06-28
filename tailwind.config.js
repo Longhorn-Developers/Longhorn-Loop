@@ -11,6 +11,9 @@ module.exports = {
         lhlSecondaryTextGrey: 'hsla(180, 9%, 31%, 1)',
         lhlBackgroundColor: 'hsla(45, 25%, 97%, 1)',
       },
+      fontFamily: {
+        roboto: ["Roboto-Flex"],
+      },
     },
   },
   plugins: [],
