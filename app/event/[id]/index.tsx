@@ -12,9 +12,15 @@ import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
-import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { api, ApiError } from '@/app/lib/api';
+import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, isRsvped as isRsvpedInStore, removeRsvp } from '@/app/lib/rsvpStore';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
@@ -158,86 +164,94 @@ function AttendeesRow() {
   );
 }
 
+type SavedListResponse = { events: ApiEvent[] };
+
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
-  const token = onboarding.token;
+  const token = onboarding.token || null;
+  const queryClient = useQueryClient();
 
-  const [event, setEvent] = useState<ApiEvent | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSaved, setIsSaved] = useState(false);
-
-  // RSVP state — local-only for now, persisted via AsyncStorage in rsvpStore.
+  // RSVP UI state stays local — it's not server data.
   const [isRsvped, setIsRsvped] = useState(false);
   const [showOpenLinkModal, setShowOpenLinkModal] = useState(false);
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
-    fetchEvent();
-  }, [id]);
+  // Fetch the event.
+  const eventQuery = useQuery({
+    queryKey: eventsKeys.detail(id!),
+    queryFn: () => api.get<ApiEvent>(`/events/${id}`, { token }),
+    enabled: !!id,
+  });
 
-  useEffect(() => {
-    if (token && id) checkIfSaved();
-  }, [token, id]);
+  // Fetch saved IDs so we can show the correct bookmark state.
+  const savedQuery = useQuery({
+    queryKey: savedKeys.list(),
+    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
+    enabled: !!token,
+  });
+
+  const event = eventQuery.data ?? null;
+  const isSaved = React.useMemo(() => {
+    const list = savedQuery.data?.events ?? [];
+    return list.some((e) => String(e.id) === String(id));
+  }, [savedQuery.data, id]);
+
+  // Optimistic toggle save.
+  const toggleSave = useMutation({
+    mutationFn: async (wasSaved: boolean) => {
+      if (!event) return;
+      if (wasSaved) {
+        await api.delete(`/saved/${event.id}`, { token });
+      } else {
+        await api.post(`/saved/${event.id}`, { token });
+      }
+    },
+    onMutate: async (wasSaved) => {
+      if (!event) return;
+      await queryClient.cancelQueries({ queryKey: savedKeys.list() });
+      const previous = queryClient.getQueryData<SavedListResponse>(
+        savedKeys.list(),
+      );
+      queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
+        const list = old?.events ?? [];
+        if (wasSaved) {
+          return { events: list.filter((e) => e.id !== event.id) };
+        }
+        return { events: [...list, { id: event.id } as ApiEvent] };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(savedKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: savedKeys.list() });
+    },
+  });
+
+  const handleToggleSave = () => {
+    if (!token || !event) return;
+    toggleSave.mutate(isSaved);
+  };
 
   useEffect(() => {
     if (!id) return;
     isRsvpedInStore(Number(id)).then(setIsRsvped);
   }, [id]);
 
-  const fetchEvent = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/events/${id}`);
-      if (!res.ok) {
-        setError(res.status === 404 ? 'This event could not be found.' : 'Something went wrong loading this event.');
-        return;
-      }
-      setEvent(await res.json());
-    } catch (err) {
-      console.error('Failed to fetch event:', err);
-      setError('Could not load event. Check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkIfSaved = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/saved`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const result = await res.json();
-      if (Array.isArray(result.events)) {
-        setIsSaved(result.events.some((e: ApiEvent) => String(e.id) === String(id)));
-      }
-    } catch (err) {
-      console.error('Failed to check saved state:', err);
-    }
-  };
-
-  const handleToggleSave = async () => {
-    if (!token || !event) return;
-    const wasSaved = isSaved;
-    setIsSaved(!wasSaved);
-    try {
-      const res = await fetch(`${API_BASE_URL}/saved/${event.id}`, {
-        method: wasSaved ? 'DELETE' : 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Request failed');
-    } catch (err) {
-      console.error('Failed to toggle saved event:', err);
-      setIsSaved(wasSaved);
-    }
-  };
+  // Map the query state to the existing loading / error / event UI.
+  const loading = eventQuery.isPending;
+  const error = eventQuery.isError
+    ? eventQuery.error instanceof ApiError && eventQuery.error.status === 404
+      ? 'This event could not be found.'
+      : 'Something went wrong loading this event.'
+    : null;
 
   // Top-level entry point for the RSVP button. Branches on current state
   // and whether the event has a dedicated rsvp_url.
