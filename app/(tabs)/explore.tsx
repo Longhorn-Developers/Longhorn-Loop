@@ -205,12 +205,13 @@ export default function ExploreScreen() {
 
       {/* Content */}
       {showList ? (
-        // List view — EventCard is 180px wide (hardcoded in the component) so cards
-        // render left-aligned. This is expected v1 behaviour.
         <FlatList
+          key="explore-grid"
           data={allEvents}
           keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, gap: 16 }}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <Text style={{ color: TEXT_MUTED, textAlign: 'center', marginTop: 40 }}>
@@ -222,6 +223,7 @@ export default function ExploreScreen() {
               item={item}
               isSaved={savedIds.has(item.id)}
               onToggleSave={handleToggleSave}
+              style={{ flex: 1, width: undefined, marginRight: 0 }}
             />
           )}
         />

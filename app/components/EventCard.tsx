@@ -2,6 +2,7 @@ import BookmarkIcon from '@/assets/images/bookmark.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { useRouter } from 'expo-router';
+import { type ViewStyle } from 'react-native';
 import React from 'react';
 import { Image, Pressable, Text, TouchableOpacity, View } from 'react-native';
 
@@ -60,9 +61,10 @@ interface EventCardProps {
   item: ApiEvent;
   isSaved: boolean;
   onToggleSave: (eventId: number) => void;
+  style?: ViewStyle;
 }
 
-export default function EventCard({ item, isSaved, onToggleSave }: EventCardProps) {
+export default function EventCard({ item, isSaved, onToggleSave, style }: EventCardProps) {
   const router = useRouter();
   const hasImage = !!item.image_url;
   const hasBenefits = item.benefits && item.benefits.length > 0;
@@ -74,7 +76,7 @@ export default function EventCard({ item, isSaved, onToggleSave }: EventCardProp
   return (
     <Pressable
       onPress={handlePress}
-      style={{ width: 180 }}
+      style={[{ width: 180 }, style]}
       className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey"
     >
       <View style={{ backgroundColor: '#D9D9D9', height: 160 }} className="w-full">
