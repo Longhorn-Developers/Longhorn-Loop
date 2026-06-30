@@ -26,7 +26,7 @@ export default function FlowLayout({
       enableOnAndroid
       keyboardShouldPersistTaps="handled"
     >
-      <View className="min-h-screen pt-[70px] px-5">
+      <View className="min-h-screen pt-[70px] px-[20px]">
         {/* Back Icon */}
         <Pressable onPress={onBackPress}>
           <ArrowLeftIcon size={24} />
@@ -37,12 +37,16 @@ export default function FlowLayout({
 
         {/* Title */}
         {title && (
-          <Text className="mt-[42px] font-semibold text-[32px]">{title}</Text>
+          <Text className="mt-[50px] font-['Roboto-Flex'] font-semibold text-[32px]">
+            {title}
+          </Text>
         )}
 
         {/* Sub Title */}
         {subTitle && (
-          <Text className="font-semibold text-base">{subTitle}</Text>
+          <Text className="mt-[6px] mb-[4px] font-['Roboto-Flex'] font-semibold text-[16px]">
+            {subTitle}
+          </Text>
         )}
 
         {/* Body content */}

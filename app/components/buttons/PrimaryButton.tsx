@@ -1,6 +1,6 @@
 import { IconProps } from 'phosphor-react-native';
 import React from 'react';
-import { Pressable, Text, PressableProps, View } from 'react-native';
+import { Pressable, PressableProps, Text, View } from 'react-native';
 
 interface PrimaryButtonProps extends PressableProps {
   isFilled?: boolean;
@@ -55,7 +55,7 @@ export default function PrimaryButton({
 
       {/* Button Label */}
       <Text
-        className={`font-semibold text-xl ${textColorClass} pb-[2px]`}
+        className={`font-['Roboto-Flex'] font-semibold text-xl ${textColorClass} pb-[2px]`}
       >
         {label}
       </Text>

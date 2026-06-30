@@ -81,7 +81,7 @@ export default function RegisterPage() {
   return (
     <FlowLayout
       title='Welcome!'
-      subTitle='Start by creating an account.'
+      subTitle='Start creating an account.'
       onBackPress={() => router.back()}
     >
 
@@ -132,7 +132,7 @@ export default function RegisterPage() {
         />
       </View>
 
-      <View className='mt-[42px] mx-2'>
+      <View className='mt-[42px]'>
         <PrimaryButton
           label={loading ? 'Sending...' : 'Sign Up'}
           isFilled={isEmailValid && !loading}
