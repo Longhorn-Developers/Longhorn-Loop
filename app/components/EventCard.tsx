@@ -15,6 +15,8 @@ export interface ApiEvent {
   end_datetime: string | null;
   location_short: string | null;
   location_full: string | null;
+  latitude: number | null;
+  longitude: number | null;
   host_organization_id: number;
   host_organization_name: string;
   event_url: string | null;

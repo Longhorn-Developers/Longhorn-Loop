@@ -21,3 +21,9 @@ export const notifications = {
   all: ['notifications'] as const,
   list: () => [...notifications.all, 'list'] as const,
 };
+
+export const explore = {
+  all: ['explore'] as const,
+  events: (params: Record<string, string | undefined> = {}) =>
+    [...explore.all, 'events', params] as const,
+};
