@@ -53,14 +53,11 @@ export default function ReportEventScreen() {
   const token = onboarding.token || null;
   const queryClient = useQueryClient();
 
-  const [selectedReasons, setSelectedReasons] = useState<Set<ReasonCode>>(
-    new Set(),
-  );
+  const [selectedReasons, setSelectedReasons] = useState<Set<ReasonCode>>(new Set());
   const [description, setDescription] = useState('');
   const [showError, setShowError] = useState(false);
 
-  const isValid =
-    selectedReasons.size > 0 && description.trim().length > 0;
+  const isValid = selectedReasons.size > 0 && description.trim().length > 0;
 
   const toggleReason = (code: ReasonCode) => {
     setShowError(false);
@@ -127,9 +124,7 @@ export default function ReportEventScreen() {
 
           {showError && (
             <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>
-                Please fill out all of the required fields.
-              </Text>
+              <Text style={styles.errorText}>Please fill out all of the required fields.</Text>
             </View>
           )}
 
@@ -143,12 +138,7 @@ export default function ReportEventScreen() {
                   onPress={() => toggleReason(r.code)}
                   style={styles.checkboxRow}
                 >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      checked && styles.checkboxChecked,
-                    ]}
-                  >
+                  <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
                     {checked && <Text style={styles.checkboxMark}>✓</Text>}
                   </View>
                   <Text

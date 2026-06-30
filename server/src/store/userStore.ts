@@ -1,9 +1,9 @@
 type UserRecord = {
-  email: string;        
+  email: string;
   agreed_responsible_use: boolean;
   agreed_visibility_acknowledgment: boolean;
-  agreed_community_guidelines: boolean;         
-  notifications_enabled : boolean;        
+  agreed_community_guidelines: boolean;
+  notifications_enabled: boolean;
   terms_accepted_at?: string;
   onboarding_completed: boolean;
 };

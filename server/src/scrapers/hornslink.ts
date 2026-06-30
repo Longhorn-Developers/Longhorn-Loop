@@ -8,7 +8,7 @@
  * Image base: https://se-images.campuslabs.com/clink/images/
  */
 
-import type { Env } from "../worker";
+import type { Env } from '../worker';
 
 // ---------- Types ----------
 
@@ -34,12 +34,12 @@ interface HornsLinkEvent {
   latitude: string | null;
   longitude: string | null;
   rsvpTotal: number;
-  "@search.score": number;
+  '@search.score': number;
 }
 
 interface HornsLinkSearchResponse {
-  "@odata.count": number;
-  "@search.facets": {
+  '@odata.count': number;
+  '@search.facets': {
     CategoryIds: Array<{ value: string; count: number }>;
     BenefitNames: Array<{ value: string; count: number }>;
     Theme: Array<{ value: string; count: number }>;
@@ -58,14 +58,10 @@ interface ScraperResult {
 
 // ---------- Constants ----------
 
-const HORNSLINK_API_BASE =
-  "https://utexas.campuslabs.com/engage/api/discovery/event/search";
-const HORNSLINK_EVENT_URL_BASE =
-  "https://utexas.campuslabs.com/engage/event/";
-const IMAGE_BASE_URL =
-  "https://se-images.campuslabs.com/clink/images/";
-const ORG_PROFILE_IMAGE_BASE =
-  "https://se-images.campuslabs.com/clink/images/";
+const HORNSLINK_API_BASE = 'https://utexas.campuslabs.com/engage/api/discovery/event/search';
+const HORNSLINK_EVENT_URL_BASE = 'https://utexas.campuslabs.com/engage/event/';
+const IMAGE_BASE_URL = 'https://se-images.campuslabs.com/clink/images/';
+const ORG_PROFILE_IMAGE_BASE = 'https://se-images.campuslabs.com/clink/images/';
 
 // Polite scraping settings
 const PAGE_SIZE = 20;
@@ -94,7 +90,7 @@ function sleep(ms: number): Promise<void> {
  */
 function truncateLocation(location: string | null): string | null {
   if (!location) return null;
-  return location.length > 40 ? location.substring(0, 37) + "..." : location;
+  return location.length > 40 ? location.substring(0, 37) + '...' : location;
 }
 
 /**
@@ -106,12 +102,12 @@ function classifyAspectRatio(
   height: number | null,
   hasImage: boolean,
 ): string {
-  if (!hasImage) return "none";
-  if (!width || !height) return "square"; // default when dimensions unknown
+  if (!hasImage) return 'none';
+  if (!width || !height) return 'square'; // default when dimensions unknown
   const ratio = width / height;
-  if (ratio < 0.8) return "vertical";
-  if (ratio > 1.2) return "horizontal";
-  return "square";
+  if (ratio < 0.8) return 'vertical';
+  if (ratio > 1.2) return 'horizontal';
+  return 'square';
 }
 
 /**
@@ -128,20 +124,20 @@ function buildImageUrl(imagePath: string | null): string | null {
 function stripHtml(html: string | null): string | null {
   if (!html) return null;
   return html
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&mdash;/g, "—")
+    .replace(/&mdash;/g, '—')
     .replace(/&rsquo;/g, "'")
     .replace(/&lsquo;/g, "'")
-    .replace(/&rdquo;/g, "\u201D")
-    .replace(/&ldquo;/g, "\u201C")
-    .replace(/&oacute;/g, "ó")
-    .replace(/\s+/g, " ")
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&oacute;/g, 'ó')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -160,9 +156,9 @@ function buildSearchUrl(page: number): string {
   const params = new URLSearchParams({
     endsAfter: startsAfter,
     endsBefore,
-    orderByField: "endsOn",
-    orderByDirection: "ascending",
-    status: "Approved",
+    orderByField: 'endsOn',
+    orderByDirection: 'ascending',
+    status: 'Approved',
     take: PAGE_SIZE.toString(),
     skip: (page * PAGE_SIZE).toString(),
   });
@@ -172,16 +168,13 @@ function buildSearchUrl(page: number): string {
 
 // ---------- Fetch with retry ----------
 
-async function fetchWithRetry(
-  url: string,
-  retries = MAX_RETRIES,
-): Promise<Response> {
+async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<Response> {
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       const res = await fetch(url, {
         headers: {
-          Accept: "application/json",
-          "User-Agent": "LonghornLoop/1.0 (student-project)",
+          Accept: 'application/json',
+          'User-Agent': 'LonghornLoop/1.0 (student-project)',
         },
       });
 
@@ -205,15 +198,12 @@ async function fetchWithRetry(
       await sleep(backoff);
     }
   }
-  throw new Error("All retries exhausted");
+  throw new Error('All retries exhausted');
 }
 
 // ---------- Database Operations ----------
 
-async function upsertOrganization(
-  db: D1Database,
-  event: HornsLinkEvent,
-): Promise<void> {
+async function upsertOrganization(db: D1Database, event: HornsLinkEvent): Promise<void> {
   const profilePicUrl = event.organizationProfilePicture
     ? `${ORG_PROFILE_IMAGE_BASE}${event.organizationProfilePicture}`
     : null;
@@ -240,10 +230,7 @@ function computeExpiresAt(endsOn: string | null, startsOn: string): string {
   return new Date(new Date(base).getTime() + EXPIRES_AFTER_MS).toISOString();
 }
 
-async function upsertEvent(
-  db: D1Database,
-  event: HornsLinkEvent,
-): Promise<{ isNew: boolean }> {
+async function upsertEvent(db: D1Database, event: HornsLinkEvent): Promise<{ isNew: boolean }> {
   const imageUrl = buildImageUrl(event.imagePath);
   const aspectRatio = classifyAspectRatio(null, null, !!event.imagePath);
   const locationShort = truncateLocation(event.location);
@@ -253,9 +240,7 @@ async function upsertEvent(
 
   // Check if event already exists
   const existing = await db
-    .prepare(
-      "SELECT id FROM events WHERE source = 'hornslink' AND source_event_id = ?",
-    )
+    .prepare("SELECT id FROM events WHERE source = 'hornslink' AND source_event_id = ?")
     .bind(event.id)
     .first();
 
@@ -296,14 +281,8 @@ async function upsertEvent(
 
     // Clear and re-insert categories and benefits
     const eventId = existing.id as number;
-    await db
-      .prepare("DELETE FROM event_categories WHERE event_id = ?")
-      .bind(eventId)
-      .run();
-    await db
-      .prepare("DELETE FROM event_benefits WHERE event_id = ?")
-      .bind(eventId)
-      .run();
+    await db.prepare('DELETE FROM event_categories WHERE event_id = ?').bind(eventId).run();
+    await db.prepare('DELETE FROM event_benefits WHERE event_id = ?').bind(eventId).run();
 
     await insertCategoriesAndBenefits(db, eventId, event);
 
@@ -404,9 +383,7 @@ export async function scrapeHornsLink(
     durationMs: 0,
   };
 
-  console.log(
-    `[HornsLink] Starting scrape (maxPages=${maxPages}, dryRun=${dryRun})`,
-  );
+  console.log(`[HornsLink] Starting scrape (maxPages=${maxPages}, dryRun=${dryRun})`);
 
   for (let page = 0; page < maxPages; page++) {
     if (page > 0 && Date.now() - startTime > timeBudgetMs) {
@@ -429,7 +406,7 @@ export async function scrapeHornsLink(
       }
 
       console.log(
-        `[HornsLink] Got ${data.value.length} events (total available: ${data["@odata.count"]})`,
+        `[HornsLink] Got ${data.value.length} events (total available: ${data['@odata.count']})`,
       );
 
       // Process each event with error isolation
@@ -447,7 +424,7 @@ export async function scrapeHornsLink(
 
           if (dryRun) {
             console.log(
-              `[DRY RUN] Event: "${event.name}" by ${event.organizationName} @ ${event.location || "TBD"} on ${event.startsOn}`,
+              `[DRY RUN] Event: "${event.name}" by ${event.organizationName} @ ${event.location || 'TBD'} on ${event.startsOn}`,
             );
             continue;
           }
@@ -498,7 +475,7 @@ export async function scrapeHornsLink(
  * the 200-500 events/run target.
  */
 export async function run(env: Env): Promise<void> {
-  console.log("[HornsLink] Cron scrape started");
+  console.log('[HornsLink] Cron scrape started');
 
   const result = await scrapeHornsLink(env.DB, { maxPages: CRON_MAX_PAGES });
 

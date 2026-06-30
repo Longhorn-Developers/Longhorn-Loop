@@ -34,7 +34,6 @@ export default function TermsAndConditions() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-4">
-
         {/* Back Arrow */}
         <TouchableOpacity onPress={() => router.back()} className="mb-4 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
@@ -60,14 +59,10 @@ export default function TermsAndConditions() {
             >
               <View
                 className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 shrink-0 ${
-                  checked[term.id]
-                    ? 'bg-orange-700 border-orange-700'
-                    : 'bg-white border-gray-400'
+                  checked[term.id] ? 'bg-orange-700 border-orange-700' : 'bg-white border-gray-400'
                 }`}
               >
-                {checked[term.id] && (
-                  <Text className="text-white text-xs font-bold">✓</Text>
-                )}
+                {checked[term.id] && <Text className="text-white text-xs font-bold">✓</Text>}
               </View>
               <Text className="text-sm text-gray-700 leading-5 flex-1">{term.label}</Text>
             </TouchableOpacity>
@@ -80,24 +75,23 @@ export default function TermsAndConditions() {
         {/* Next Button */}
         <TouchableOpacity
           className={`mt-10 mb-8 rounded-lg py-4 items-center justify-center ${
-            allChecked
-              ? 'bg-orange-700'
-              : 'bg-transparent border border-gray-300'
+            allChecked ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allChecked ? () => {
-            router.push('/OnboardingComplete');
-          } : undefined}
+          onPress={
+            allChecked
+              ? () => {
+                  router.push('/OnboardingComplete');
+                }
+              : undefined
+          }
           activeOpacity={allChecked ? 0.8 : 1}
         >
           <Text
-            className={`text-base font-semibold ${
-              allChecked ? 'text-white' : 'text-gray-400'
-            }`}
+            className={`text-base font-semibold ${allChecked ? 'text-white' : 'text-gray-400'}`}
           >
             Next
           </Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );

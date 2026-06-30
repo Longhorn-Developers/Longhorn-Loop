@@ -11,13 +11,13 @@
  * per occurrence — the home feed can then show each date as a separate card.
  */
 
-import type { Env } from "../worker";
+import type { Env } from '../worker';
 
-const BASE_URL = "https://calendar.utexas.edu";
+const BASE_URL = 'https://calendar.utexas.edu';
 const API_BASE = `${BASE_URL}/api/2/events`;
 const PER_PAGE = 100;
 const DAYS_AHEAD = 365;
-export const SOURCE = "texas_today";
+export const SOURCE = 'texas_today';
 
 // ─── Localist API types ────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ export interface ParsedEvent {
   image_url: string | null;
   image_width: number | null;
   image_height: number | null;
-  image_aspect_ratio: "vertical" | "square" | "horizontal" | "none";
+  image_aspect_ratio: 'vertical' | 'square' | 'horizontal' | 'none';
   image_mime_type: string | null;
   image_alt_text: string | null;
   // Not stored in the events row — written to event_categories after upsert.
@@ -101,14 +101,14 @@ export interface ParsedEvent {
 export function stripHtml(html: string | null | undefined): string | null {
   if (!html) return null;
   const text = html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
+    .replace(/\s+/g, ' ')
     .trim();
   return text || null;
 }
@@ -121,12 +121,12 @@ export function stripHtml(html: string | null | undefined): string | null {
 export function classifyAspectRatio(
   width: number | null | undefined,
   height: number | null | undefined,
-): "vertical" | "square" | "horizontal" | "none" {
-  if (!width || !height || width <= 0 || height <= 0) return "none";
+): 'vertical' | 'square' | 'horizontal' | 'none' {
+  if (!width || !height || width <= 0 || height <= 0) return 'none';
   const ratio = width / height;
-  if (ratio > 1.05) return "horizontal";
-  if (ratio < 0.95) return "vertical";
-  return "square";
+  if (ratio > 1.05) return 'horizontal';
+  if (ratio < 0.95) return 'vertical';
+  return 'square';
 }
 
 /**
@@ -134,15 +134,13 @@ export function classifyAspectRatio(
  * We strip the street address portion (digits at word boundary) so that
  * "Gregory Gym (GRE), 2101 Speedway" becomes "Gregory Gym (GRE)".
  */
-export function buildLocationShort(
-  location: string | null | undefined,
-): string | null {
+export function buildLocationShort(location: string | null | undefined): string | null {
   if (!location) return null;
   // Remove trailing address: ", 123 Something St"
-  const stripped = location.replace(/,\s*\d+[^,]*$/, "").trim();
+  const stripped = location.replace(/,\s*\d+[^,]*$/, '').trim();
   const candidate = stripped || location.trim();
   if (candidate.length <= 40) return candidate;
-  return candidate.substring(0, 37) + "...";
+  return candidate.substring(0, 37) + '...';
 }
 
 /** Combine venue name + street address into a full location string. */
@@ -151,7 +149,7 @@ export function buildLocationFull(
   address: string | null | undefined,
 ): string | null {
   const parts = [location?.trim(), address?.trim()].filter(Boolean);
-  return parts.length > 0 ? parts.join(", ") : null;
+  return parts.length > 0 ? parts.join(', ') : null;
 }
 
 /**
@@ -162,18 +160,18 @@ export function buildLocationFull(
 export function upgradeImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return url
-    .replace(/\/thumb\//, "/huge/")
-    .replace(/\/medium\//, "/huge/")
-    .replace(/\/small\//, "/huge/");
+    .replace(/\/thumb\//, '/huge/')
+    .replace(/\/medium\//, '/huge/')
+    .replace(/\/small\//, '/huge/');
 }
 
 /** Derive a slug for a department from its hashtag or URL path. */
 export function extractDepartmentSlug(dept: LocalistDepartment): string {
   if (dept.hashtag) return dept.hashtag;
   const url = dept.localist_url || dept.url;
-  if (!url) return dept.name.toLowerCase().replace(/\s+/g, "-");
+  if (!url) return dept.name.toLowerCase().replace(/\s+/g, '-');
   const match = url.match(/\/([^/]+)\/?$/);
-  return match ? match[1] : dept.name.toLowerCase().replace(/\s+/g, "-");
+  return match ? match[1] : dept.name.toLowerCase().replace(/\s+/g, '-');
 }
 
 // ─── Parser ───────────────────────────────────────────────────────────────
@@ -190,9 +188,7 @@ export function parseEventInstance(
   const inst = instance.event_instance;
 
   if (!inst.start) {
-    console.warn(
-      `[texasToday] Event ${e.id} instance ${inst.id} missing start time — skipping`,
-    );
+    console.warn(`[texasToday] Event ${e.id} instance ${inst.id} missing start time — skipping`);
     return null;
   }
 
@@ -204,7 +200,7 @@ export function parseEventInstance(
   for (const tag of [...(e.tags ?? []), ...(e.filters?.event_types?.map((t) => t.name) ?? [])]) {
     if (tag && !seen.has(tag)) {
       seen.add(tag);
-      categories.push({ id: tag.toLowerCase().replace(/\s+/g, "-"), name: tag });
+      categories.push({ id: tag.toLowerCase().replace(/\s+/g, '-'), name: tag });
     }
   }
 
@@ -230,10 +226,10 @@ export function parseEventInstance(
     // default to "horizontal" (most event flyers are landscape) when we have
     // an image but no dimension data. "none" is reserved for no-image events.
     image_aspect_ratio: hasImage
-      ? (classifyAspectRatio(e.photo_width, e.photo_height) === "none"
-          ? "horizontal"
-          : classifyAspectRatio(e.photo_width, e.photo_height))
-      : "none",
+      ? classifyAspectRatio(e.photo_width, e.photo_height) === 'none'
+        ? 'horizontal'
+        : classifyAspectRatio(e.photo_width, e.photo_height)
+      : 'none',
     image_mime_type: hasImage ? (e.photo_content_type ?? null) : null,
     image_alt_text: hasImage ? (e.photo_alt ?? null) : null,
     categories,
@@ -245,15 +241,10 @@ export function parseEventInstance(
  * ParsedEvent per upcoming instance.  We only keep instances whose start time
  * is in the future so we don't backfill stale rows on every run.
  */
-export function parseEvent(
-  raw: LocalistRawEvent,
-  now = Date.now(),
-): ParsedEvent[] {
+export function parseEvent(raw: LocalistRawEvent, now = Date.now()): ParsedEvent[] {
   const instances = raw.event?.event_instances ?? [];
   if (instances.length === 0) {
-    console.warn(
-      `[texasToday] Event ${raw.event?.id} has no instances — skipping`,
-    );
+    console.warn(`[texasToday] Event ${raw.event?.id} has no instances — skipping`);
     return [];
   }
 
@@ -280,8 +271,8 @@ async function fetchPage(page: number): Promise<LocalistApiResponse> {
   const url = `${API_BASE}?days=${DAYS_AHEAD}&per_page=${PER_PAGE}&page=${page}`;
   const res = await fetch(url, {
     headers: {
-      Accept: "application/json",
-      "User-Agent": "LonghornLoop/1.0 (+https://longhornloop.app)",
+      Accept: 'application/json',
+      'User-Agent': 'LonghornLoop/1.0 (+https://longhornloop.app)',
     },
   });
   if (!res.ok) {
@@ -308,9 +299,7 @@ export async function fetchAllEvents(): Promise<ParsedEvent[]> {
         const events = parseEvent(rawEvent, now);
         parsed.push(...events);
       } catch (err) {
-        console.error(
-          `[texasToday] Unhandled parse error for event ${rawEvent.event?.id}: ${err}`,
-        );
+        console.error(`[texasToday] Unhandled parse error for event ${rawEvent.event?.id}: ${err}`);
       }
     }
 
@@ -372,46 +361,47 @@ function computeExpiresAt(endDatetime: string | null, startDatetime: string): st
   return new Date(new Date(base).getTime() + EXPIRES_AFTER_MS).toISOString();
 }
 
-async function upsertEvent(
-  db: D1Database,
-  e: ParsedEvent,
-): Promise<void> {
+async function upsertEvent(db: D1Database, e: ParsedEvent): Promise<void> {
   const expiresAt = computeExpiresAt(e.end_datetime, e.start_datetime);
 
   // Upsert the event row and get back the row ID (works for both insert + update)
-  const result = await db.prepare(UPSERT_SQL).bind(
-    e.source,
-    e.source_event_id,
-    e.title,
-    e.description,
-    e.start_datetime,
-    e.end_datetime,
-    e.location_short,
-    e.location_full,
-    e.host_organization_name,
-    e.event_url,
-    e.image_url,
-    e.image_width,
-    e.image_height,
-    e.image_aspect_ratio,
-    e.image_mime_type,
-    e.image_alt_text,
-    expiresAt,
-  ).run();
+  const result = await db
+    .prepare(UPSERT_SQL)
+    .bind(
+      e.source,
+      e.source_event_id,
+      e.title,
+      e.description,
+      e.start_datetime,
+      e.end_datetime,
+      e.location_short,
+      e.location_full,
+      e.host_organization_name,
+      e.event_url,
+      e.image_url,
+      e.image_width,
+      e.image_height,
+      e.image_aspect_ratio,
+      e.image_mime_type,
+      e.image_alt_text,
+      expiresAt,
+    )
+    .run();
 
   const eventId = result.meta.last_row_id;
 
   if (e.categories.length > 0) {
     // Replace categories: clear old ones then insert fresh set
-    await db.prepare(
-      "DELETE FROM event_categories WHERE event_id = ?",
-    ).bind(eventId).run();
+    await db.prepare('DELETE FROM event_categories WHERE event_id = ?').bind(eventId).run();
 
     for (const cat of e.categories) {
-      await db.prepare(
-        `INSERT OR IGNORE INTO event_categories (event_id, category_id, category_name)
+      await db
+        .prepare(
+          `INSERT OR IGNORE INTO event_categories (event_id, category_id, category_name)
          VALUES (?, ?, ?)`,
-      ).bind(eventId, cat.id, cat.name).run();
+        )
+        .bind(eventId, cat.id, cat.name)
+        .run();
     }
   }
 }
@@ -428,9 +418,7 @@ async function upsertEvents(
       await upsertEvent(db, e);
       upserted++;
     } catch (err) {
-      console.error(
-        `[texasToday] Failed to upsert event instance ${e.source_event_id}: ${err}`,
-      );
+      console.error(`[texasToday] Failed to upsert event instance ${e.source_event_id}: ${err}`);
       errors++;
     }
   }
@@ -442,7 +430,7 @@ async function upsertEvents(
 
 /** Called by the scheduled cron handler in worker.ts. */
 export async function run(env: Env): Promise<void> {
-  console.log("[texasToday] Scraper started");
+  console.log('[texasToday] Scraper started');
   const t0 = Date.now();
 
   let events: ParsedEvent[];
@@ -458,7 +446,5 @@ export async function run(env: Env): Promise<void> {
   const { upserted, errors } = await upsertEvents(env.DB, events);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
-  console.log(
-    `[texasToday] Finished in ${elapsed}s — ${upserted} upserted, ${errors} errors`,
-  );
+  console.log(`[texasToday] Finished in ${elapsed}s — ${upserted} upserted, ${errors} errors`);
 }

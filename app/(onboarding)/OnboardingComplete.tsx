@@ -23,7 +23,12 @@ export default function OnboardingComplete() {
   useEffect(() => {
     Animated.sequence([
       Animated.parallel([
-        Animated.spring(checkScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
+        Animated.spring(checkScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 80,
+          useNativeDriver: true,
+        }),
         Animated.timing(checkOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]),
       Animated.parallel([
@@ -85,11 +90,7 @@ export default function OnboardingComplete() {
     }
   };
 
-  const buttonLabel = submitting
-    ? 'SAVING…'
-    : hasAttempted
-      ? 'TRY AGAIN'
-      : 'GO TO HOME PAGE';
+  const buttonLabel = submitting ? 'SAVING…' : hasAttempted ? 'TRY AGAIN' : 'GO TO HOME PAGE';
 
   return (
     <SafeAreaView style={styles.container}>

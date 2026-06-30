@@ -35,10 +35,7 @@ export default function SplashScreen({ onFinish }: Props) {
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
       {/* Expanding ring */}
       <Animated.View
-        style={[
-          styles.ring,
-          { opacity: ringOpacity, transform: [{ scale: ringScale }] },
-        ]}
+        style={[styles.ring, { opacity: ringOpacity, transform: [{ scale: ringScale }] }]}
       />
 
       {/* Logo */}

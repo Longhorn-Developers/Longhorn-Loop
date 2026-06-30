@@ -1,13 +1,13 @@
 // Cloudflare Worker entry point -- replaces Express index.ts for production
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { authRoutes } from "./routes/auth.worker";
-import { userRoutes } from "./routes/users.worker";
-import { eventRoutes } from "./routes/events.worker";
-import { notificationRoutes } from "./routes/notifications.worker";
-import { savedRoutes } from "./routes/saved.worker";
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { authRoutes } from './routes/auth.worker';
+import { userRoutes } from './routes/users.worker';
+import { eventRoutes } from './routes/events.worker';
+import { notificationRoutes } from './routes/notifications.worker';
+import { savedRoutes } from './routes/saved.worker';
 // import { run as runTexasToday } from "./scrapers/texasToday"; // TODO: add texasToday scraper
-import { run as runHornsLink } from "./scrapers/hornslink";
+import { run as runHornsLink } from './scrapers/hornslink';
 
 export type Env = {
   DB: D1Database;
@@ -22,26 +22,29 @@ export type Env = {
 const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
-app.use("*", cors({
-  origin: "*",
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
-}));
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+  }),
+);
 
 // Health check
-app.get("/health", (c) => c.json({ status: "ok" }));
+app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Routes
-app.route("/auth", authRoutes);
-app.route("/users", userRoutes);
-app.route("/events", eventRoutes);
-app.route("/notifications", notificationRoutes);
-app.route("/saved", savedRoutes);
+app.route('/auth', authRoutes);
+app.route('/users', userRoutes);
+app.route('/events', eventRoutes);
+app.route('/notifications', notificationRoutes);
+app.route('/saved', savedRoutes);
 
 // Cron schedules, configured in wrangler.toml under [triggers]. The
 // scheduled() handler below dispatches on event.cron since the two jobs
 // run at different cadences.
-const REMINDER_CRON = "*/15 * * * *";
+const REMINDER_CRON = '*/15 * * * *';
 
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -79,12 +82,9 @@ async function sendEventReminders(env: Env): Promise<void> {
   for (const row of results as any[]) {
     const hoursUntil = Math.max(
       1,
-      Math.round(
-        (new Date(row.start_datetime).getTime() - now.getTime()) /
-          (60 * 60 * 1000),
-      ),
+      Math.round((new Date(row.start_datetime).getTime() - now.getTime()) / (60 * 60 * 1000)),
     );
-    const hourWord = hoursUntil === 1 ? "hour" : "hours";
+    const hourWord = hoursUntil === 1 ? 'hour' : 'hours';
 
     await env.DB.prepare(
       `INSERT INTO notifications
@@ -101,9 +101,7 @@ async function sendEventReminders(env: Env): Promise<void> {
       )
       .run();
 
-    await env.DB.prepare(
-      "UPDATE saved_events SET reminder_sent_at = ? WHERE id = ?",
-    )
+    await env.DB.prepare('UPDATE saved_events SET reminder_sent_at = ? WHERE id = ?')
       .bind(now.toISOString(), row.saved_id)
       .run();
   }
@@ -114,11 +112,7 @@ async function sendEventReminders(env: Env): Promise<void> {
 export default {
   fetch: app.fetch.bind(app),
 
-  async scheduled(
-    event: ScheduledEvent,
-    env: Env,
-    ctx: ExecutionContext,
-  ): Promise<void> {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron === REMINDER_CRON) {
       ctx.waitUntil(sendEventReminders(env));
       return;
