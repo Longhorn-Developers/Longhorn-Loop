@@ -133,14 +133,38 @@ export default function AccountVerification() {
         return;
       }
 
-      // Store the JWT token and navigate to onboarding
-      if (result.token) {
-        update({ token: result.token });
+      // Store the JWT token
+      const token = result.token;
+      if (token) {
+        update({ token });
       }
+
+      // Check if user already completed onboarding (returning login)
+      try {
+        const profileRes = await fetch(`${API_BASE_URL}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.user?.onboarding_completed) {
+            // Returning user — load profile into context and go home
+            update({
+              firstName: profileData.user.first_name || '',
+              lastName: profileData.user.last_name || '',
+            });
+            router.replace('/(tabs)/home');
+            return;
+          }
+        }
+      } catch {
+        // If profile check fails, fall through to onboarding
+      }
+
+      // New user or onboarding not completed — start onboarding
       router.push('/CreateAccount');
-    } catch (err: any) {
-      console.error('Verify error:', err);
-      setError(`Debug: ${err.message || err}`);
+    } catch (_err) {
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -18,7 +18,7 @@ export default function RegisterPage() {
   const [alertMessage, setAlertMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail);
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail.trim());
 
   const validateForm = () => {
     if (!fieldFirstName.trim()) {

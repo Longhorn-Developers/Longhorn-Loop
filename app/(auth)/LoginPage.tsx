@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [fieldEmail, setFieldEmail] = useState('');
   const [showAlert, setShowAlert] = useState(false);
 
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail);
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail.trim());
 
   const handleSubmit = async () => {
     if (!isEmailValid) {

@@ -1,9 +1,11 @@
+import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 
 export default function FrontPage() {
   const router = useRouter();
+  const { update } = useOnboarding();
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -63,6 +65,27 @@ export default function FrontPage() {
         >
           <Text className="text-gray-700 text-base">Already Have an Account</Text>
         </Pressable>
+
+        {/* Dev-only bypass — skip auth & onboarding */}
+        {__DEV__ && (
+          <Pressable
+            className="mt-4 py-3 items-center"
+            onPress={() => {
+              // Skip with no token — event feeds load anonymously,
+              // user-specific features (saved, notifications) are disabled.
+              update({
+                firstName: 'Dev',
+                lastName: 'User',
+                email: 'dev@utexas.edu',
+              });
+              router.replace('/(tabs)/home');
+            }}
+          >
+            <Text className="text-xs text-gray-400 underline">
+              [DEV] Skip to Home
+            </Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
