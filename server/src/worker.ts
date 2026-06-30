@@ -2,12 +2,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.worker';
-import { userRoutes } from './routes/users.worker';
 import { eventRoutes } from './routes/events.worker';
 import { notificationRoutes } from './routes/notifications.worker';
 import { savedRoutes } from './routes/saved.worker';
+import { userRoutes } from './routes/users.worker';
 // import { run as runTexasToday } from "./scrapers/texasToday"; // TODO: add texasToday scraper
-import { run as runHornsLink } from './scrapers/hornslink';
+import { run as runHornsLink } from "./scrapers/hornslink";
+import { run as runMccombs } from "./scrapers/mccombs";
 
 export type Env = {
   DB: D1Database;
@@ -121,5 +122,6 @@ export default {
     // The 6-hour scrape cron.
     // ctx.waitUntil(runTexasToday(env)); // TODO: add texasToday scraper
     ctx.waitUntil(runHornsLink(env));
+    ctx.waitUntil(runMccombs(env));
   },
 };

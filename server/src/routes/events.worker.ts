@@ -1,7 +1,8 @@
 // Events routes for Cloudflare Worker
-import { Hono } from 'hono';
-import type { Env } from '../worker';
-import { scrapeHornsLink } from '../scrapers/hornslink';
+import { Hono } from "hono";
+import { scrapeHornsLink } from "../scrapers/hornslink";
+import { scrapeMccombs } from "../scrapers/mccombs";
+import type { Env } from "../worker";
 
 export const eventRoutes = new Hono<{ Bindings: Env }>();
 
@@ -280,6 +281,17 @@ eventRoutes.post('/scrape', async (c) => {
   const dryRun = (body as any).dryRun ?? false;
 
   const result = await scrapeHornsLink(c.env.DB, { maxPages, dryRun });
+
+  return c.json(result);
+});
+
+// POST /events/scrape/mccombs -- manually trigger the McCombs scrape (for testing)
+eventRoutes.post("/scrape/mccombs", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const maxEvents = (body as any).maxEvents ?? 500;
+  const dryRun = (body as any).dryRun ?? false;
+
+  const result = await scrapeMccombs(c.env.DB, { maxEvents, dryRun });
 
   return c.json(result);
 });
