@@ -107,6 +107,7 @@ eventRoutes.get("/", async (c) => {
     FROM events e
     LEFT JOIN organizations o ON e.host_organization_id = o.id
     WHERE e.status = 'active'
+      AND e.is_archived = 0
       AND e.end_datetime > datetime('now')
       ${visibility.sql}
   `;
