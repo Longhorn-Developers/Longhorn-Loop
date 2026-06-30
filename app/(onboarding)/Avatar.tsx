@@ -2,13 +2,13 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable, Image, ImageSourcePropType } from 'react-native';
 import PrimaryButton from '@/app/components/buttons/PrimaryButton';
 
 interface Avatar {
   id: number;
   label: string;
-  image: ReturnType<typeof require>;
+  image: ImageSourcePropType;
 }
 
 const avatars: Avatar[] = [
@@ -130,11 +130,7 @@ export default function AvatarSelector() {
 
       {/* Next Button */}
       <View className="mt-2 mx-2">
-        <PrimaryButton
-          label="Next"
-          isFilled={selected !== null}
-          onPress={handleNext}
-        />
+        <PrimaryButton label="Next" isFilled={selected !== null} onPress={handleNext} />
       </View>
     </FlowLayout>
   );

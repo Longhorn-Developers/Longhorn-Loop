@@ -42,25 +42,331 @@ type Category = {
 };
 
 const CATEGORIES: Category[] = [
-  { id: 'music', label: 'Music', icon: MusicIcon, tags: ['Rock & Alternative', 'Hip Hop & Rap', 'Electronic & EDM', 'Country & Folk', 'Jazz & Blues', 'Classical & Opera', 'Pop & Top 40', 'R&B & Soul', 'Indie & Underground', 'Latin & Reggaeton', 'K-Pop & J-Pop'] },
-  { id: 'arts', label: 'Arts & Culture', icon: ArtsIcon, tags: ['Art Exhibitions & Galleries', 'Theater & Broadway', 'Dance Performances', 'Film & Cinema', 'Photography', 'Sculpture & Installation Art', 'Poetry & Spoken Word', 'Street Art & Graffiti', 'Cultural Festivals', 'Museum Tours', 'Anime'] },
-  { id: 'sports', label: 'Sports & Fitness', icon: BallIcon, tags: ['Football & Soccer', 'Basketball', 'Baseball & Softball', 'Tennis & Racquet Sports', 'Running & Marathon', 'Yoga & Meditation', 'Cycling & Biking', 'Swimming & Water Sports', 'Martial Arts & Boxing', 'Extreme Sports', 'Golf', 'CrossFit & HIIT'] },
-  { id: 'food', label: 'Food & Drink', icon: FoodIcon, tags: ['Wine Tasting', 'Craft Beer & Breweries', 'Cocktails & Mixology', 'Fine Dining', 'Street Food & Food Trucks', 'Vegan & Vegetarian', 'Coffee & Tea', 'Baking & Pastries', 'International Cuisine', 'Cooking Classes', 'Food Festivals'] },
-  { id: 'tech', label: 'Technology & Innovation', icon: TechIcon, tags: ['Startup & Entrepreneurship', 'AI & Machine Learning', 'Blockchain & Crypto', 'Web Development', 'Mobile Apps', 'Cybersecurity', 'Gaming & Esports', 'VR & AR', 'Robotics', 'Tech Conferences', 'Hackathons'] },
-  { id: 'learning', label: 'Learning & Education', icon: LearningIcon, tags: ['Workshops & Seminars', 'Language Learning', 'Personal Development', 'Career & Professional Growth', 'Science & Research', 'History & Archaeology', 'Book Clubs', 'Study Groups', 'Online Courses', 'Academic Lectures', 'Undergraduate Research'] },
-  { id: 'outdoors', label: 'Outdoors & Nature', icon: OutdoorsIcon, tags: ['Hiking & Trekking', 'Camping', 'Rock Climbing', 'Kayaking & Canoeing', 'Wildlife & Bird Watching', 'Gardening', 'Beach Activities', 'Fishing', 'Environmental Conservation'] },
-  { id: 'gaming', label: 'Gaming & Entertainment', icon: VideoGameIcon, tags: ['Video Gaming', 'Board Games & Tabletop', 'Card Games', 'Esports Tournaments', 'Virtual Reality Gaming', 'Retro Gaming', 'Role-Playing Games (RPG)', 'Trivia Nights', 'Escape Rooms', 'Comedy Shows'] },
-  { id: 'social', label: 'Social & Networking', icon: HandshakeIcon, tags: ['Meetups & Mixers', 'Speed Networking', 'Singles & Dating', 'LGBTQ+ Events', "Women's Networking", 'Young Professionals', 'Alumni Gatherings', 'Community Service', 'Cultural Exchange', 'Social Clubs'] },
-  { id: 'health', label: 'Health & Wellness', icon: HealthIcon, tags: ['Mental Health & Therapy', 'Nutrition & Diet', 'Wellness Retreats', 'Spa & Relaxation', 'Alternative Medicine', 'Mindfulness & Meditation', 'Fitness Challenges', 'Weight Loss Support', 'Holistic Health', 'Sleep & Recovery'] },
-  { id: 'shopping', label: 'Shopping & Fashion', icon: ShoppingIcon, tags: ['Fashion Shows', 'Vintage & Thrift', 'Luxury & Designer', 'Streetwear', 'Sustainable Fashion', 'Jewelry & Accessories', 'Pop-Up Shops', 'Sample Sales', 'Beauty & Makeup', 'Fashion Markets'] },
-  { id: 'business', label: 'Business & Professional', icon: BusinessIcon, tags: ['Career Fairs', 'Case Competitions', 'Conferences & Summits', 'Trade Shows', 'Leadership Development', 'Sales & Marketing', 'Finance & Investing', 'Real Estate', 'Legal & Compliance', 'Human Resources', 'Project Management', 'B2B Networking'] },
-  { id: 'performing', label: 'Performing Arts', icon: PerformingIcon, tags: ['Stand-Up Comedy', 'Improv & Sketch', 'Musical Theater', 'Opera & Classical Performance', 'Magic Shows', 'Circus & Acrobatics', 'Live Performance Art'] },
-  { id: 'travel', label: 'Travel & Adventure', icon: TravelIcon, tags: ['Travel Meetups', 'Adventure Travel', 'Backpacking', 'Road Trips', 'Cultural Tours', 'Luxury Travel', 'Solo Travel', 'Budget Travel', 'Travel Photography', 'Study Abroad'] },
-  { id: 'pets', label: 'Pets & Animals', icon: PetsIcon, tags: ['Dog Meetups & Walks', 'Cat Cafes & Events', 'Pet Adoption Events', 'Exotic Pets', 'Pet Training', 'Animal Rescue & Advocacy', 'Wildlife Conservation', 'Aquarium & Fish Keeping', 'Pet-Friendly Activities'] },
-  { id: 'home', label: 'Home & Lifestyle', icon: HomeIcon, tags: ['Interior Design', 'DIY & Home Improvement', 'Real Estate & Housing', 'Sustainable Living', 'Minimalism', 'Organization & Decluttering', 'Home Decor', 'Smart Home Technology'] },
-  { id: 'nightlife', label: 'Nightlife & Parties', icon: NightlifeIcon, tags: ['Clubs & Dancing', 'Bar Hopping', 'Live DJ Sets', 'Karaoke', 'Themed Parties', 'Raves & Electronic Music', 'Pub Quizzes', 'Rooftop Bars', 'Happy Hour Events', 'Silent Discos'] },
-  { id: 'science', label: 'Science & Academia', icon: ScienceIcon, tags: ['Physics & Astronomy', 'Biology & Life Sciences', 'Chemistry', 'Mathematics', 'Psychology', 'Social Sciences', 'Philosophy', 'Research Symposiums', 'Science Cafes', 'Lab Tours & Demos'] },
-  { id: 'spirituality', label: 'Spirituality & Religion', icon: SpiritualityIcon, tags: ['Meditation & Mindfulness', 'Yoga & Spiritual Practice', 'Religious Services', 'Interfaith Dialogue', 'Buddhist Teachings', 'Christian Fellowship', 'Jewish Community Events', 'Islamic Gatherings', 'New Age & Metaphysical', 'Prayer Groups'] },
+  {
+    id: 'music',
+    label: 'Music',
+    icon: MusicIcon,
+    tags: [
+      'Rock & Alternative',
+      'Hip Hop & Rap',
+      'Electronic & EDM',
+      'Country & Folk',
+      'Jazz & Blues',
+      'Classical & Opera',
+      'Pop & Top 40',
+      'R&B & Soul',
+      'Indie & Underground',
+      'Latin & Reggaeton',
+      'K-Pop & J-Pop',
+    ],
+  },
+  {
+    id: 'arts',
+    label: 'Arts & Culture',
+    icon: ArtsIcon,
+    tags: [
+      'Art Exhibitions & Galleries',
+      'Theater & Broadway',
+      'Dance Performances',
+      'Film & Cinema',
+      'Photography',
+      'Sculpture & Installation Art',
+      'Poetry & Spoken Word',
+      'Street Art & Graffiti',
+      'Cultural Festivals',
+      'Museum Tours',
+      'Anime',
+    ],
+  },
+  {
+    id: 'sports',
+    label: 'Sports & Fitness',
+    icon: BallIcon,
+    tags: [
+      'Football & Soccer',
+      'Basketball',
+      'Baseball & Softball',
+      'Tennis & Racquet Sports',
+      'Running & Marathon',
+      'Yoga & Meditation',
+      'Cycling & Biking',
+      'Swimming & Water Sports',
+      'Martial Arts & Boxing',
+      'Extreme Sports',
+      'Golf',
+      'CrossFit & HIIT',
+    ],
+  },
+  {
+    id: 'food',
+    label: 'Food & Drink',
+    icon: FoodIcon,
+    tags: [
+      'Wine Tasting',
+      'Craft Beer & Breweries',
+      'Cocktails & Mixology',
+      'Fine Dining',
+      'Street Food & Food Trucks',
+      'Vegan & Vegetarian',
+      'Coffee & Tea',
+      'Baking & Pastries',
+      'International Cuisine',
+      'Cooking Classes',
+      'Food Festivals',
+    ],
+  },
+  {
+    id: 'tech',
+    label: 'Technology & Innovation',
+    icon: TechIcon,
+    tags: [
+      'Startup & Entrepreneurship',
+      'AI & Machine Learning',
+      'Blockchain & Crypto',
+      'Web Development',
+      'Mobile Apps',
+      'Cybersecurity',
+      'Gaming & Esports',
+      'VR & AR',
+      'Robotics',
+      'Tech Conferences',
+      'Hackathons',
+    ],
+  },
+  {
+    id: 'learning',
+    label: 'Learning & Education',
+    icon: LearningIcon,
+    tags: [
+      'Workshops & Seminars',
+      'Language Learning',
+      'Personal Development',
+      'Career & Professional Growth',
+      'Science & Research',
+      'History & Archaeology',
+      'Book Clubs',
+      'Study Groups',
+      'Online Courses',
+      'Academic Lectures',
+      'Undergraduate Research',
+    ],
+  },
+  {
+    id: 'outdoors',
+    label: 'Outdoors & Nature',
+    icon: OutdoorsIcon,
+    tags: [
+      'Hiking & Trekking',
+      'Camping',
+      'Rock Climbing',
+      'Kayaking & Canoeing',
+      'Wildlife & Bird Watching',
+      'Gardening',
+      'Beach Activities',
+      'Fishing',
+      'Environmental Conservation',
+    ],
+  },
+  {
+    id: 'gaming',
+    label: 'Gaming & Entertainment',
+    icon: VideoGameIcon,
+    tags: [
+      'Video Gaming',
+      'Board Games & Tabletop',
+      'Card Games',
+      'Esports Tournaments',
+      'Virtual Reality Gaming',
+      'Retro Gaming',
+      'Role-Playing Games (RPG)',
+      'Trivia Nights',
+      'Escape Rooms',
+      'Comedy Shows',
+    ],
+  },
+  {
+    id: 'social',
+    label: 'Social & Networking',
+    icon: HandshakeIcon,
+    tags: [
+      'Meetups & Mixers',
+      'Speed Networking',
+      'Singles & Dating',
+      'LGBTQ+ Events',
+      "Women's Networking",
+      'Young Professionals',
+      'Alumni Gatherings',
+      'Community Service',
+      'Cultural Exchange',
+      'Social Clubs',
+    ],
+  },
+  {
+    id: 'health',
+    label: 'Health & Wellness',
+    icon: HealthIcon,
+    tags: [
+      'Mental Health & Therapy',
+      'Nutrition & Diet',
+      'Wellness Retreats',
+      'Spa & Relaxation',
+      'Alternative Medicine',
+      'Mindfulness & Meditation',
+      'Fitness Challenges',
+      'Weight Loss Support',
+      'Holistic Health',
+      'Sleep & Recovery',
+    ],
+  },
+  {
+    id: 'shopping',
+    label: 'Shopping & Fashion',
+    icon: ShoppingIcon,
+    tags: [
+      'Fashion Shows',
+      'Vintage & Thrift',
+      'Luxury & Designer',
+      'Streetwear',
+      'Sustainable Fashion',
+      'Jewelry & Accessories',
+      'Pop-Up Shops',
+      'Sample Sales',
+      'Beauty & Makeup',
+      'Fashion Markets',
+    ],
+  },
+  {
+    id: 'business',
+    label: 'Business & Professional',
+    icon: BusinessIcon,
+    tags: [
+      'Career Fairs',
+      'Case Competitions',
+      'Conferences & Summits',
+      'Trade Shows',
+      'Leadership Development',
+      'Sales & Marketing',
+      'Finance & Investing',
+      'Real Estate',
+      'Legal & Compliance',
+      'Human Resources',
+      'Project Management',
+      'B2B Networking',
+    ],
+  },
+  {
+    id: 'performing',
+    label: 'Performing Arts',
+    icon: PerformingIcon,
+    tags: [
+      'Stand-Up Comedy',
+      'Improv & Sketch',
+      'Musical Theater',
+      'Opera & Classical Performance',
+      'Magic Shows',
+      'Circus & Acrobatics',
+      'Live Performance Art',
+    ],
+  },
+  {
+    id: 'travel',
+    label: 'Travel & Adventure',
+    icon: TravelIcon,
+    tags: [
+      'Travel Meetups',
+      'Adventure Travel',
+      'Backpacking',
+      'Road Trips',
+      'Cultural Tours',
+      'Luxury Travel',
+      'Solo Travel',
+      'Budget Travel',
+      'Travel Photography',
+      'Study Abroad',
+    ],
+  },
+  {
+    id: 'pets',
+    label: 'Pets & Animals',
+    icon: PetsIcon,
+    tags: [
+      'Dog Meetups & Walks',
+      'Cat Cafes & Events',
+      'Pet Adoption Events',
+      'Exotic Pets',
+      'Pet Training',
+      'Animal Rescue & Advocacy',
+      'Wildlife Conservation',
+      'Aquarium & Fish Keeping',
+      'Pet-Friendly Activities',
+    ],
+  },
+  {
+    id: 'home',
+    label: 'Home & Lifestyle',
+    icon: HomeIcon,
+    tags: [
+      'Interior Design',
+      'DIY & Home Improvement',
+      'Real Estate & Housing',
+      'Sustainable Living',
+      'Minimalism',
+      'Organization & Decluttering',
+      'Home Decor',
+      'Smart Home Technology',
+    ],
+  },
+  {
+    id: 'nightlife',
+    label: 'Nightlife & Parties',
+    icon: NightlifeIcon,
+    tags: [
+      'Clubs & Dancing',
+      'Bar Hopping',
+      'Live DJ Sets',
+      'Karaoke',
+      'Themed Parties',
+      'Raves & Electronic Music',
+      'Pub Quizzes',
+      'Rooftop Bars',
+      'Happy Hour Events',
+      'Silent Discos',
+    ],
+  },
+  {
+    id: 'science',
+    label: 'Science & Academia',
+    icon: ScienceIcon,
+    tags: [
+      'Physics & Astronomy',
+      'Biology & Life Sciences',
+      'Chemistry',
+      'Mathematics',
+      'Psychology',
+      'Social Sciences',
+      'Philosophy',
+      'Research Symposiums',
+      'Science Cafes',
+      'Lab Tours & Demos',
+    ],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality & Religion',
+    icon: SpiritualityIcon,
+    tags: [
+      'Meditation & Mindfulness',
+      'Yoga & Spiritual Practice',
+      'Religious Services',
+      'Interfaith Dialogue',
+      'Buddhist Teachings',
+      'Christian Fellowship',
+      'Jewish Community Events',
+      'Islamic Gatherings',
+      'New Age & Metaphysical',
+      'Prayer Groups',
+    ],
+  },
 ];
 
 export default function InterestSelection() {
@@ -74,21 +380,17 @@ export default function InterestSelection() {
   const allTags = CATEGORIES.flatMap((c) => c.tags);
 
   const filteredTags = allTags.filter(
-    (t) =>
-      t.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !selectedTags.includes(t)
+    (t) => t.toLowerCase().includes(searchQuery.toLowerCase()) && !selectedTags.includes(t),
   );
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
   };
 
   const toggleCategory = (id: string) => {
-    setExpandedCategories((prev) =>
-      prev.includes(id) ? [] : [id]
-    );
+    setExpandedCategories((prev) => (prev.includes(id) ? [] : [id]));
     setShowSearchResults(false);
     Keyboard.dismiss();
   };
@@ -113,7 +415,6 @@ export default function InterestSelection() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView className="flex-1 px-8 pt-6" keyboardShouldPersistTaps="handled">
-
         {/* Back Arrow */}
         <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
@@ -129,7 +430,7 @@ export default function InterestSelection() {
           <View>
             <Text className="text-2xl font-bold text-gray-900 mb-2">Tell Us About You</Text>
             <Text className="text-sm text-gray-500 mb-8">
-              Pick tags from any category — we'll use them to customize your experience
+              Pick tags from any category — we&apos;ll use them to customize your experience
             </Text>
           </View>
         </TouchableWithoutFeedback>
@@ -173,7 +474,7 @@ export default function InterestSelection() {
             ) : (
               <View className="px-4 py-4">
                 <Text className="text-sm text-gray-500">
-                  No results for "{searchQuery}"
+                  No results for &quot;{searchQuery}&quot;
                 </Text>
                 <TouchableOpacity className="mt-1">
                   <Text className="text-sm text-orange-700 font-semibold">
@@ -215,7 +516,17 @@ export default function InterestSelection() {
                 </TouchableOpacity>
 
                 {isExpanded && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      paddingHorizontal: 16,
+                      paddingBottom: 16,
+                      borderTopWidth: 1,
+                      borderTopColor: '#F3F4F6',
+                    }}
+                  >
                     {category.tags.map((tag) => {
                       const isSelected = selectedTags.includes(tag);
                       return (
@@ -228,8 +539,11 @@ export default function InterestSelection() {
                               : 'border border-gray-300'
                           }`}
                         >
-                          <Text className={`text-xs ${isSelected ? 'text-white' : 'text-gray-700'}`}>
-                            {isSelected ? '× ' : '+ '}{tag}
+                          <Text
+                            className={`text-xs ${isSelected ? 'text-white' : 'text-gray-700'}`}
+                          >
+                            {isSelected ? '× ' : '+ '}
+                            {tag}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -246,17 +560,20 @@ export default function InterestSelection() {
           className={`rounded-lg py-4 items-center justify-center mt-2 mb-16 ${
             allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allFilled ? () => {
-            update({ selectedTags });
-            router.push('/Avatar');
-          } : undefined}
+          onPress={
+            allFilled
+              ? () => {
+                  update({ selectedTags });
+                  router.push('/Avatar');
+                }
+              : undefined
+          }
           activeOpacity={allFilled ? 0.8 : 1}
         >
           <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>
             Next
           </Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );

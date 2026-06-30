@@ -1,13 +1,6 @@
 import { ArrowLeft } from 'phosphor-react-native';
 import React, { useCallback, useRef, useState } from 'react';
-import {
-  Dimensions,
-  Image,
-  SectionList,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Dimensions, Image, SectionList, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -206,7 +199,7 @@ function NotificationRow({
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-15, 15]) // must move 15px horizontally before activating (fixes scroll conflict)
-    .failOffsetY([-10, 10])   // cancel if vertical movement > 10px (lets scroll take over)
+    .failOffsetY([-10, 10]) // cancel if vertical movement > 10px (lets scroll take over)
     .onStart(() => {
       startX.value = translateX.value;
     })
@@ -471,10 +464,7 @@ export default function NotificationsScreen() {
       <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top', 'left', 'right']}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 justify-center"
-          >
+          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 justify-center">
             <ArrowLeft size={24} color="#020B12" />
           </TouchableOpacity>
 
@@ -502,16 +492,14 @@ export default function NotificationsScreen() {
               No new notifications
             </Text>
             <Text className="text-sm text-[#9CA3AF] text-center">
-              When you have upcoming events or activity, they'll show up here.
+              When you have upcoming events or activity, they&apos;ll show up here.
             </Text>
           </View>
         ) : (
           <SectionList
             sections={sections}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <NotificationRow item={item} onDelete={handleDelete} />
-            )}
+            renderItem={({ item }) => <NotificationRow item={item} onDelete={handleDelete} />}
             renderSectionHeader={({ section: { title } }) => (
               <Text className="text-[13px] font-semibold text-lhlBurntOrange px-5 pt-4 pb-2 bg-lhlBackgroundColor">
                 {title}

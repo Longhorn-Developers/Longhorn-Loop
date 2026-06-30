@@ -1,7 +1,7 @@
-import { API_BASE_URL } from "@/app/config/api";
-import { useOnboarding } from "@/app/context/OnboardingContext";
-import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { API_BASE_URL } from '@/app/config/api';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   NativeSyntheticEvent,
@@ -11,20 +11,20 @@ import {
   TextInputKeyPressEventData,
   TouchableOpacity,
   View,
-} from "react-native";
+} from 'react-native';
 
 export default function AccountVerification() {
   const router = useRouter();
   const { data, update } = useOnboarding();
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
-  const [error, setError] = useState("");
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [sendingInitialCode, setSendingInitialCode] = useState(true);
   const inputs = useRef<(TextInput | null)[]>([]);
   const hasSentInitialCode = useRef(false);
 
-  const allFilled = code.every((digit) => digit !== "");
+  const allFilled = code.every((digit) => digit !== '');
 
   // Send a verification code as soon as this screen mounts, so the page
   // works correctly regardless of how the user landed here (fresh signup,
@@ -40,27 +40,25 @@ export default function AccountVerification() {
     const sendInitialCode = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/auth/send-code`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: data.email }),
         });
 
         const result = await res.json();
 
         if (!res.ok) {
-          if (result.error === "RESEND_TOO_SOON") {
+          if (result.error === 'RESEND_TOO_SOON') {
             // A code was already sent very recently (e.g. RegisterPage
             // already triggered one) -- this is not an error state.
-          } else if (result.error === "INVALID_UT_EMAIL") {
-            setError("Please use a valid @utexas.edu email address.");
+          } else if (result.error === 'INVALID_UT_EMAIL') {
+            setError('Please use a valid @utexas.edu email address.');
           } else {
-            setError(
-              result.error || "Failed to send verification code. Please try again.",
-            );
+            setError(result.error || 'Failed to send verification code. Please try again.');
           }
         }
-      } catch (err) {
-        setError("Network error. Please check your connection.");
+      } catch (_err) {
+        setError('Network error. Please check your connection.');
       } finally {
         setSendingInitialCode(false);
       }
@@ -73,7 +71,7 @@ export default function AccountVerification() {
     const newCode = [...code];
     newCode[index] = text.slice(-1);
     setCode(newCode);
-    setError("");
+    setError('');
 
     // Auto-advance to next input
     if (text && index < 5) {
@@ -81,20 +79,17 @@ export default function AccountVerification() {
     }
   };
 
-  const handleKeyPress = (
-    e: NativeSyntheticEvent<TextInputKeyPressEventData>,
-    index: number,
-  ) => {
-    if (e.nativeEvent.key === "Backspace") {
+  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
+    if (e.nativeEvent.key === 'Backspace') {
       if (code[index]) {
         // Clear current digit immediately
         const newCode = [...code];
-        newCode[index] = "";
+        newCode[index] = '';
         setCode(newCode);
       } else if (index > 0) {
         // Already empty — clear previous digit and move focus back
         const newCode = [...code];
-        newCode[index - 1] = "";
+        newCode[index - 1] = '';
         setCode(newCode);
         inputs.current[index - 1]?.focus();
       }
@@ -105,35 +100,35 @@ export default function AccountVerification() {
     if (!allFilled || loading) return;
 
     setLoading(true);
-    setError("");
+    setError('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/verify-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: data.email,
-          code: code.join(""),
+          code: code.join(''),
         }),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        if (result.error === "INVALID_CODE") {
-          setError("Incorrect code. Please try again.");
-          setCode(["", "", "", "", "", ""]);
+        if (result.error === 'INVALID_CODE') {
+          setError('Incorrect code. Please try again.');
+          setCode(['', '', '', '', '', '']);
           inputs.current[0]?.focus();
-        } else if (result.error === "CODE_EXPIRED") {
-          setError("Code has expired. Please request a new one.");
-        } else if (result.error === "TOO_MANY_ATTEMPTS") {
-          setError("Too many attempts. Please request a new code.");
-        } else if (result.error === "CODE_NOT_FOUND") {
-          setError("No verification code found. Please request a new one.");
-        } else if (result.error === "INVALID_UT_EMAIL") {
-          setError("Please use a valid @utexas.edu email address.");
+        } else if (result.error === 'CODE_EXPIRED') {
+          setError('Code has expired. Please request a new one.');
+        } else if (result.error === 'TOO_MANY_ATTEMPTS') {
+          setError('Too many attempts. Please request a new code.');
+        } else if (result.error === 'CODE_NOT_FOUND') {
+          setError('No verification code found. Please request a new one.');
+        } else if (result.error === 'INVALID_UT_EMAIL') {
+          setError('Please use a valid @utexas.edu email address.');
         } else {
-          setError(result.error || "Something went wrong. Please try again.");
+          setError(result.error || 'Something went wrong. Please try again.');
         }
         return;
       }
@@ -142,9 +137,9 @@ export default function AccountVerification() {
       if (result.token) {
         update({ token: result.token });
       }
-      router.push("/CreateAccount");
+      router.push('/CreateAccount');
     } catch (err: any) {
-      console.error("Verify error:", err);
+      console.error('Verify error:', err);
       setError(`Debug: ${err.message || err}`);
     } finally {
       setLoading(false);
@@ -155,33 +150,33 @@ export default function AccountVerification() {
     if (resending) return;
 
     setResending(true);
-    setError("");
+    setError('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/resend-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: data.email }),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        if (result.error === "RESEND_TOO_SOON") {
-          setError("Please wait before requesting a new code.");
-        } else if (result.error === "INVALID_UT_EMAIL") {
-          setError("Please use a valid @utexas.edu email address.");
+        if (result.error === 'RESEND_TOO_SOON') {
+          setError('Please wait before requesting a new code.');
+        } else if (result.error === 'INVALID_UT_EMAIL') {
+          setError('Please use a valid @utexas.edu email address.');
         } else {
-          setError(result.error || "Failed to resend code. Please try again.");
+          setError(result.error || 'Failed to resend code. Please try again.');
         }
         return;
       }
 
       // Clear inputs for new code
-      setCode(["", "", "", "", "", ""]);
+      setCode(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
-    } catch (err) {
-      setError("Network error. Please check your connection.");
+    } catch (_err) {
+      setError('Network error. Please check your connection.');
     } finally {
       setResending(false);
     }
@@ -191,22 +186,17 @@ export default function AccountVerification() {
     <SafeAreaView className="flex-1 bg-white">
       <View className="flex-1 px-6 pt-4">
         {/* Back Arrow */}
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="mb-8 self-start"
-        >
+        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
         </TouchableOpacity>
 
         {/* Title */}
-        <Text className="text-2xl font-bold text-gray-900 mb-2">
-          Account Verification
-        </Text>
+        <Text className="text-2xl font-bold text-gray-900 mb-2">Account Verification</Text>
         <Text className="text-sm text-gray-500 mb-8">
           {sendingInitialCode
-            ? "Sending a verification code to"
+            ? 'Sending a verification code to'
             : "We've sent a verification code to"}
-          {"\n"}
+          {'\n'}
           <Text className="font-semibold text-gray-700">{data.email}</Text>
         </Text>
 
@@ -223,10 +213,10 @@ export default function AccountVerification() {
                 height: 56,
                 borderWidth: 1,
                 borderRadius: 8,
-                textAlign: "center",
+                textAlign: 'center',
                 fontSize: 20,
-                fontWeight: "600",
-                borderColor: error ? "#EF4444" : digit ? "#9CA3AF" : "#D1D5DB",
+                fontWeight: '600',
+                borderColor: error ? '#EF4444' : digit ? '#9CA3AF' : '#D1D5DB',
               }}
               value={digit}
               onChangeText={(text) => handleChange(text, index)}
@@ -247,9 +237,7 @@ export default function AccountVerification() {
         {/* Verify Button */}
         <TouchableOpacity
           className={`rounded-lg py-4 items-center justify-center mb-4 ${
-            allFilled && !loading
-              ? "bg-orange-700"
-              : "bg-transparent border border-gray-300"
+            allFilled && !loading ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
           onPress={handleVerify}
           activeOpacity={allFilled ? 0.8 : 1}
@@ -258,7 +246,7 @@ export default function AccountVerification() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text
-              className={`text-base font-semibold ${allFilled ? "text-white" : "text-gray-400"}`}
+              className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}
             >
               Verify
             </Text>
@@ -267,12 +255,10 @@ export default function AccountVerification() {
 
         {/* Resend Code */}
         <View className="flex-row justify-center mt-2">
-          <Text className="text-sm text-gray-500">
-            Didn't receive the code?{" "}
-          </Text>
+          <Text className="text-sm text-gray-500">Didn&apos;t receive the code? </Text>
           <TouchableOpacity onPress={handleResend}>
             <Text className="text-sm text-orange-700 font-semibold">
-              {resending ? "Sending..." : "Resend Code"}
+              {resending ? 'Sending...' : 'Resend Code'}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,11 +1,5 @@
 import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TextInputProps,
-  Pressable,
-} from 'react-native';
+import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
 import { XCircleIcon } from 'phosphor-react-native';
 
 interface TextInputFieldProps extends TextInputProps {
@@ -24,7 +18,7 @@ export default function TextInputField({
   label,
   leftIcon,
   clearable,
-  borderRadius=8,
+  borderRadius = 8,
   ...props
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -38,7 +32,7 @@ export default function TextInputField({
       clearTimeout(blurTimeoutRef.current);
       blurTimeoutRef.current = null;
     }
-    
+
     setIsFocused(true);
     props.onFocus?.(e);
   };
@@ -49,13 +43,13 @@ export default function TextInputField({
       setIsFocused(false);
       blurTimeoutRef.current = null;
     }, 100);
-    
+
     props.onBlur?.(e);
   };
 
   const focusInput = () => {
     inputRef.current?.focus();
-  }
+  };
 
   const handleClear = () => {
     // Clears text and refocuses text input
@@ -64,14 +58,10 @@ export default function TextInputField({
   };
 
   // --- DERIVED VALUES ---
-  const borderColorClass = isFocused
-    ? 'border-lhlBurntOrange'
-    : 'border-lhlBorderColor';
+  const borderColorClass = isFocused ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   const clearIconColor =
-    isFocused && props.value
-      ? CLEARABLE_ICON_COLORS.active
-      : CLEARABLE_ICON_COLORS.border;
+    isFocused && props.value ? CLEARABLE_ICON_COLORS.active : CLEARABLE_ICON_COLORS.border;
 
   // --- RENDER: TEXT INPUT FIELD ---
   return (
@@ -94,7 +84,7 @@ export default function TextInputField({
           bg-white
         `}
         style={{
-          borderRadius: borderRadius
+          borderRadius: borderRadius,
         }}
       >
         {/* Left Icon */}
@@ -120,15 +110,8 @@ export default function TextInputField({
 
         {/* Clear Button */}
         {clearable && isFocused && (
-          <Pressable
-            onPressIn={(e) => e.preventDefault?.()}
-            onPress={handleClear}
-          >
-            <XCircleIcon
-              size={22}
-              weight="light"
-              color={clearIconColor}
-            />
+          <Pressable onPressIn={(e) => e.preventDefault?.()} onPress={handleClear}>
+            <XCircleIcon size={22} weight="light" color={clearIconColor} />
           </Pressable>
         )}
       </Pressable>

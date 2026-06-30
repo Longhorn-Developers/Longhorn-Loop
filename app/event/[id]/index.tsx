@@ -16,11 +16,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, isRsvped as isRsvpedInStore, removeRsvp } from '@/app/lib/rsvpStore';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
@@ -47,16 +43,33 @@ const REPORT_RED = '#E11D48';
 
 function formatShortDate(isoString: string): string {
   const date = new Date(isoString);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const month = months[date.getMonth()];
   const day = date.getDate();
   const suffix = (n: number) => {
     if (n >= 11 && n <= 13) return 'th';
     switch (n % 10) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
     }
   };
   return `${month} ${day}${suffix(day)}`;
@@ -213,9 +226,7 @@ export default function EventDetailScreen() {
     onMutate: async (wasSaved) => {
       if (!event) return;
       await queryClient.cancelQueries({ queryKey: savedKeys.list() });
-      const previous = queryClient.getQueryData<SavedListResponse>(
-        savedKeys.list(),
-      );
+      const previous = queryClient.getQueryData<SavedListResponse>(savedKeys.list());
       queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
         const list = old?.events ?? [];
         if (wasSaved) {
@@ -339,10 +350,7 @@ export default function EventDetailScreen() {
               alignItems: 'center',
             }}
           >
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <ArrowLeftIcon width={20} height={20} />
             </TouchableOpacity>
 
@@ -446,14 +454,9 @@ export default function EventDetailScreen() {
 
           <Pressable
             onPress={handleRsvpPress}
-            style={[
-              styles.rsvpButton,
-              { backgroundColor: isRsvped ? GOING_BLUE : BURNT_ORANGE },
-            ]}
+            style={[styles.rsvpButton, { backgroundColor: isRsvped ? GOING_BLUE : BURNT_ORANGE }]}
           >
-            <Text style={styles.rsvpButtonText}>
-              {isRsvped ? "I'm Going" : 'RSVP'}
-            </Text>
+            <Text style={styles.rsvpButtonText}>{isRsvped ? "I'm Going" : 'RSVP'}</Text>
             {isRsvped ? (
               <Text style={{ color: '#fff', fontSize: 16, marginLeft: 6 }}>✓</Text>
             ) : hasRsvpLink ? (

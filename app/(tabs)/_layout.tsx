@@ -6,7 +6,7 @@ import TabHomeInactiveIcon from '@/assets/images/tab-home-inactive.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
 import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
 import TabProfileIcon from '@/assets/images/tab-profile.svg';
-import { Tabs } from "expo-router";
+import { Tabs } from 'expo-router';
 
 export default function TabsLayout() {
   return (
@@ -35,36 +35,48 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          tabBarIcon: ({ focused }) => focused
-            ? <TabHomeIcon width={42} height={39} />
-            : <TabHomeInactiveIcon width={42} height={39} />,
+          tabBarIcon: ({ focused }) =>
+            focused ? (
+              <TabHomeIcon width={42} height={39} />
+            ) : (
+              <TabHomeInactiveIcon width={42} height={39} />
+            ),
         }}
       />
 
       <Tabs.Screen
         name="explore"
         options={{
-          tabBarIcon: ({ focused }) => focused
-            ? <TabExploreActiveIcon width={42} height={38} />
-            : <TabExploreIcon width={42} height={38} />,
+          tabBarIcon: ({ focused }) =>
+            focused ? (
+              <TabExploreActiveIcon width={42} height={38} />
+            ) : (
+              <TabExploreIcon width={42} height={38} />
+            ),
         }}
       />
 
       <Tabs.Screen
         name="saved"
         options={{
-          tabBarIcon: ({ focused }) => focused
-            ? <TabCreateActiveIcon width={42} height={38} />
-            : <TabCreateIcon width={42} height={38} />,
+          tabBarIcon: ({ focused }) =>
+            focused ? (
+              <TabCreateActiveIcon width={42} height={38} />
+            ) : (
+              <TabCreateIcon width={42} height={38} />
+            ),
         }}
       />
 
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => focused
-            ? <TabProfileActiveIcon width={42} height={38} />
-            : <TabProfileIcon width={42} height={38} />,
+          tabBarIcon: ({ focused }) =>
+            focused ? (
+              <TabProfileActiveIcon width={42} height={38} />
+            ) : (
+              <TabProfileIcon width={42} height={38} />
+            ),
         }}
       />
     </Tabs>

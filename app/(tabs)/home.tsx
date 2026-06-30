@@ -4,11 +4,7 @@ import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -33,15 +29,10 @@ type EventsListResponse = { events: ApiEvent[] };
 type SavedListResponse = { events: ApiEvent[] };
 
 // Tiny helper: fetch one carousel's worth of events.
-function eventListQueryOptions(
-  filterKey: string,
-  search: string,
-  token: string | null,
-) {
+function eventListQueryOptions(filterKey: string, search: string, token: string | null) {
   return {
     queryKey: eventsKeys.list({ filter: filterKey }),
-    queryFn: () =>
-      api.get<EventsListResponse>(`/events?${search}`, { token }),
+    queryFn: () => api.get<EventsListResponse>(`/events?${search}`, { token }),
     // Use a slightly longer staleTime so the four carousels don't re-fire
     // back-to-back. They still refetch on focus.
     staleTime: 30_000,
@@ -97,11 +88,7 @@ function CarouselSection({
         contentContainerStyle={{ paddingHorizontal: 20 }}
         keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
         renderItem={({ item }) => (
-          <EventCard
-            item={item}
-            isSaved={savedIds.has(item.id)}
-            onToggleSave={onToggleSave}
-          />
+          <EventCard item={item} isSaved={savedIds.has(item.id)} onToggleSave={onToggleSave} />
         )}
       />
     </View>
@@ -115,15 +102,11 @@ export default function HomeScreen() {
   const queryClient = useQueryClient();
 
   // Four event carousels — each its own query so they cache independently.
-  const upcomingQuery = useQuery(
-    eventListQueryOptions('upcoming', 'limit=10', token),
-  );
+  const upcomingQuery = useQuery(eventListQueryOptions('upcoming', 'limit=10', token));
   const freeFoodQuery = useQuery(
     eventListQueryOptions('free-food', 'limit=10&benefit=Free Food', token),
   );
-  const socialQuery = useQuery(
-    eventListQueryOptions('social', 'limit=10&theme=Social', token),
-  );
+  const socialQuery = useQuery(eventListQueryOptions('social', 'limit=10&theme=Social', token));
   const academicQuery = useQuery(
     eventListQueryOptions('academic', 'limit=10&category=Academic', token),
   );
@@ -143,13 +126,7 @@ export default function HomeScreen() {
   // Toggle save with optimistic UI. onMutate flips the cache instantly,
   // onError rolls back, onSettled re-fetches to sync with the server.
   const toggleSave = useMutation({
-    mutationFn: async ({
-      eventId,
-      wasSaved,
-    }: {
-      eventId: number;
-      wasSaved: boolean;
-    }) => {
+    mutationFn: async ({ eventId, wasSaved }: { eventId: number; wasSaved: boolean }) => {
       if (wasSaved) {
         await api.delete(`/saved/${eventId}`, { token });
       } else {
@@ -158,23 +135,18 @@ export default function HomeScreen() {
     },
     onMutate: async ({ eventId, wasSaved }) => {
       await queryClient.cancelQueries({ queryKey: savedKeys.list() });
-      const previous = queryClient.getQueryData<SavedListResponse>(
-        savedKeys.list(),
-      );
-      queryClient.setQueryData<SavedListResponse>(
-        savedKeys.list(),
-        (old) => {
-          const list = old?.events ?? [];
-          if (wasSaved) {
-            return { events: list.filter((e) => e.id !== eventId) };
-          }
-          // We don't have the full event here; the placeholder shape is fine
-          // for membership checks until onSettled re-fetches the real list.
-          return {
-            events: [...list, { id: eventId } as ApiEvent],
-          };
-        },
-      );
+      const previous = queryClient.getQueryData<SavedListResponse>(savedKeys.list());
+      queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
+        const list = old?.events ?? [];
+        if (wasSaved) {
+          return { events: list.filter((e) => e.id !== eventId) };
+        }
+        // We don't have the full event here; the placeholder shape is fine
+        // for membership checks until onSettled re-fetches the real list.
+        return {
+          events: [...list, { id: eventId } as ApiEvent],
+        };
+      });
       return { previous };
     },
     onError: (_err, _vars, context) => {

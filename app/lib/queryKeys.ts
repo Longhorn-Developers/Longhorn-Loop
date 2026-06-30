@@ -7,8 +7,7 @@
 export const events = {
   all: ['events'] as const,
   lists: () => [...events.all, 'list'] as const,
-  list: (params: Record<string, string | undefined> = {}) =>
-    [...events.lists(), params] as const,
+  list: (params: Record<string, string | undefined> = {}) => [...events.lists(), params] as const,
   details: () => [...events.all, 'detail'] as const,
   detail: (id: string | number) => [...events.details(), String(id)] as const,
 };

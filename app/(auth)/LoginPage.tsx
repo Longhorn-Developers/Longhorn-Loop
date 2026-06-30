@@ -26,31 +26,28 @@ export default function LoginPage() {
     // For now, store email and navigate to verification
     update({ email: fieldEmail.trim().toLowerCase() });
     router.push('/AccountVerification');
-  }
+  };
 
   const handleCreateAccount = () => {
     router.push('/RegisterPage');
-  }
+  };
 
   return (
     <FlowLayout
-      title='Welcome Back!'
-      subTitle='Staying in the Loop? Log In!'
+      title="Welcome Back!"
+      subTitle="Staying in the Loop? Log In!"
       onBackPress={() => router.back()}
     >
-
       {showAlert && (
-        <View className='mt-4'>
-          <InlineAlert
-            message='UT email address is invalid or unregistered.'
-          />
+        <View className="mt-4">
+          <InlineAlert message="UT email address is invalid or unregistered." />
         </View>
       )}
 
-      <View className='mt-[42px]'>
+      <View className="mt-[42px]">
         <TextInputField
-          label='UT Email'
-          placeholder='Enter your UT Email'
+          label="UT Email"
+          placeholder="Enter your UT Email"
           clearable={true}
           value={fieldEmail}
           onChangeText={(text) => {
@@ -60,21 +57,16 @@ export default function LoginPage() {
         />
       </View>
 
-      <View className='mt-[42px] mx-2'>
-        <PrimaryButton
-          label='Verify Email'
-          isFilled={isEmailValid}
-          onPress={handleSubmit}
-        />
+      <View className="mt-[42px] mx-2">
+        <PrimaryButton label="Verify Email" isFilled={isEmailValid} onPress={handleSubmit} />
       </View>
 
-      <Pressable className='mt-4' onPress={handleCreateAccount}>
-        <Text className='text-base text-center'>
-          Don't have an account?{' '}
-          <Text className='font-semibold text-lhlBurntOrange'>Sign Up</Text>
+      <Pressable className="mt-4" onPress={handleCreateAccount}>
+        <Text className="text-base text-center">
+          Don&apos;t have an account?{' '}
+          <Text className="font-semibold text-lhlBurntOrange">Sign Up</Text>
         </Text>
       </Pressable>
-
     </FlowLayout>
   );
 }

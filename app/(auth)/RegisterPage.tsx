@@ -5,7 +5,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { API_BASE_URL } from '@/app/config/api';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import InlineAlert from '@/app/components/alerts/InlineAlert';
 
 export default function RegisterPage() {
@@ -57,7 +57,9 @@ export default function RegisterPage() {
         if (data.error === 'INVALID_UT_EMAIL') {
           setAlertMessage('Please use a valid @utexas.edu email address.');
         } else if (data.error === 'RESEND_TOO_SOON') {
-          setAlertMessage('Verification code already sent. Please wait before requesting a new one.');
+          setAlertMessage(
+            'Verification code already sent. Please wait before requesting a new one.',
+          );
         } else {
           setAlertMessage('Something went wrong. Please try again.');
         }
@@ -71,7 +73,7 @@ export default function RegisterPage() {
         email,
       });
       router.push('/AccountVerification');
-    } catch (err) {
+    } catch (_err) {
       setAlertMessage('Network error. Please check your connection.');
     } finally {
       setLoading(false);
@@ -80,23 +82,20 @@ export default function RegisterPage() {
 
   return (
     <FlowLayout
-      title='Welcome!'
-      subTitle='Start by creating an account.'
+      title="Welcome!"
+      subTitle="Start by creating an account."
       onBackPress={() => router.back()}
     >
-
       {alertMessage && (
-        <View className='mt-4'>
-          <InlineAlert
-            message={alertMessage}
-          />
+        <View className="mt-4">
+          <InlineAlert message={alertMessage} />
         </View>
       )}
 
-      <View className='mt-[42px]'>
+      <View className="mt-[42px]">
         <TextInputField
-          label='First Name'
-          placeholder='Enter your first name'
+          label="First Name"
+          placeholder="Enter your first name"
           clearable={true}
           value={fieldFirstName}
           onChangeText={(text) => {
@@ -106,10 +105,10 @@ export default function RegisterPage() {
         />
       </View>
 
-      <View className='mt-4'>
+      <View className="mt-4">
         <TextInputField
-          label='Last Name'
-          placeholder='Enter your last name'
+          label="Last Name"
+          placeholder="Enter your last name"
           clearable={true}
           value={fieldLastName}
           onChangeText={(text) => {
@@ -119,10 +118,10 @@ export default function RegisterPage() {
         />
       </View>
 
-      <View className='mt-4'>
+      <View className="mt-4">
         <TextInputField
-          label='UT Email'
-          placeholder='Enter your UT email address'
+          label="UT Email"
+          placeholder="Enter your UT email address"
           clearable={true}
           value={fieldEmail}
           onChangeText={(text) => {
@@ -132,14 +131,13 @@ export default function RegisterPage() {
         />
       </View>
 
-      <View className='mt-[42px] mx-2'>
+      <View className="mt-[42px] mx-2">
         <PrimaryButton
           label={loading ? 'Sending...' : 'Sign Up'}
           isFilled={isEmailValid && !loading}
           onPress={loading ? undefined : handleSubmit}
         />
       </View>
-
     </FlowLayout>
   );
 }

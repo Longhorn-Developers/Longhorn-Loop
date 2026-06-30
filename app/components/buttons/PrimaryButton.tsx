@@ -16,25 +16,16 @@ export default function PrimaryButton({
   rightIcon,
   ...props
 }: PrimaryButtonProps) {
+  const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
-  const borderColorClass = isFilled
-    ? 'border-lhlBurntOrange'
-    : 'border-lhlBorderColor';
-  
-  const backgroundColorClass = isFilled
-    ? 'bg-lhlBurntOrange'
-    : 'bg-white'
-  
-  const textColorClass = isFilled
-    ? 'text-white'
-    : 'text-lhlSecondaryTextGrey'
-  
-  const iconColorClass = isFilled
-    ? 'white'
-    : 'hsla(180, 9%, 31%, 1)' // lhlSecondaryTextGrey
+  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-white';
+
+  const textColorClass = isFilled ? 'text-white' : 'text-lhlSecondaryTextGrey';
+
+  const iconColorClass = isFilled ? 'white' : 'hsla(180, 9%, 31%, 1)'; // lhlSecondaryTextGrey
 
   return (
-    <Pressable 
+    <Pressable
       className={`
         flex-row items-center justify-center gap-x-2
         h-[55px] border-2 rounded-lg px-2
@@ -43,32 +34,26 @@ export default function PrimaryButton({
       `}
       {...props}
     >
-
       {/* Left Icon */}
-      {leftIcon &&
+      {leftIcon && (
         <View>
           {React.isValidElement(leftIcon)
             ? React.cloneElement(leftIcon, { color: iconColorClass })
             : leftIcon}
         </View>
-      }
+      )}
 
       {/* Button Label */}
-      <Text
-        className={`font-semibold text-xl ${textColorClass} pb-[2px]`}
-      >
-        {label}
-      </Text>
+      <Text className={`font-semibold text-xl ${textColorClass} pb-[2px]`}>{label}</Text>
 
       {/* Right Icon */}
-      {rightIcon &&
+      {rightIcon && (
         <View>
           {React.isValidElement(rightIcon)
             ? React.cloneElement(rightIcon, { color: iconColorClass })
             : rightIcon}
         </View>
-      }
-
+      )}
     </Pressable>
   );
 }
