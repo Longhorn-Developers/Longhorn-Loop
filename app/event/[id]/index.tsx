@@ -17,6 +17,7 @@ import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, isRsvped as isRsvpedInStore, removeRsvp } from '@/app/lib/rsvpStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useState } from 'react';
@@ -25,6 +26,7 @@ import {
   Image,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -40,6 +42,21 @@ const TEXT_MUTED = '#7A7A7A';
 const BORDER_GREY = '#E5E5E5';
 const CHIP_BG = '#F1F1F1';
 const REPORT_RED = '#E11D48';
+
+// Container aspect ratio for the poster. Defaults to portrait since most
+// flyers are vertical.
+function posterAspectRatio(kind: string | null): number {
+  switch (kind) {
+    case 'horizontal':
+      return 1.4;
+    case 'square':
+      return 1;
+    case 'vertical':
+    case 'none':
+    default:
+      return 0.72;
+  }
+}
 
 function formatShortDate(isoString: string): string {
   const date = new Date(isoString);
@@ -340,39 +357,60 @@ export default function EventDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
+        {/* Soft two-layer gradient behind the poster. */}
         <SafeAreaView edges={['top']} style={{ backgroundColor: BG_OFFWHITE }}>
-          <View
-            style={{
-              backgroundColor: BG_OFFWHITE,
-              paddingTop: 8,
-              paddingBottom: 24,
-              paddingHorizontal: 24,
-              alignItems: 'center',
-            }}
-          >
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeftIcon width={20} height={20} />
-            </TouchableOpacity>
+          <View style={{ position: 'relative' }}>
+            <LinearGradient
+              colors={['rgba(146,141,135,1)', 'rgba(248,239,229,1)']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <LinearGradient
+              colors={['rgba(249,248,245,1)', 'rgba(146,141,135,0.15)', 'rgba(249,248,245,1)']}
+              locations={[0, 0.5144, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
 
-            <View style={styles.poster}>
-              {event.image_url ? (
-                <Image
-                  source={{ uri: event.image_url }}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#D9D9D9',
-                  }}
-                >
-                  <Text style={{ color: TEXT_MUTED, fontSize: 14 }}>No image</Text>
-                </View>
-              )}
+            <View
+              style={{
+                paddingTop: 8,
+                paddingBottom: 24,
+                paddingHorizontal: 24,
+                alignItems: 'center',
+              }}
+            >
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <ArrowLeftIcon width={20} height={20} />
+              </TouchableOpacity>
+
+              <View
+                style={[
+                  styles.poster,
+                  { aspectRatio: posterAspectRatio(event.image_aspect_ratio) },
+                ]}
+              >
+                {event.image_url ? (
+                  <Image
+                    source={{ uri: event.image_url }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#D9D9D9',
+                    }}
+                  >
+                    <Text style={{ color: TEXT_MUTED, fontSize: 14 }}>No image</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </SafeAreaView>
@@ -536,11 +574,10 @@ const styles = {
     zIndex: 10,
   },
   poster: {
-    width: '60%' as const,
-    aspectRatio: 0.72,
+    // Aspect ratio comes from posterAspectRatio() at render time.
+    width: '70%' as const,
     borderRadius: 12,
     overflow: 'hidden' as const,
-    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 12,

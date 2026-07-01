@@ -42,25 +42,270 @@ const TAG_TO_CATEGORY: Record<string, string> = {};
 
 // The interest categories and their tags (mirrored from InterestSelection).
 const INTEREST_CATEGORIES: { id: string; label: string; tags: string[] }[] = [
-  { id: 'music', label: 'Music', tags: ['Rock & Alternative', 'Hip Hop & Rap', 'Electronic & EDM', 'Country & Folk', 'Jazz & Blues', 'Classical & Opera', 'Pop & Top 40', 'R&B & Soul', 'Indie & Underground', 'Latin & Reggaeton', 'K-Pop & J-Pop'] },
-  { id: 'arts', label: 'Arts & Culture', tags: ['Art Exhibitions & Galleries', 'Theater & Broadway', 'Dance Performances', 'Film & Cinema', 'Photography', 'Sculpture & Installation Art', 'Poetry & Spoken Word', 'Street Art & Graffiti', 'Cultural Festivals', 'Museum Tours', 'Anime'] },
-  { id: 'sports', label: 'Sports & Fitness', tags: ['Football & Soccer', 'Basketball', 'Baseball & Softball', 'Tennis & Racquet Sports', 'Running & Marathon', 'Yoga & Meditation', 'Cycling & Biking', 'Swimming & Water Sports', 'Martial Arts & Boxing', 'Extreme Sports', 'Golf', 'CrossFit & HIIT'] },
-  { id: 'food', label: 'Food & Drink', tags: ['Wine Tasting', 'Craft Beer & Breweries', 'Cocktails & Mixology', 'Fine Dining', 'Street Food & Food Trucks', 'Vegan & Vegetarian', 'Coffee & Tea', 'Baking & Pastries', 'International Cuisine', 'Cooking Classes', 'Food Festivals'] },
-  { id: 'tech', label: 'Technology', tags: ['Startup & Entrepreneurship', 'AI & Machine Learning', 'Blockchain & Crypto', 'Web Development', 'Mobile Apps', 'Cybersecurity', 'Gaming & Esports', 'VR & AR', 'Robotics', 'Tech Conferences', 'Hackathons'] },
-  { id: 'health', label: 'Health & Wellness', tags: ['Mindfulness & Meditation', 'Nutrition & Diet', 'Mental Health Awareness', 'Fitness Challenges', 'Spa & Self-Care', 'Alternative Medicine', 'Health Fairs'] },
-  { id: 'business', label: 'Business', tags: ['Networking Events', 'Career Fairs', 'Workshops & Seminars', 'Leadership Summits', 'Investment & Finance', 'Marketing & Branding', 'Real Estate'] },
-  { id: 'outdoors', label: 'Outdoors', tags: ['Hiking & Trails', 'Camping', 'Fishing', 'Kayaking & Canoeing', 'Rock Climbing', 'Gardening & Botany', 'Bird Watching', 'Nature Photography'] },
-  { id: 'learning', label: 'Learning & Education', tags: ['Book Clubs', 'Language Learning', 'STEM Workshops', 'History Lectures', 'Creative Writing', 'Study Groups', 'Academic Competitions'] },
-  { id: 'nightlife', label: 'Nightlife', tags: ['Club Events', 'Live DJ Sets', 'Bar Crawls', 'Karaoke Nights', 'Comedy Shows', 'Late-Night Events', 'Theme Parties'] },
-  { id: 'spirituality', label: 'Spirituality', tags: ['Meditation Retreats', 'Religious Services', 'Interfaith Dialogues', 'Prayer Groups', 'Spiritual Workshops', 'Community Service'] },
-  { id: 'performing', label: 'Performing Arts', tags: ['Stand-up Comedy', 'Improv Shows', 'Musical Theater', 'Orchestra & Symphony', 'Circus & Acrobatics', 'Spoken Word & Poetry Slams', 'Drag Shows'] },
-  { id: 'science', label: 'Science', tags: ['Astronomy & Stargazing', 'Biology & Ecology', 'Chemistry Demos', 'Physics Talks', 'Environmental Science', 'Space Exploration', 'Citizen Science'] },
-  { id: 'shopping', label: 'Shopping & Fashion', tags: ['Thrift & Vintage', 'Pop-Up Markets', 'Fashion Shows', 'Streetwear', 'Sustainable Fashion', 'DIY & Crafts', 'Flea Markets'] },
-  { id: 'travel', label: 'Travel', tags: ['Study Abroad Info', 'Travel Meetups', 'Cultural Exchange', 'Road Trip Planning', 'Budget Travel Tips', 'Adventure Travel'] },
-  { id: 'gaming', label: 'Gaming', tags: ['Video Game Tournaments', 'Board Game Nights', 'Tabletop RPGs', 'LAN Parties', 'Game Dev Meetups', 'Retro Gaming', 'Card Games'] },
-  { id: 'home', label: 'Home & Lifestyle', tags: ['Interior Design', 'Home Organization', 'Sustainable Living', 'Budgeting & Finance', 'Meal Prep', 'DIY Home Projects'] },
-  { id: 'networking', label: 'Networking', tags: ['Professional Mixers', 'Alumni Events', 'Mentorship Programs', 'Industry Panels', 'Speed Networking', 'Co-working Sessions'] },
-  { id: 'pets', label: 'Pets & Animals', tags: ['Dog-Friendly Events', 'Pet Adoption', 'Animal Rescue', 'Wildlife Conservation', 'Equestrian', 'Pet Training'] },
+  {
+    id: 'music',
+    label: 'Music',
+    tags: [
+      'Rock & Alternative',
+      'Hip Hop & Rap',
+      'Electronic & EDM',
+      'Country & Folk',
+      'Jazz & Blues',
+      'Classical & Opera',
+      'Pop & Top 40',
+      'R&B & Soul',
+      'Indie & Underground',
+      'Latin & Reggaeton',
+      'K-Pop & J-Pop',
+    ],
+  },
+  {
+    id: 'arts',
+    label: 'Arts & Culture',
+    tags: [
+      'Art Exhibitions & Galleries',
+      'Theater & Broadway',
+      'Dance Performances',
+      'Film & Cinema',
+      'Photography',
+      'Sculpture & Installation Art',
+      'Poetry & Spoken Word',
+      'Street Art & Graffiti',
+      'Cultural Festivals',
+      'Museum Tours',
+      'Anime',
+    ],
+  },
+  {
+    id: 'sports',
+    label: 'Sports & Fitness',
+    tags: [
+      'Football & Soccer',
+      'Basketball',
+      'Baseball & Softball',
+      'Tennis & Racquet Sports',
+      'Running & Marathon',
+      'Yoga & Meditation',
+      'Cycling & Biking',
+      'Swimming & Water Sports',
+      'Martial Arts & Boxing',
+      'Extreme Sports',
+      'Golf',
+      'CrossFit & HIIT',
+    ],
+  },
+  {
+    id: 'food',
+    label: 'Food & Drink',
+    tags: [
+      'Wine Tasting',
+      'Craft Beer & Breweries',
+      'Cocktails & Mixology',
+      'Fine Dining',
+      'Street Food & Food Trucks',
+      'Vegan & Vegetarian',
+      'Coffee & Tea',
+      'Baking & Pastries',
+      'International Cuisine',
+      'Cooking Classes',
+      'Food Festivals',
+    ],
+  },
+  {
+    id: 'tech',
+    label: 'Technology',
+    tags: [
+      'Startup & Entrepreneurship',
+      'AI & Machine Learning',
+      'Blockchain & Crypto',
+      'Web Development',
+      'Mobile Apps',
+      'Cybersecurity',
+      'Gaming & Esports',
+      'VR & AR',
+      'Robotics',
+      'Tech Conferences',
+      'Hackathons',
+    ],
+  },
+  {
+    id: 'health',
+    label: 'Health & Wellness',
+    tags: [
+      'Mindfulness & Meditation',
+      'Nutrition & Diet',
+      'Mental Health Awareness',
+      'Fitness Challenges',
+      'Spa & Self-Care',
+      'Alternative Medicine',
+      'Health Fairs',
+    ],
+  },
+  {
+    id: 'business',
+    label: 'Business',
+    tags: [
+      'Networking Events',
+      'Career Fairs',
+      'Workshops & Seminars',
+      'Leadership Summits',
+      'Investment & Finance',
+      'Marketing & Branding',
+      'Real Estate',
+    ],
+  },
+  {
+    id: 'outdoors',
+    label: 'Outdoors',
+    tags: [
+      'Hiking & Trails',
+      'Camping',
+      'Fishing',
+      'Kayaking & Canoeing',
+      'Rock Climbing',
+      'Gardening & Botany',
+      'Bird Watching',
+      'Nature Photography',
+    ],
+  },
+  {
+    id: 'learning',
+    label: 'Learning & Education',
+    tags: [
+      'Book Clubs',
+      'Language Learning',
+      'STEM Workshops',
+      'History Lectures',
+      'Creative Writing',
+      'Study Groups',
+      'Academic Competitions',
+    ],
+  },
+  {
+    id: 'nightlife',
+    label: 'Nightlife',
+    tags: [
+      'Club Events',
+      'Live DJ Sets',
+      'Bar Crawls',
+      'Karaoke Nights',
+      'Comedy Shows',
+      'Late-Night Events',
+      'Theme Parties',
+    ],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality',
+    tags: [
+      'Meditation Retreats',
+      'Religious Services',
+      'Interfaith Dialogues',
+      'Prayer Groups',
+      'Spiritual Workshops',
+      'Community Service',
+    ],
+  },
+  {
+    id: 'performing',
+    label: 'Performing Arts',
+    tags: [
+      'Stand-up Comedy',
+      'Improv Shows',
+      'Musical Theater',
+      'Orchestra & Symphony',
+      'Circus & Acrobatics',
+      'Spoken Word & Poetry Slams',
+      'Drag Shows',
+    ],
+  },
+  {
+    id: 'science',
+    label: 'Science',
+    tags: [
+      'Astronomy & Stargazing',
+      'Biology & Ecology',
+      'Chemistry Demos',
+      'Physics Talks',
+      'Environmental Science',
+      'Space Exploration',
+      'Citizen Science',
+    ],
+  },
+  {
+    id: 'shopping',
+    label: 'Shopping & Fashion',
+    tags: [
+      'Thrift & Vintage',
+      'Pop-Up Markets',
+      'Fashion Shows',
+      'Streetwear',
+      'Sustainable Fashion',
+      'DIY & Crafts',
+      'Flea Markets',
+    ],
+  },
+  {
+    id: 'travel',
+    label: 'Travel',
+    tags: [
+      'Study Abroad Info',
+      'Travel Meetups',
+      'Cultural Exchange',
+      'Road Trip Planning',
+      'Budget Travel Tips',
+      'Adventure Travel',
+    ],
+  },
+  {
+    id: 'gaming',
+    label: 'Gaming',
+    tags: [
+      'Video Game Tournaments',
+      'Board Game Nights',
+      'Tabletop RPGs',
+      'LAN Parties',
+      'Game Dev Meetups',
+      'Retro Gaming',
+      'Card Games',
+    ],
+  },
+  {
+    id: 'home',
+    label: 'Home & Lifestyle',
+    tags: [
+      'Interior Design',
+      'Home Organization',
+      'Sustainable Living',
+      'Budgeting & Finance',
+      'Meal Prep',
+      'DIY Home Projects',
+    ],
+  },
+  {
+    id: 'networking',
+    label: 'Networking',
+    tags: [
+      'Professional Mixers',
+      'Alumni Events',
+      'Mentorship Programs',
+      'Industry Panels',
+      'Speed Networking',
+      'Co-working Sessions',
+    ],
+  },
+  {
+    id: 'pets',
+    label: 'Pets & Animals',
+    tags: [
+      'Dog-Friendly Events',
+      'Pet Adoption',
+      'Animal Rescue',
+      'Wildlife Conservation',
+      'Equestrian',
+      'Pet Training',
+    ],
+  },
 ];
 
 // Build TAG_TO_CATEGORY lookup at module load.
@@ -97,9 +342,7 @@ const CATEGORY_TO_QUERY: Record<string, string> = {
 // Derive carousel definitions from user's selected tags.
 function buildCarousels(userTags: string[]): CarouselDef[] {
   // Always start with Upcoming.
-  const carousels: CarouselDef[] = [
-    { key: 'upcoming', title: 'Upcoming', search: 'limit=10' },
-  ];
+  const carousels: CarouselDef[] = [{ key: 'upcoming', title: 'Upcoming', search: 'limit=10' }];
 
   // Derive unique categories from user tags, in order of first appearance.
   const seen = new Set<string>();
@@ -242,7 +485,12 @@ export default function HomeScreen() {
   );
 
   // Toggle save with optimistic UI.
-  const toggleSave = useMutation<void, unknown, { eventId: number; wasSaved: boolean }, { previous?: SavedListResponse }>({
+  const toggleSave = useMutation<
+    void,
+    unknown,
+    { eventId: number; wasSaved: boolean },
+    { previous?: SavedListResponse }
+  >({
     mutationFn: async ({ eventId, wasSaved }) => {
       if (wasSaved) {
         await api.delete(`/saved/${eventId}`, { token });
@@ -298,9 +546,7 @@ export default function HomeScreen() {
               {getGreeting()}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>
-                {firstName}
-              </Text>
+              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>{firstName}</Text>
               <HookemIcon width={31} height={31} />
             </View>
           </View>

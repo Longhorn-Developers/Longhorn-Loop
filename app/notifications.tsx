@@ -41,7 +41,6 @@ interface Section {
   data: Notification[];
 }
 
-
 // ---------- Helpers ----------
 
 function groupByDate(items: Notification[]): Section[] {

@@ -75,13 +75,38 @@ export default function EventCard({ item, isSaved, onToggleSave }: EventCardProp
       style={{ width: 180 }}
       className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey"
     >
-      <View style={{ backgroundColor: '#D9D9D9', height: 160 }} className="w-full">
+      <View
+        style={{
+          height: 160,
+          width: '100%',
+          backgroundColor: '#D9D9D9',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         {hasImage && (
-          <Image
-            source={{ uri: item.image_url! }}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-          />
+          <>
+            {/* Blurred copy of the poster fills the card, giving the
+                foreground image an atmospheric backdrop. */}
+            <Image
+              source={{ uri: item.image_url! }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                opacity: 0.55,
+              }}
+              blurRadius={18}
+              resizeMode="cover"
+            />
+            <Image
+              source={{ uri: item.image_url! }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="contain"
+            />
+          </>
         )}
 
         {hasBenefits && (
@@ -104,7 +129,7 @@ export default function EventCard({ item, isSaved, onToggleSave }: EventCardProp
 
         <TouchableOpacity
           onPress={(e) => {
-            // Don't let the bookmark tap bubble up and trigger card navigation.
+            // Stop the tap so it doesn't also open the event.
             e.stopPropagation();
             onToggleSave(item.id);
           }}

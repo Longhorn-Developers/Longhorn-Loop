@@ -81,9 +81,7 @@ export default function FrontPage() {
               router.replace('/(tabs)/home');
             }}
           >
-            <Text className="text-xs text-gray-400 underline">
-              [DEV] Skip to Home
-            </Text>
+            <Text className="text-xs text-gray-400 underline">[DEV] Skip to Home</Text>
           </Pressable>
         )}
       </ScrollView>
