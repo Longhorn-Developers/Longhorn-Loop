@@ -1,16 +1,20 @@
-/**
- * HornsLink Event Scraper
- *
- * Fetches events from UT Austin's HornsLink (Campus Labs Engage) platform
- * via their public discovery API. No authentication required.
- *
- * API base: https://utexas.campuslabs.com/engage/api/discovery/event/search
- * Image base: https://se-images.campuslabs.com/clink/images/
- */
+// HornsLink scraper. Public discovery API, no auth.
+// API:   https://utexas.campuslabs.com/engage/api/discovery/event/search
+// Images: https://se-images.campuslabs.com/clink/images/
 
+import { ingestEvents } from '../events/ingest';
+import {
+  buildAbsoluteUrl,
+  classifyAspectRatio,
+  parseCoordinate,
+  stripHtml,
+  truncateLocation,
+} from '../events/normalize';
+import { fetchWithRetry, sleep } from '../events/polite-fetch';
+import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
 
-// ---------- Types ----------
+// Types
 
 interface HornsLinkEvent {
   id: string;
@@ -39,11 +43,6 @@ interface HornsLinkEvent {
 
 interface HornsLinkSearchResponse {
   '@odata.count': number;
-  '@search.facets': {
-    CategoryIds: Array<{ value: string; count: number }>;
-    BenefitNames: Array<{ value: string; count: number }>;
-    Theme: Array<{ value: string; count: number }>;
-  };
   value: HornsLinkEvent[];
 }
 
@@ -56,106 +55,33 @@ interface ScraperResult {
   durationMs: number;
 }
 
-// ---------- Constants ----------
+// Constants
 
 const HORNSLINK_API_BASE = 'https://utexas.campuslabs.com/engage/api/discovery/event/search';
 const HORNSLINK_EVENT_URL_BASE = 'https://utexas.campuslabs.com/engage/event/';
 const IMAGE_BASE_URL = 'https://se-images.campuslabs.com/clink/images/';
-const ORG_PROFILE_IMAGE_BASE = 'https://se-images.campuslabs.com/clink/images/';
 
-// Polite scraping settings
 const PAGE_SIZE = 20;
-const MAX_PAGES = 5; // Start small: 100 events max
-const REQUEST_DELAY_MS = 500; // 500ms between requests
-const MAX_RETRIES = 3;
+const MAX_PAGES = 5;
+const REQUEST_DELAY_MS = 500;
 const DAYS_AHEAD = 30;
 
-// Cron settings: 25 pages * 20/page = up to 500 events, matching the
-// 200-500 events/run target for the scheduled scrape.
+// Cron: 25 pages * 20 = up to 500 events, matching the target run size.
 const CRON_MAX_PAGES = 25;
-// Stay well under the Workers CPU/wall-clock limit for scheduled handlers —
-// if we run long, stop early and pick up the remaining pages next run
-// (safe because results are ordered by endsOn ascending, so we always make
-// progress on the soonest-ending events first).
+// Stop early if we're close to the Workers CPU budget. Results are
+// ordered by endsOn asc, so soonest-ending events get done first and
+// leftovers roll to the next run.
 const TIME_BUDGET_MS = 25_000;
 
-// ---------- Helpers ----------
+// Helpers
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Truncate location to 40 chars for card display
- */
-function truncateLocation(location: string | null): string | null {
-  if (!location) return null;
-  return location.length > 40 ? location.substring(0, 37) + '...' : location;
-}
-
-/**
- * Classify image aspect ratio based on dimensions.
- * If we don't have dimensions, return 'none' for null images or 'square' as default.
- */
-function classifyAspectRatio(
-  width: number | null,
-  height: number | null,
-  hasImage: boolean,
-): string {
-  if (!hasImage) return 'none';
-  if (!width || !height) return 'square'; // default when dimensions unknown
-  const ratio = width / height;
-  if (ratio < 0.8) return 'vertical';
-  if (ratio > 1.2) return 'horizontal';
-  return 'square';
-}
-
-/**
- * Build the full image URL from HornsLink image path
- */
-function buildImageUrl(imagePath: string | null): string | null {
-  if (!imagePath) return null;
-  return `${IMAGE_BASE_URL}${imagePath}`;
-}
-
-/**
- * Strip HTML tags from description for clean text
- */
-function stripHtml(html: string | null): string | null {
-  if (!html) return null;
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&mdash;/g, '—')
-    .replace(/&rsquo;/g, "'")
-    .replace(/&lsquo;/g, "'")
-    .replace(/&rdquo;/g, '\u201D')
-    .replace(/&ldquo;/g, '\u201C')
-    .replace(/&oacute;/g, 'ó')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Build the search URL for a given page
- */
 function buildSearchUrl(page: number): string {
   const now = new Date();
-  const startsAfter = now.toISOString();
-  // Look DAYS_AHEAD days ahead. The API doesn't reliably honor an upper
-  // bound param, so this is a best-effort hint — the real enforcement
-  // happens client-side in scrapeHornsLink via the endsOn cutoff check.
   const endDate = new Date(now.getTime() + DAYS_AHEAD * 24 * 60 * 60 * 1000);
-  const endsBefore = endDate.toISOString();
 
   const params = new URLSearchParams({
-    endsAfter: startsAfter,
-    endsBefore,
+    endsAfter: now.toISOString(),
+    endsBefore: endDate.toISOString(),
     orderByField: 'endsOn',
     orderByDirection: 'ascending',
     status: 'Approved',
@@ -166,203 +92,50 @@ function buildSearchUrl(page: number): string {
   return `${HORNSLINK_API_BASE}?${params.toString()}`;
 }
 
-// ---------- Fetch with retry ----------
+// Normalize
 
-async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<Response> {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'LonghornLoop/1.0 (student-project)',
-        },
-      });
+function toNormalizedEvent(raw: HornsLinkEvent): NormalizedEvent {
+  const imageUrl = buildAbsoluteUrl(IMAGE_BASE_URL, raw.imagePath);
+  const profilePicture = buildAbsoluteUrl(IMAGE_BASE_URL, raw.organizationProfilePicture);
 
-      if (res.status === 429) {
-        // Rate limited — back off exponentially
-        const backoff = Math.pow(2, attempt) * 2000;
-        console.log(`Rate limited, backing off ${backoff}ms...`);
-        await sleep(backoff);
-        continue;
-      }
+  const categories = raw.categoryIds.map((id, i) => ({
+    id,
+    name: raw.categoryNames[i] ?? null,
+  }));
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      return res;
-    } catch (err) {
-      if (attempt === retries - 1) throw err;
-      const backoff = Math.pow(2, attempt) * 1000;
-      console.log(`Attempt ${attempt + 1} failed, retrying in ${backoff}ms...`);
-      await sleep(backoff);
-    }
-  }
-  throw new Error('All retries exhausted');
+  return {
+    source: 'hornslink',
+    sourceEventId: raw.id,
+    title: raw.name,
+    description: stripHtml(raw.description),
+    startDatetime: raw.startsOn,
+    endDatetime: raw.endsOn,
+    locationShort: truncateLocation(raw.location),
+    locationFull: raw.location,
+    latitude: parseCoordinate(raw.latitude),
+    longitude: parseCoordinate(raw.longitude),
+    organization: {
+      sourceOrgId: raw.organizationId,
+      name: raw.organizationName,
+      profilePicture,
+    },
+    eventUrl: `${HORNSLINK_EVENT_URL_BASE}${raw.id}`,
+    rsvpUrl: null,
+    imageUrl,
+    imageAspectRatio: classifyAspectRatio(null, null, !!imageUrl),
+    imageWidth: null,
+    imageHeight: null,
+    imageMimeType: null,
+    imageAltText: null,
+    theme: raw.theme,
+    visibility: raw.visibility,
+    rsvpTotal: raw.rsvpTotal,
+    categories,
+    benefits: raw.benefitNames,
+  };
 }
 
-// ---------- Database Operations ----------
-
-async function upsertOrganization(db: D1Database, event: HornsLinkEvent): Promise<void> {
-  const profilePicUrl = event.organizationProfilePicture
-    ? `${ORG_PROFILE_IMAGE_BASE}${event.organizationProfilePicture}`
-    : null;
-
-  await db
-    .prepare(
-      `INSERT INTO organizations (id, name, profile_picture, source, updated_at)
-       VALUES (?, ?, ?, 'hornslink', datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name,
-         profile_picture = excluded.profile_picture,
-         updated_at = datetime('now')`,
-    )
-    .bind(event.organizationId, event.organizationName.trim(), profilePicUrl)
-    .run();
-}
-
-// Purge target for the cleanup job (LOOP-150): end time + 7 days, falling
-// back to the start time when an event has no end time.
-const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
-
-function computeExpiresAt(endsOn: string | null, startsOn: string): string {
-  const base = endsOn ?? startsOn;
-  return new Date(new Date(base).getTime() + EXPIRES_AFTER_MS).toISOString();
-}
-
-async function upsertEvent(db: D1Database, event: HornsLinkEvent): Promise<{ isNew: boolean }> {
-  const imageUrl = buildImageUrl(event.imagePath);
-  const aspectRatio = classifyAspectRatio(null, null, !!event.imagePath);
-  const locationShort = truncateLocation(event.location);
-  const eventUrl = `${HORNSLINK_EVENT_URL_BASE}${event.id}`;
-  const cleanDescription = stripHtml(event.description);
-  const expiresAt = computeExpiresAt(event.endsOn, event.startsOn);
-
-  // Check if event already exists
-  const existing = await db
-    .prepare("SELECT id FROM events WHERE source = 'hornslink' AND source_event_id = ?")
-    .bind(event.id)
-    .first();
-
-  if (existing) {
-    // Update existing event
-    await db
-      .prepare(
-        `UPDATE events SET
-          title = ?, description = ?, start_datetime = ?, end_datetime = ?,
-          location_short = ?, location_full = ?, latitude = ?, longitude = ?,
-          host_organization_id = ?, host_organization_name = ?,
-          event_url = ?, image_url = ?, image_aspect_ratio = ?,
-          theme = ?, visibility = ?, rsvp_total = ?, expires_at = ?,
-          status = 'active', updated_at = datetime('now')
-        WHERE source = 'hornslink' AND source_event_id = ?`,
-      )
-      .bind(
-        event.name,
-        cleanDescription,
-        event.startsOn,
-        event.endsOn,
-        locationShort,
-        event.location,
-        event.latitude ? parseFloat(event.latitude) : null,
-        event.longitude ? parseFloat(event.longitude) : null,
-        event.organizationId,
-        event.organizationName.trim(),
-        eventUrl,
-        imageUrl,
-        aspectRatio,
-        event.theme,
-        event.visibility,
-        event.rsvpTotal,
-        expiresAt,
-        event.id,
-      )
-      .run();
-
-    // Clear and re-insert categories and benefits
-    const eventId = existing.id as number;
-    await db.prepare('DELETE FROM event_categories WHERE event_id = ?').bind(eventId).run();
-    await db.prepare('DELETE FROM event_benefits WHERE event_id = ?').bind(eventId).run();
-
-    await insertCategoriesAndBenefits(db, eventId, event);
-
-    return { isNew: false };
-  } else {
-    // Insert new event
-    const result = await db
-      .prepare(
-        `INSERT INTO events (
-          source, source_event_id, title, description,
-          start_datetime, end_datetime, location_short, location_full,
-          latitude, longitude, host_organization_id, host_organization_name,
-          event_url, image_url, image_aspect_ratio, theme,
-          visibility, rsvp_total, expires_at, status
-        ) VALUES (
-          'hornslink', ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, 'active'
-        )`,
-      )
-      .bind(
-        event.id,
-        event.name,
-        cleanDescription,
-        event.startsOn,
-        event.endsOn,
-        locationShort,
-        event.location,
-        event.latitude ? parseFloat(event.latitude) : null,
-        event.longitude ? parseFloat(event.longitude) : null,
-        event.organizationId,
-        event.organizationName.trim(),
-        eventUrl,
-        imageUrl,
-        aspectRatio,
-        event.theme,
-        event.visibility,
-        event.rsvpTotal,
-        expiresAt,
-      )
-      .run();
-
-    const eventId = result.meta.last_row_id;
-    await insertCategoriesAndBenefits(db, eventId, event);
-
-    return { isNew: true };
-  }
-}
-
-async function insertCategoriesAndBenefits(
-  db: D1Database,
-  eventId: number,
-  event: HornsLinkEvent,
-): Promise<void> {
-  // Insert categories
-  for (let i = 0; i < event.categoryIds.length; i++) {
-    await db
-      .prepare(
-        `INSERT OR IGNORE INTO event_categories (event_id, category_id, category_name)
-         VALUES (?, ?, ?)`,
-      )
-      .bind(eventId, event.categoryIds[i], event.categoryNames[i] || null)
-      .run();
-  }
-
-  // Insert benefits/perks
-  for (const benefit of event.benefitNames) {
-    await db
-      .prepare(
-        `INSERT OR IGNORE INTO event_benefits (event_id, benefit_name)
-         VALUES (?, ?)`,
-      )
-      .bind(eventId, benefit)
-      .run();
-  }
-}
-
-// ---------- Main Scraper ----------
+// Main scraper
 
 export async function scrapeHornsLink(
   db: D1Database,
@@ -388,7 +161,7 @@ export async function scrapeHornsLink(
   for (let page = 0; page < maxPages; page++) {
     if (page > 0 && Date.now() - startTime > timeBudgetMs) {
       console.warn(
-        `[HornsLink] Time budget (${timeBudgetMs}ms) exceeded after page ${page}, stopping early. Remaining pages will be picked up next run.`,
+        `[HornsLink] Time budget (${timeBudgetMs}ms) exceeded after page ${page}, stopping early.`,
       );
       break;
     }
@@ -409,51 +182,37 @@ export async function scrapeHornsLink(
         `[HornsLink] Got ${data.value.length} events (total available: ${data['@odata.count']})`,
       );
 
-      // Process each event with error isolation
-      for (const event of data.value) {
-        try {
-          result.eventsProcessed++;
-
-          // Defense in depth: enforce the 30-day window client-side in case
-          // the API ignores the endsBefore hint.
-          const startMs = new Date(event.startsOn).getTime();
-          if (!isNaN(startMs) && startMs > cutoffMs) {
-            result.eventsSkipped++;
-            continue;
-          }
-
-          if (dryRun) {
-            console.log(
-              `[DRY RUN] Event: "${event.name}" by ${event.organizationName} @ ${event.location || 'TBD'} on ${event.startsOn}`,
-            );
-            continue;
-          }
-
-          // Upsert org first (foreign key)
-          await upsertOrganization(db, event);
-
-          // Upsert event
-          const { isNew } = await upsertEvent(db, event);
-          if (isNew) {
-            result.eventsInserted++;
-          } else {
-            result.eventsUpdated++;
-          }
-        } catch (err) {
-          const errorMsg = `Failed to process event ${event.id} ("${event.name}"): ${err}`;
-          console.error(`[HornsLink] ${errorMsg}`);
-          result.errors.push(errorMsg);
+      // Client-side cutoff enforcement in case the API ignores endsBefore.
+      const inWindow: HornsLinkEvent[] = [];
+      for (const raw of data.value) {
+        result.eventsProcessed++;
+        const startMs = new Date(raw.startsOn).getTime();
+        if (!isNaN(startMs) && startMs > cutoffMs) {
+          result.eventsSkipped++;
+          continue;
         }
+        inWindow.push(raw);
       }
 
-      // Polite delay between pages
-      if (page < maxPages - 1) {
-        await sleep(REQUEST_DELAY_MS);
+      if (dryRun) {
+        for (const raw of inWindow) {
+          console.log(
+            `[DRY RUN] "${raw.name}" by ${raw.organizationName} @ ${raw.location || 'TBD'} on ${raw.startsOn}`,
+          );
+        }
+      } else {
+        const normalized = inWindow.map(toNormalizedEvent);
+        const ingested = await ingestEvents(db, normalized);
+        result.eventsInserted += ingested.inserted;
+        result.eventsUpdated += ingested.updated;
+        result.errors.push(...ingested.errors);
       }
+
+      if (page < maxPages - 1) await sleep(REQUEST_DELAY_MS);
     } catch (err) {
-      const errorMsg = `Failed to fetch page ${page + 1}: ${err}`;
-      console.error(`[HornsLink] ${errorMsg}`);
-      result.errors.push(errorMsg);
+      const msg = `Failed to fetch page ${page + 1}: ${err}`;
+      console.error(`[HornsLink] ${msg}`);
+      result.errors.push(msg);
     }
   }
 
@@ -469,16 +228,10 @@ export async function scrapeHornsLink(
   return result;
 }
 
-/**
- * Cron entrypoint — called by the scheduled handler in worker.ts every 6h.
- * Uses a larger page budget than the manual /events/scrape route to reach
- * the 200-500 events/run target.
- */
+// Cron entrypoint. Larger page budget than the manual scrape route.
 export async function run(env: Env): Promise<void> {
   console.log('[HornsLink] Cron scrape started');
-
   const result = await scrapeHornsLink(env.DB, { maxPages: CRON_MAX_PAGES });
-
   if (result.errors.length > 0) {
     console.error(
       `[HornsLink] Cron run had ${result.errors.length} event-level error(s):`,
