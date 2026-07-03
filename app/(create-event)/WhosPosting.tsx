@@ -1,3 +1,4 @@
+import CheckIcon from '@/assets/images/check-selected.svg';
 import PosterOrgSmallIcon from '@/assets/images/poster-org-small.svg';
 import PosterOrgIcon from '@/assets/images/poster-org.svg';
 import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
@@ -16,7 +17,9 @@ type PosterOption = CreateEventPoster & {
 const BURNT_ORANGE = '#9D4A06';
 const BORDER = '#D9D9D9';
 const CARD_BG = '#FFFFFF';
+const CARD_BG_SELECTED = '#FFF5E5';
 const AVATAR_BG = '#E9E6E2';
+const AVATAR_BG_SELECTED = '#EEA26480';
 const BG = '#F9F8F5';
 const TEXT_SECONDARY = '#485656';
 
@@ -110,8 +113,12 @@ export default function WhosPosting() {
                 onPress={() => update({ poster: posterForContext })}
                 style={[styles.posterCard, isSelected && styles.posterCardSelected]}
               >
-                <View style={styles.avatar}>
-                  <Icon width={iconSize.width} height={iconSize.height} />
+                <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
+                  <Icon
+                    width={iconSize.width}
+                    height={iconSize.height}
+                    color={isSelected ? BURNT_ORANGE : '#000000'}
+                  />
                 </View>
                 <View style={styles.posterText}>
                   <Text style={styles.posterName}>{poster.name}</Text>
@@ -125,6 +132,7 @@ export default function WhosPosting() {
                     )}
                   </Text>
                 </View>
+                {isSelected && <CheckIcon width={19} height={14} color={BURNT_ORANGE} />}
               </TouchableOpacity>
             );
           })}
@@ -223,7 +231,7 @@ const styles = StyleSheet.create({
   },
   posterCardSelected: {
     borderColor: BURNT_ORANGE,
-    borderWidth: 1.5,
+    backgroundColor: CARD_BG_SELECTED,
   },
   avatar: {
     width: 44,
@@ -232,6 +240,9 @@ const styles = StyleSheet.create({
     backgroundColor: AVATAR_BG,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarSelected: {
+    backgroundColor: AVATAR_BG_SELECTED,
   },
   posterText: {
     flex: 1,

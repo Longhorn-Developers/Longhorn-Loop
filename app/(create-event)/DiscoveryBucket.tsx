@@ -1,3 +1,4 @@
+import CheckIcon from '@/assets/images/check-selected.svg';
 import ArtsIcon from '@/assets/images/arts_culture.svg';
 import BallIcon from '@/assets/images/ball.svg';
 import BusinessIcon from '@/assets/images/business.svg';
@@ -17,7 +18,6 @@ import SpiritualityIcon from '@/assets/images/spirituality.svg';
 import TechIcon from '@/assets/images/technology.svg';
 import TravelIcon from '@/assets/images/travel.svg';
 import VideoGameIcon from '@/assets/images/Video_Game.svg';
-import PosterOrgSmallIcon from '@/assets/images/poster-org-small.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
 import { useRouter } from 'expo-router';
@@ -36,13 +36,6 @@ type Bucket = {
 const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
 
 const BUCKETS: Bucket[] = [
-  {
-    id: 'campus_wide',
-    title: 'Campus-Wide',
-    description: 'Open to all UT students',
-    Icon: PosterOrgSmallIcon,
-    iconSize: { width: 19, height: 16 },
-  },
   {
     id: 'music',
     title: 'Music',
@@ -182,7 +175,9 @@ const BURNT_ORANGE = '#9D4A06';
 const BLACK = '#020B12';
 const BORDER = '#D9D9D9';
 const CARD_BG = '#FFFFFF';
+const CARD_BG_SELECTED = '#FFF5E5';
 const AVATAR_BG = '#E9E6E2';
+const AVATAR_BG_SELECTED = '#EEA26480';
 const BG = '#F9F8F5';
 const TEXT_SECONDARY = '#485656';
 
@@ -243,13 +238,18 @@ export default function DiscoveryBucket() {
                 }}
                 style={[styles.bucketCard, isSelected && styles.bucketCardSelected]}
               >
-                <View style={styles.avatar}>
-                  <Icon width={iconSize.width} height={iconSize.height} color={BLACK} />
+                <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
+                  <Icon
+                    width={iconSize.width}
+                    height={iconSize.height}
+                    color={isSelected ? BURNT_ORANGE : BLACK}
+                  />
                 </View>
                 <View style={styles.bucketText}>
                   <Text style={styles.bucketTitle}>{bucket.title}</Text>
                   <Text style={styles.bucketDescription}>{bucket.description}</Text>
                 </View>
+                {isSelected && <CheckIcon width={19} height={14} color={BURNT_ORANGE} />}
               </TouchableOpacity>
             );
           })}
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
   },
   bucketCardSelected: {
     borderColor: BURNT_ORANGE,
-    borderWidth: 1.5,
+    backgroundColor: CARD_BG_SELECTED,
   },
   avatar: {
     width: 44,
@@ -357,6 +357,9 @@ const styles = StyleSheet.create({
     backgroundColor: AVATAR_BG,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarSelected: {
+    backgroundColor: AVATAR_BG_SELECTED,
   },
   bucketText: {
     flex: 1,
