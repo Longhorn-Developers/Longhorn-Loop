@@ -1,11 +1,12 @@
 import BellIcon from '@/assets/images/bell.svg';
 import HookemIcon from '@/assets/images/hookem.svg';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
+import EventPostedModal from '@/app/components/EventPostedModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -454,6 +455,19 @@ export default function HomeScreen() {
   const token = data.token || null;
   const queryClient = useQueryClient();
 
+  // Success modal after posting an event. Router sets ?justPostedEvent=1
+  // on redirect from OptionalExtras. We mirror it to local state so the
+  // modal survives the immediate query-param clear.
+  const params = useLocalSearchParams<{ justPostedEvent?: string }>();
+  const [showEventPosted, setShowEventPosted] = React.useState(false);
+  React.useEffect(() => {
+    if (params.justPostedEvent === '1') {
+      setShowEventPosted(true);
+      // Clear the param so tab switches don't retrigger the modal.
+      router.setParams({ justPostedEvent: undefined });
+    }
+  }, [params.justPostedEvent, router]);
+
   // Fetch user profile to get their tags for dynamic carousels.
   type UserProfile = { user: { first_name?: string; tags?: string[] } };
   const profileQuery = useQuery({
@@ -529,6 +543,17 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>
+      <EventPostedModal
+        visible={showEventPosted}
+        onClose={() => setShowEventPosted(false)}
+        onViewInProfile={() => {
+          setShowEventPosted(false);
+          // TODO: once the profile screen has an events section, deep-link
+          // to it (e.g. /(tabs)/profile?tab=events). For now, just land
+          // the user on Profile.
+          router.push('/(tabs)/profile');
+        }}
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View
