@@ -28,6 +28,10 @@ export default function MapViewWrapper({
   onPinPress,
   onMapPress,
 }: MapViewWrapperProps) {
+  // Hook must be called before any conditional return to satisfy the
+  // rules of hooks.
+  const pinJustPressed = useRef(false);
+
   if (Platform.OS === 'web') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -45,8 +49,6 @@ export default function MapViewWrapper({
       </View>
     );
   }
-
-  const pinJustPressed = useRef(false);
 
   return (
     <View style={{ flex: 1 }}>

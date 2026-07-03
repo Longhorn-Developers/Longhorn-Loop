@@ -3,19 +3,22 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { classifyAspectRatio, parseImageDimensions } from '../../src/events/normalize';
 import {
-    buildLocationFull,
-    buildLocationShort,
-    cleanHostOrganization,
-    decodeHtmlEntities,
-    extractLocs,
-    extractMccombsEventId,
-    extractRsvpUrl,
-    parseEventFromHtml,
-    upgradeImageUrl,
+  buildLocationFull,
+  buildLocationShort,
+  cleanHostOrganization,
+  decodeHtmlEntities,
+  extractLocs,
+  extractMccombsEventId,
+  extractRsvpUrl,
+  parseEventFromHtml,
+  upgradeImageUrl,
 } from '../../src/scrapers/mccombs';
 
 function loadFixture(name: string): string {
-  return readFileSync(join(__dirname, '..', '..', 'src', 'scrapers', '__fixtures__', 'mccombs', name), 'utf-8');
+  return readFileSync(
+    join(__dirname, '..', '..', 'src', 'scrapers', '__fixtures__', 'mccombs', name),
+    'utf-8',
+  );
 }
 
 describe('parseEventFromHtml', () => {
