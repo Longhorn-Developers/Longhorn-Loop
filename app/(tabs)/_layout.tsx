@@ -6,9 +6,10 @@ import TabHomeInactiveIcon from '@/assets/images/tab-home-inactive.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
 import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
 import TabProfileIcon from '@/assets/images/tab-profile.svg';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 
 export default function TabsLayout() {
+  const router = useRouter();
   return (
     <Tabs
       screenOptions={{
@@ -65,6 +66,12 @@ export default function TabsLayout() {
             ) : (
               <TabCreateIcon width={42} height={38} />
             ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.push('/(create-event)/WhosPosting');
+          },
         }}
       />
 
