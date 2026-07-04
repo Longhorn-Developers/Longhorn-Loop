@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, PressableProps, Text, View } from 'react-
 interface PrimaryButtonProps extends PressableProps {
   isFilled?: boolean;
   label?: string;
+  loadingLabel?: string;
   leftIcon?: React.ReactElement<IconProps>;
   rightIcon?: React.ReactElement<IconProps>;
   isLoading?: boolean;
@@ -13,6 +14,7 @@ interface PrimaryButtonProps extends PressableProps {
 export default function PrimaryButton({
   isFilled,
   label,
+  loadingLabel,
   leftIcon,
   rightIcon,
   isLoading = false,
@@ -36,39 +38,33 @@ export default function PrimaryButton({
     ? 'white'
     : 'hsla(180, 9%, 31%, 1)'; // lhlSecondaryTextGrey
 
+  const displayedText = isLoading ? (loadingLabel || label) : label;
+
   return (
     <Pressable 
-      disabled={disabled || isLoading} 
-      className={`
-        flex-row items-center justify-center gap-x-2
-        h-[55px] border-2 rounded-lg px-2 relative
-        ${borderColorClass}
-        ${backgroundColorClass}
-      `}
+      className={`flex-row items-center justify-center gap-x-2 h-[55px] border-2 rounded-lg px-2 relative ${borderColorClass} ${backgroundColorClass}`}
+      disabled={disabled || isLoading}
       {...props}
     >
-      {/* Absolute overlay container for the spinner */}
-      {isLoading && (
-        <View className="absolute inset-0 flex items-center justify-center z-10">
+      <View className="flex-row items-center justify-center gap-x-2">
+        
+        {isLoading ? (
           <ActivityIndicator color={iconColorClass} size="small" />
-        </View>
-      )}
-
-      {/* Content wrapper that dims when loading */}
-      <View className={`flex-row items-center justify-center gap-x-2 ${isLoading ? 'opacity-60' : 'opacity-100'}`}>
-        {leftIcon && (
-          <View>
-            {React.isValidElement(leftIcon)
-              ? React.cloneElement(leftIcon, { color: iconColorClass })
-              : leftIcon}
-          </View>
+        ) : (
+          leftIcon && (
+            <View>
+              {React.isValidElement(leftIcon)
+                ? React.cloneElement(leftIcon, { color: iconColorClass })
+                : leftIcon}
+            </View>
+          )
         )}
 
         <Text className={`font-['Roboto-Flex'] font-semibold text-xl ${textColorClass} pb-[2px]`}>
-          {label}
+          {displayedText}
         </Text>
 
-        {rightIcon && (
+        {!isLoading && rightIcon && (
           <View>
             {React.isValidElement(rightIcon)
               ? React.cloneElement(rightIcon, { color: iconColorClass })

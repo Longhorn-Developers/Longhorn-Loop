@@ -173,6 +173,7 @@ export default function AccountVerification() {
           isFilled={allFilled}
           onPress={handleVerify}
           isLoading={loading}
+          loadingLabel="Verifying..."
         />
       </View>
 
