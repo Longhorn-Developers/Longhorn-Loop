@@ -47,12 +47,7 @@ export default function ConfirmModal({
   const primaryBg = primaryDestructive ? DESTRUCTIVE_RED : BURNT_ORANGE;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onSecondary}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onSecondary}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>

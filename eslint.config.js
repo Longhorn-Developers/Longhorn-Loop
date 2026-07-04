@@ -7,4 +7,15 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    settings: {
+      'import/ignore': ['react-native', '@tanstack/react-query'],
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
 ]);

@@ -29,6 +29,17 @@ curl -X POST http://localhost:8787/events/scrape \
 
 Pulls ~60 events from HornsLink into your local D1.
 
+```bash
+curl -X POST http://localhost:8787/events/scrape/mccombs \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun":true}'
+```
+
+Scrapes McCombs events (`calendar.mccombs.utexas.edu`). Pass `"dryRun":true`
+to log what would be written without touching D1, or omit it (or set
+`false`) to upsert for real. `maxEvents` caps how many events are processed
+(default 500).
+
 ## Secrets
 
 - `.dev.vars` — used by `wrangler dev`. Git-ignored. Copy `.dev.vars.example` to start.

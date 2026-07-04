@@ -23,9 +23,7 @@ export default function ReportSuccessScreen() {
           <Text style={styles.checkMark}>✓</Text>
         </View>
 
-        <Text style={styles.body}>
-          We appreciate your report and will review this event soon!
-        </Text>
+        <Text style={styles.body}>We appreciate your report and will review this event soon!</Text>
 
         <Pressable onPress={goHome} style={styles.button}>
           <Text style={styles.buttonText}>RETURN HOME</Text>

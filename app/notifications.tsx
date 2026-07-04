@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'phosphor-react-native';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   SectionList,
@@ -18,6 +19,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { API_BASE_URL } from '@/app/config/api';
 
 // ---------- Types ----------
 
@@ -37,107 +40,6 @@ interface Section {
   title: string;
   data: Notification[];
 }
-
-// ---------- Mock Data ----------
-
-const now = new Date();
-const todayStr = (hoursAgo: number) =>
-  new Date(now.getTime() - hoursAgo * 60 * 60 * 1000).toISOString();
-
-const yesterdayBase = new Date(now);
-yesterdayBase.setDate(yesterdayBase.getDate() - 1);
-const yesterdayStr = (hour: number) => {
-  const d = new Date(yesterdayBase);
-  d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
-};
-
-const daysAgoStr = (days: number, hour: number) => {
-  const d = new Date(now);
-  d.setDate(d.getDate() - days);
-  d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
-};
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: 1,
-    type: 'event_reminder',
-    title: "Converge's Social Extravaganza",
-    subtitle: 'is happening in 2 hours!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 101,
-    read_at: null,
-    created_at: todayStr(0.5),
-  },
-  {
-    id: 2,
-    type: 'event_reminder',
-    title: 'Game Night @ WCP',
-    subtitle: 'is happening in 3 hours!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 102,
-    read_at: null,
-    created_at: todayStr(1),
-  },
-  {
-    id: 3,
-    type: 'event_reminder',
-    title: 'Game Night @ SAL JAC MPR',
-    subtitle: 'is happening in 1 hour!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 103,
-    read_at: null,
-    created_at: todayStr(2),
-  },
-  {
-    id: 4,
-    type: 'event_reminder',
-    title: "Converge's Social Extravaganza",
-    subtitle: 'is happening in 2 hours!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 104,
-    read_at: yesterdayStr(14),
-    created_at: yesterdayStr(12),
-  },
-  {
-    id: 5,
-    type: 'event_reminder',
-    title: 'College of Sciences Career Fair',
-    subtitle: 'is happening in 1 hour!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 105,
-    read_at: yesterdayStr(10),
-    created_at: yesterdayStr(9),
-  },
-  {
-    id: 6,
-    type: 'event_reminder',
-    title: 'Sana Associates',
-    subtitle: 'is happening in 3 hours!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 106,
-    read_at: daysAgoStr(3, 15),
-    created_at: daysAgoStr(3, 12),
-  },
-  {
-    id: 7,
-    type: 'event_reminder',
-    title: 'SHPE General Meeting',
-    subtitle: 'is happening in 2 hours!',
-    avatar_url: null,
-    thumbnail_url: null,
-    event_id: 107,
-    read_at: daysAgoStr(5, 20),
-    created_at: daysAgoStr(5, 18),
-  },
-];
 
 // ---------- Helpers ----------
 
@@ -206,7 +108,7 @@ function NotificationRow({
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-15, 15]) // must move 15px horizontally before activating (fixes scroll conflict)
-    .failOffsetY([-10, 10])   // cancel if vertical movement > 10px (lets scroll take over)
+    .failOffsetY([-10, 10]) // cancel if vertical movement > 10px (lets scroll take over)
     .onStart(() => {
       startX.value = translateX.value;
     })
@@ -384,13 +286,42 @@ function NotificationRow({
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { data } = useOnboarding();
+  const token = data.token || null;
 
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [toastVisible, setToastVisible] = useState(false);
 
   const pendingDeleteRef = useRef<{ id: number; item: Notification; index: number } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastOpacityVal = useSharedValue(0);
+
+  // Fetch notifications from backend.
+  useEffect(() => {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setNotifications(result.notifications ?? []);
+        }
+      } catch {
+        // Silently fail — show empty state
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [token]);
 
   const sections = groupByDate(notifications);
   const isEmpty = notifications.length === 0;
@@ -428,10 +359,18 @@ export default function NotificationsScreen() {
     showToast();
 
     timerRef.current = setTimeout(() => {
+      const deletedId = pendingDeleteRef.current?.id;
       pendingDeleteRef.current = null;
       timerRef.current = null;
       hideToast();
-      // TODO: call DELETE /notifications/:id when backend is ready
+
+      // Fire-and-forget delete to backend.
+      if (deletedId && token) {
+        fetch(`${API_BASE_URL}/notifications/${deletedId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
     }, 4000);
   };
 
@@ -463,7 +402,14 @@ export default function NotificationsScreen() {
     pendingDeleteRef.current = null;
     hideToast();
     setNotifications([]);
-    // TODO: call DELETE /notifications (clear all) when backend is ready
+
+    // Fire-and-forget clear all to backend.
+    if (token) {
+      fetch(`${API_BASE_URL}/notifications`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
   };
 
   return (
@@ -471,10 +417,7 @@ export default function NotificationsScreen() {
       <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top', 'left', 'right']}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 justify-center"
-          >
+          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 justify-center">
             <ArrowLeft size={24} color="#020B12" />
           </TouchableOpacity>
 
@@ -495,23 +438,25 @@ export default function NotificationsScreen() {
         <View className="h-px bg-[#D2DEE0] mx-5" />
 
         {/* Content */}
-        {isEmpty ? (
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#BF5700" />
+          </View>
+        ) : isEmpty ? (
           <View className="flex-1 items-center justify-center px-10">
             <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
             <Text className="text-base text-[#374151] font-semibold mb-2 text-center">
               No new notifications
             </Text>
             <Text className="text-sm text-[#9CA3AF] text-center">
-              When you have upcoming events or activity, they'll show up here.
+              When you have upcoming events or activity, they&apos;ll show up here.
             </Text>
           </View>
         ) : (
           <SectionList
             sections={sections}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <NotificationRow item={item} onDelete={handleDelete} />
-            )}
+            renderItem={({ item }) => <NotificationRow item={item} onDelete={handleDelete} />}
             renderSectionHeader={({ section: { title } }) => (
               <Text className="text-[13px] font-semibold text-lhlBurntOrange px-5 pt-4 pb-2 bg-lhlBackgroundColor">
                 {title}

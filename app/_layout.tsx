@@ -35,6 +35,12 @@ export default function RootLayout() {
           {/* Main tabs — disable swipe back to prevent returning to onboarding */}
           <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
+          {/* Create Event multi-step flow */}
+          <Stack.Screen name="(create-event)" />
+
+          {/* View All events screen */}
+          <Stack.Screen name="view-all" />
+
           {/* Event detail + nested screens */}
           <Stack.Screen name="event/[id]/index" />
           <Stack.Screen name="event/[id]/report" />

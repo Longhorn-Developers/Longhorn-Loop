@@ -1,6 +1,6 @@
 // User routes for Cloudflare Worker + D1
-import { Hono } from "hono";
-import type { Env } from "../worker";
+import { Hono } from 'hono';
+import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -9,29 +9,24 @@ async function getAuthUser(
   authHeader: string | undefined,
   secret: string,
 ): Promise<{ email: string } | null> {
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
 
-  const token = authHeader.split(" ")[1];
+  const token = authHeader.split(' ')[1];
   try {
-    const [headerB64, payloadB64, sigB64] = token.split(".");
+    const [headerB64, payloadB64, sigB64] = token.split('.');
     const encoder = new TextEncoder();
     const signingInput = `${headerB64}.${payloadB64}`;
 
     const key = await crypto.subtle.importKey(
-      "raw",
+      'raw',
       encoder.encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
+      { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ["verify"],
+      ['verify'],
     );
 
     const sigBytes = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify(
-      "HMAC",
-      key,
-      sigBytes,
-      encoder.encode(signingInput),
-    );
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(signingInput));
 
     if (!valid) return null;
 
@@ -45,12 +40,9 @@ async function getAuthUser(
 }
 
 // POST /users/me/agreements
-userRoutes.post("/me/agreements", async (c) => {
-  const user = await getAuthUser(
-    c.req.header("Authorization"),
-    c.env.JWT_SECRET,
-  );
-  if (!user) return c.json({ error: "UNAUTHORIZED" }, 401);
+userRoutes.post('/me/agreements', async (c) => {
+  const user = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!user) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
   const {
     agreed_responsible_use,
@@ -64,7 +56,7 @@ userRoutes.post("/me/agreements", async (c) => {
     agreed_visibility_acknowledgment !== true ||
     agreed_community_guidelines !== true
   ) {
-    return c.json({ error: "TERMS_NOT_ACCEPTED" }, 400);
+    return c.json({ error: 'TERMS_NOT_ACCEPTED' }, 400);
   }
 
   // Update user record in D1
@@ -81,22 +73,17 @@ userRoutes.post("/me/agreements", async (c) => {
     .bind(notifications_enabled === true ? 1 : 0, user.email)
     .run();
 
-  const updatedUser = await c.env.DB.prepare(
-    "SELECT * FROM users WHERE email = ?",
-  )
+  const updatedUser = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?')
     .bind(user.email)
     .first();
 
-  return c.json({ message: "AGREEMENTS_SAVED", user: updatedUser });
+  return c.json({ message: 'AGREEMENTS_SAVED', user: updatedUser });
 });
 
 // POST /users/me/profile -- save onboarding profile data (majors, tags, avatar, etc.)
-userRoutes.post("/me/profile", async (c) => {
-  const user = await getAuthUser(
-    c.req.header("Authorization"),
-    c.env.JWT_SECRET,
-  );
-  if (!user) return c.json({ error: "UNAUTHORIZED" }, 401);
+userRoutes.post('/me/profile', async (c) => {
+  const user = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!user) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
   const {
     first_name,
@@ -119,82 +106,60 @@ userRoutes.post("/me/profile", async (c) => {
        year_classification = excluded.year_classification,
        unique_classification = excluded.unique_classification`,
   )
-    .bind(
-      user.email,
-      first_name,
-      last_name,
-      avatar,
-      year_classification,
-      unique_classification,
-    )
+    .bind(user.email, first_name, last_name, avatar, year_classification, unique_classification)
     .run();
 
   // Get user ID
-  const dbUser = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?")
+  const dbUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
     .bind(user.email)
     .first();
 
-  if (!dbUser) return c.json({ error: "USER_NOT_FOUND" }, 404);
+  if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
 
   // Replace majors
-  await c.env.DB.prepare("DELETE FROM user_majors WHERE user_id = ?")
-    .bind(userId)
-    .run();
+  await c.env.DB.prepare('DELETE FROM user_majors WHERE user_id = ?').bind(userId).run();
   if (majors && Array.isArray(majors)) {
     for (const major of majors) {
-      await c.env.DB.prepare(
-        "INSERT INTO user_majors (user_id, major) VALUES (?, ?)",
-      )
+      await c.env.DB.prepare('INSERT INTO user_majors (user_id, major) VALUES (?, ?)')
         .bind(userId, major)
         .run();
     }
   }
 
   // Replace tags
-  await c.env.DB.prepare("DELETE FROM user_tags WHERE user_id = ?")
-    .bind(userId)
-    .run();
+  await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
   if (tags && Array.isArray(tags)) {
     for (const tag of tags) {
-      await c.env.DB.prepare(
-        "INSERT INTO user_tags (user_id, tag) VALUES (?, ?)",
-      )
+      await c.env.DB.prepare('INSERT INTO user_tags (user_id, tag) VALUES (?, ?)')
         .bind(userId, tag)
         .run();
     }
   }
 
-  return c.json({ message: "PROFILE_SAVED" });
+  return c.json({ message: 'PROFILE_SAVED' });
 });
 
 // GET /users/me -- get current user profile
-userRoutes.get("/me", async (c) => {
-  const user = await getAuthUser(
-    c.req.header("Authorization"),
-    c.env.JWT_SECRET,
-  );
-  if (!user) return c.json({ error: "UNAUTHORIZED" }, 401);
+userRoutes.get('/me', async (c) => {
+  const user = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!user) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
-  const dbUser = await c.env.DB.prepare("SELECT * FROM users WHERE email = ?")
+  const dbUser = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?')
     .bind(user.email)
     .first();
 
-  if (!dbUser) return c.json({ error: "USER_NOT_FOUND" }, 404);
+  if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
 
   // Fetch majors and tags
-  const majors = await c.env.DB.prepare(
-    "SELECT major FROM user_majors WHERE user_id = ?",
-  )
+  const majors = await c.env.DB.prepare('SELECT major FROM user_majors WHERE user_id = ?')
     .bind(userId)
     .all();
 
-  const tags = await c.env.DB.prepare(
-    "SELECT tag FROM user_tags WHERE user_id = ?",
-  )
+  const tags = await c.env.DB.prepare('SELECT tag FROM user_tags WHERE user_id = ?')
     .bind(userId)
     .all();
 

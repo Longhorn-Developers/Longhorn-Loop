@@ -10,7 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
 } from 'react-native';
 
 const MAJORS = [
@@ -132,12 +132,7 @@ const MAJORS = [
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 
-const UNIQUE_CLASS_OPTIONS = [
-  'First Generation',
-  'International',
-  'Transfer',
-  'Non Applicable',
-];
+const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Non Applicable'];
 
 export default function CreateAccount() {
   const router = useRouter();
@@ -153,9 +148,7 @@ export default function CreateAccount() {
   const [selectedUnique, setSelectedUnique] = useState('');
 
   const filteredMajors = MAJORS.filter(
-    (m) =>
-      m.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !selectedMajors.includes(m)
+    (m) => m.toLowerCase().includes(searchQuery.toLowerCase()) && !selectedMajors.includes(m),
   );
 
   const handleSelectMajor = (major: string) => {
@@ -176,13 +169,11 @@ export default function CreateAccount() {
     Keyboard.dismiss();
   };
 
-  const allFilled =
-    selectedMajors.length > 0 && selectedYear !== '' && selectedUnique !== '';
+  const allFilled = selectedMajors.length > 0 && selectedYear !== '' && selectedUnique !== '';
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView className="flex-1 px-8 pt-6" keyboardShouldPersistTaps="handled">
-
         {/* Back Arrow */}
         <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
           <Text className="text-2xl text-gray-800">←</Text>
@@ -228,7 +219,10 @@ export default function CreateAccount() {
         {selectedMajors.length > 0 && (
           <View className="flex-row flex-wrap gap-2 mb-4">
             {selectedMajors.map((major) => (
-              <View key={major} className="flex-row items-center bg-orange-700 rounded-full px-3 py-1.5">
+              <View
+                key={major}
+                className="flex-row items-center bg-orange-700 rounded-full px-3 py-1.5"
+              >
                 <Text className="text-white text-xs mr-1">{major}</Text>
                 <TouchableOpacity onPress={() => handleRemoveMajor(major)}>
                   <Text className="text-white text-xs font-bold">×</Text>
@@ -327,21 +321,24 @@ export default function CreateAccount() {
           className={`rounded-lg py-4 items-center justify-center mt-8 mb-16 ${
             allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
           }`}
-          onPress={allFilled ? () => {
-            update({
-              selectedMajors,
-              selectedYear,
-              uniqueClassification: selectedUnique,
-            });
-            router.push('/InterestSelection');
-          } : undefined}
+          onPress={
+            allFilled
+              ? () => {
+                  update({
+                    selectedMajors,
+                    selectedYear,
+                    uniqueClassification: selectedUnique,
+                  });
+                  router.push('/InterestSelection');
+                }
+              : undefined
+          }
           activeOpacity={allFilled ? 0.8 : 1}
         >
           <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>
             Next
           </Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );

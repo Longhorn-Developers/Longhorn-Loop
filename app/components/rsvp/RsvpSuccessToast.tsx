@@ -18,11 +18,7 @@ const BORDER_COLOR = '#B4B2B2';
 const TEXT_PRIMARY = '#000000';
 const TEXT_MUTED = '#444';
 
-export default function RsvpSuccessToast({
-  visible,
-  eventTitle,
-  onClose,
-}: RsvpSuccessToastProps) {
+export default function RsvpSuccessToast({ visible, eventTitle, onClose }: RsvpSuccessToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
 
@@ -84,13 +80,11 @@ export default function RsvpSuccessToast({
           </View>
         </View>
 
-        <Text style={styles.body}>
-          You&rsquo;re RSVP&rsquo;d to &ldquo;{eventTitle}&rdquo;.
-        </Text>
+        <Text style={styles.body}>You&rsquo;re RSVP&rsquo;d to &ldquo;{eventTitle}&rdquo;.</Text>
 
         <Text style={styles.subtext}>
-          You&rsquo;ll receive notifications if there are updates, reminders, or
-          important changes before the event.
+          You&rsquo;ll receive notifications if there are updates, reminders, or important changes
+          before the event.
         </Text>
       </View>
     </Animated.View>

@@ -13,5 +13,4 @@ const LOCAL_API = 'http://localhost:8787';
 
 const override = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-export const API_BASE_URL =
-  override ?? (__DEV__ ? LOCAL_API : PROD_API);
+export const API_BASE_URL = override ?? (__DEV__ ? LOCAL_API : PROD_API);
