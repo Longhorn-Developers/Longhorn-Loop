@@ -141,28 +141,6 @@ export default function AccountVerification() {
 
   const showAlert = error.length > 0;
 
-  
-   // {/* Verify Button */}
-  //       <TouchableOpacity
-  //         className={`rounded-lg py-4 items-center justify-center mb-4 ${
-  //           allFilled && !loading
-  //             ? "bg-orange-700"
-  //             : "bg-transparent border border-gray-300"
-  //         }`}
-  //         onPress={handleVerify}
-  //         activeOpacity={allFilled ? 0.8 : 1}
-  //       >
-  //         {loading ? (
-  //           <ActivityIndicator color="#fff" />
-  //         ) : (
-  //           <Text
-  //             className={`text-base font-semibold ${allFilled ? "text-white" : "text-gray-400"}`}
-  //           >
-  //             Verify
-  //           </Text>
-  //         )}
-  //       </TouchableOpacity>
-
   return (
     <FlowLayout
       title='Account Verification'
@@ -192,8 +170,9 @@ export default function AccountVerification() {
       <View className='mt-[42px]'>
         <PrimaryButton
           label='Verify Email'
-          isFilled={allFilled && !loading}
+          isFilled={allFilled}
           onPress={handleVerify}
+          isLoading={loading}
         />
       </View>
 
