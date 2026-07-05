@@ -1,4 +1,4 @@
-import { XCircleIcon } from 'phosphor-react-native';
+import LhlXCircleIcon from '@/assets/icons/LhlXCircleIcon';
 import React, { useRef, useState } from 'react';
 import {
   Pressable,
@@ -14,11 +14,6 @@ interface TextInputFieldProps extends TextInputProps {
   clearable?: boolean;
   borderRadius?: number; // px
 }
-
-const CLEARABLE_ICON_COLORS = {
-  border: 'hsla(0,0%,7%,1)', // lhlBorderColor
-  active: 'hsla(27, 93%, 32%, 1)', // lhlBurntOrange
-};
 
 export default function TextInputField({
   label,
@@ -68,11 +63,6 @@ export default function TextInputField({
     ? 'border-lhlBurntOrange'
     : 'border-lhlBorderColor';
 
-  const clearIconColor =
-    isFocused && props.value
-      ? CLEARABLE_ICON_COLORS.active
-      : CLEARABLE_ICON_COLORS.border;
-
   // --- RENDER: TEXT INPUT FIELD ---
   return (
     <View>
@@ -118,15 +108,15 @@ export default function TextInputField({
         />
 
         {/* Clear Button */}
+        {/* Clear Button */}
         {clearable && isFocused && (
           <Pressable
             onPressIn={(e) => e.preventDefault?.()}
             onPress={handleClear}
           >
-            <XCircleIcon
-              size={22}
-              weight="light"
-              color={clearIconColor}
+            <LhlXCircleIcon
+              size={18}
+              color={"#000"}
             />
           </Pressable>
         )}
