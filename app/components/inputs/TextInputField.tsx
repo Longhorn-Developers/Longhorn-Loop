@@ -115,7 +115,7 @@ export default function TextInputField({
             onPress={handleClear}
           >
             <LhlXCircleIcon
-              size={18}
+              size={15}
               color={"#000"}
             />
           </Pressable>

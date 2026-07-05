@@ -1,5 +1,6 @@
-import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -12,6 +13,8 @@ import {
   TouchableWithoutFeedback,
   View
 } from 'react-native';
+import DropdownSelectField from '../components/inputs/DropdownSelectField';
+import TextInputField from '../components/inputs/TextInputField';
 
 const MAJORS = [
   'Accounting',
@@ -258,37 +261,28 @@ export default function CreateAccount() {
           </View>
         )}
 
-        {/* Year Classification */}
-        <Text className="text-sm font-semibold text-gray-800 mb-3 mt-4">Year Classification</Text>
-        <TouchableOpacity
-          className="border border-gray-300 rounded-lg px-4 py-4 flex-row justify-between items-center mb-3"
-          onPress={() => {
-            setYearOpen(!yearOpen);
-            setUniqueOpen(false);
-            setShowMajorDropdown(false);
-          }}
-        >
-          <Text className={selectedYear ? 'text-gray-800 text-sm' : 'text-gray-400 text-sm'}>
-            {selectedYear || 'Select year'}
-          </Text>
-          <Text className="text-gray-400">{yearOpen ? '∧' : '∨'}</Text>
-        </TouchableOpacity>
-        {yearOpen && (
-          <View className="border border-gray-200 rounded-lg mb-8 bg-white shadow-sm overflow-hidden">
-            {YEAR_OPTIONS.map((year) => (
-              <TouchableOpacity
-                key={year}
-                className="px-4 py-4 border-b border-gray-100"
-                onPress={() => {
-                  setSelectedYear(year);
-                  setYearOpen(false);
-                }}
-              >
-                <Text className="text-sm text-gray-800">{year}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <View className='mt-[42px]'>
+          <TextInputField
+            label='UT Email'
+            placeholder='Enter your UT Email'
+            clearable={true}
+            value={"hi"}
+            onChangeText={(text) => {}}
+            leftIcon={<LhlSearchIcon size={15} color="#000" />}
+          />
+        </View>
+
+        <View className="mt-[42px]">
+          <DropdownSelectField
+            label="Classification"
+            placeholder="Select your year"
+            options={YEAR_OPTIONS}
+            selectedValue={selectedYear}
+            onSelect={(value) => setSelectedYear(value)}
+            isOpen={yearOpen}
+            onToggle={() => setYearOpen(!yearOpen)}
+          />
+        </View>
 
         {/* Unique Classification */}
         <Text className="text-sm font-semibold text-gray-800 mb-3 mt-4">Unique Classification</Text>
