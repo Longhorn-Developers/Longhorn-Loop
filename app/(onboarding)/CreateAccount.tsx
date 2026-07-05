@@ -13,6 +13,7 @@ import {
   TouchableWithoutFeedback,
   View
 } from 'react-native';
+import DropdownMultiSelectField from '../components/inputs/DropdownMultiSelectField';
 import DropdownSelectField from '../components/inputs/DropdownSelectField';
 import TextInputField from '../components/inputs/TextInputField';
 
@@ -139,7 +140,7 @@ const UNIQUE_CLASS_OPTIONS = [
   'First Generation',
   'International',
   'Transfer',
-  'Non Applicable',
+  'Not Applicable',
 ];
 
 export default function CreateAccount() {
@@ -153,7 +154,7 @@ export default function CreateAccount() {
   const [selectedYear, setSelectedYear] = useState('');
 
   const [uniqueOpen, setUniqueOpen] = useState(false);
-  const [selectedUnique, setSelectedUnique] = useState('');
+  const [selectedUnique, setSelectedUnique] = useState<string[]>([]);
 
   const filteredMajors = MAJORS.filter(
     (m) =>
@@ -180,7 +181,7 @@ export default function CreateAccount() {
   };
 
   const allFilled =
-    selectedMajors.length > 0 && selectedYear !== '' && selectedUnique !== '';
+    selectedMajors.length > 0 && selectedYear !== '' && selectedUnique.length > 0;
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -274,7 +275,7 @@ export default function CreateAccount() {
 
         <View className="mt-[42px]">
           <DropdownSelectField
-            label="Classification"
+            label="Year Classification"
             placeholder="Select your year"
             options={YEAR_OPTIONS}
             selectedValue={selectedYear}
@@ -284,37 +285,17 @@ export default function CreateAccount() {
           />
         </View>
 
-        {/* Unique Classification */}
-        <Text className="text-sm font-semibold text-gray-800 mb-3 mt-4">Unique Classification</Text>
-        <TouchableOpacity
-          className="border border-gray-300 rounded-lg px-4 py-4 flex-row justify-between items-center mb-3"
-          onPress={() => {
-            setUniqueOpen(!uniqueOpen);
-            setYearOpen(false);
-            setShowMajorDropdown(false);
-          }}
-        >
-          <Text className={selectedUnique ? 'text-gray-800 text-sm' : 'text-gray-400 text-sm'}>
-            {selectedUnique || 'Select classification'}
-          </Text>
-          <Text className="text-gray-400">{uniqueOpen ? '∧' : '∨'}</Text>
-        </TouchableOpacity>
-        {uniqueOpen && (
-          <View className="border border-gray-200 rounded-lg mb-8 bg-white shadow-sm overflow-hidden">
-            {UNIQUE_CLASS_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option}
-                className="px-4 py-4 border-b border-gray-100"
-                onPress={() => {
-                  setSelectedUnique(option);
-                  setUniqueOpen(false);
-                }}
-              >
-                <Text className="text-sm text-gray-800">{option}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <View className="mt-[42px]">
+          <DropdownMultiSelectField
+            label="Unique Classification"
+            placeholder="Select options"
+            options={UNIQUE_CLASS_OPTIONS}
+            selectedValues={selectedUnique}
+            onSelect={(values: string[]) => setSelectedUnique(values)}
+            isOpen={uniqueOpen}
+            onToggle={() => setUniqueOpen(!uniqueOpen)}
+          />
+        </View>
 
         {/* Next Button */}
         <TouchableOpacity
