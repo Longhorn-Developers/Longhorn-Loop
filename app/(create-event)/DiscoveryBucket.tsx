@@ -1,175 +1,21 @@
 import CheckIcon from '@/assets/images/check-selected.svg';
-import ArtsIcon from '@/assets/images/arts_culture.svg';
-import BallIcon from '@/assets/images/ball.svg';
-import BusinessIcon from '@/assets/images/business.svg';
-import FoodIcon from '@/assets/images/food&drink.svg';
-import HealthIcon from '@/assets/images/health_wellness.svg';
-import HomeIcon from '@/assets/images/home_lifestyle.svg';
-import HandshakeIcon from '@/assets/images/ix_handshake.svg';
-import LearningIcon from '@/assets/images/learning&ed.svg';
-import MusicIcon from '@/assets/images/music.svg';
-import NightlifeIcon from '@/assets/images/nightlife.svg';
-import OutdoorsIcon from '@/assets/images/outdoors.svg';
-import PerformingIcon from '@/assets/images/performing_arts.svg';
-import PetsIcon from '@/assets/images/pets.svg';
-import ScienceIcon from '@/assets/images/science.svg';
-import ShoppingIcon from '@/assets/images/shopping_fashion.svg';
-import SpiritualityIcon from '@/assets/images/spirituality.svg';
-import TechIcon from '@/assets/images/technology.svg';
-import TravelIcon from '@/assets/images/travel.svg';
-import VideoGameIcon from '@/assets/images/Video_Game.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
+import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SvgProps } from 'react-native-svg';
-
-type Bucket = {
-  id: DiscoveryBucketId;
-  title: string;
-  description: string;
-  Icon: React.FC<SvgProps>;
-  iconSize: { width: number; height: number };
-};
 
 const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
 
-const BUCKETS: Bucket[] = [
-  {
-    id: 'music',
-    title: 'Music',
-    description: 'Concerts, DJ sets, & live performances',
-    Icon: MusicIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'arts',
-    title: 'Arts & Culture',
-    description: 'Galleries, theater, film, & cultural festivals',
-    Icon: ArtsIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'sports',
-    title: 'Sports & Fitness',
-    description: 'Workout classes, sports, & outdoor activities',
-    Icon: BallIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'food',
-    title: 'Food & Drink',
-    description: 'Restaurant outings, coffee chats, & happy hours',
-    Icon: FoodIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'tech',
-    title: 'Technology & Innovation',
-    description: 'Startups, hackathons, & tech talks',
-    Icon: TechIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'learning',
-    title: 'Learning & Education',
-    description: 'Workshops, study sessions, & career events',
-    Icon: LearningIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'outdoors',
-    title: 'Outdoors & Nature',
-    description: 'Hiking, camping, & outdoor adventures',
-    Icon: OutdoorsIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'gaming',
-    title: 'Gaming & Entertainment',
-    description: 'Esports, game nights, & live entertainment',
-    Icon: VideoGameIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'social',
-    title: 'Social & Networking',
-    description: 'Mixers, parties, & hangouts',
-    Icon: HandshakeIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'health',
-    title: 'Health & Wellness',
-    description: 'Mindfulness, wellness, & mental health',
-    Icon: HealthIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'shopping',
-    title: 'Shopping & Fashion',
-    description: 'Pop-ups, markets, & fashion shows',
-    Icon: ShoppingIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'business',
-    title: 'Business & Professional',
-    description: 'Career fairs, conferences, & networking',
-    Icon: BusinessIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'performing',
-    title: 'Performing Arts',
-    description: 'Comedy, improv, theater, & live shows',
-    Icon: PerformingIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'travel',
-    title: 'Travel & Adventure',
-    description: 'Trips, meetups, & travel talks',
-    Icon: TravelIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'pets',
-    title: 'Pets & Animals',
-    description: 'Pet meetups, adoptions, & animal events',
-    Icon: PetsIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'home',
-    title: 'Home & Lifestyle',
-    description: 'DIY, decor, & sustainable living',
-    Icon: HomeIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'nightlife',
-    title: 'Nightlife & Parties',
-    description: 'Bars, parties, clubs, & late-night events',
-    Icon: NightlifeIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'science',
-    title: 'Science & Academia',
-    description: 'Lectures, research talks, & symposiums',
-    Icon: ScienceIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-  {
-    id: 'spirituality',
-    title: 'Spirituality & Religion',
-    description: 'Services, fellowship, & meditation groups',
-    Icon: SpiritualityIcon,
-    iconSize: DEFAULT_ICON_SIZE,
-  },
-];
+// Derived from the shared interestCategories.ts.
+const BUCKETS = INTEREST_CATEGORIES.map((c) => ({
+  id: c.id as DiscoveryBucketId,
+  title: c.label,
+  description: c.description,
+  Icon: c.icon,
+  iconSize: DEFAULT_ICON_SIZE,
+}));
 
 const BURNT_ORANGE = '#9D4A06';
 const BLACK = '#020B12';
