@@ -1,10 +1,11 @@
+import LhlPillCross from '@/assets/icons/LhlPillCross';
+import LhlPillPlus from '@/assets/icons/LhlPillPlus';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Easing,
   Pressable,
   Text,
-  View,
 } from 'react-native';
 
 interface PillButtonProps {
@@ -15,6 +16,8 @@ interface PillButtonProps {
   height?: number;
   textSize?: number;
   gap?: number;
+  padding?: number;
+  iconSize?: number;
 }
 
 export default function PillButton({
@@ -25,6 +28,8 @@ export default function PillButton({
   height = 26,
   textSize = 12,
   gap = 6,
+  padding = 12,
+  iconSize = 8,
 }: PillButtonProps) {
   
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -72,16 +77,21 @@ export default function PillButton({
         backgroundColor: backgroundColor,
         borderColor: borderColor,
         borderWidth: borderWidth,
-        paddingHorizontal: 12,
+        paddingHorizontal: padding,
         gap: selectable ? gap : 0,
       }}
     >
       {selectable && (
-        <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-          <View style={{ width: 10, height: 10, justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ position: 'absolute', width: 10, height: 2, backgroundColor: iconColor, borderRadius: 1 }} />
-            <View style={{ position: 'absolute', width: 2, height: 10, backgroundColor: iconColor, borderRadius: 1 }} />
-          </View>
+        <Animated.View 
+          style={{ 
+            transform: isSelected ? [] : [{ rotate: rotateInterpolate }] 
+          }}
+        >
+          {isSelected ? (
+            <LhlPillCross size={iconSize - 1} color={iconColor} />
+          ) : (
+            <LhlPillPlus size={iconSize} color={iconColor} />
+          )}
         </Animated.View>
       )}
 

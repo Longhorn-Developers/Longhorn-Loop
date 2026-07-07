@@ -13,6 +13,7 @@ interface TextInputFieldProps extends TextInputProps {
   leftIcon?: React.ReactNode;
   clearable?: boolean;
   borderRadius?: number; // px
+  forceFocusStyles?: boolean;
 }
 
 export default function TextInputField({
@@ -20,6 +21,7 @@ export default function TextInputField({
   leftIcon,
   clearable,
   borderRadius=8,
+  forceFocusStyles=false,
   ...props
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -59,7 +61,7 @@ export default function TextInputField({
   };
 
   // --- DERIVED VALUES ---
-  const borderColorClass = isFocused
+  const borderColorClass = (isFocused || forceFocusStyles)
     ? 'border-lhlBurntOrange'
     : 'border-lhlBorderColor';
 
@@ -106,13 +108,12 @@ export default function TextInputField({
           onBlur={handleBlur}
           {...props}
         />
-
         {/* Clear Button */}
-        {/* Clear Button */}
-        {clearable && isFocused && (
+        {clearable && (isFocused || forceFocusStyles) && (
           <Pressable
             onPressIn={(e) => e.preventDefault?.()}
             onPress={handleClear}
+            hitSlop={8}
           >
             <LhlXCircleIcon
               size={15}
