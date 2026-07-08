@@ -40,10 +40,15 @@ export default function SearchablePillDropdownField({
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
 
-    return options.filter((option) => {
-      if (selectedValues.includes(option)) return true;
-      return option.toLowerCase().includes(query);
-    });
+    const selected = selectedValues;
+
+    const matches = options.filter(
+      (option) =>
+        !selectedValues.includes(option) &&
+        option.toLowerCase().includes(query)
+    );
+
+    return [...selected, ...matches];
   }, [searchQuery, options, selectedValues]);
 
   const truncateText = (text: string) => {
