@@ -35,7 +35,7 @@ export default function TextInputField({
       clearTimeout(blurTimeoutRef.current);
       blurTimeoutRef.current = null;
     }
-    
+
     setIsFocused(true);
     props.onFocus?.(e);
   };
@@ -46,13 +46,13 @@ export default function TextInputField({
       setIsFocused(false);
       blurTimeoutRef.current = null;
     }, 100);
-    
+
     props.onBlur?.(e);
   };
 
   const focusInput = () => {
     inputRef.current?.focus();
-  }
+  };
 
   const handleClear = () => {
     // Clears text and refocuses text input
@@ -87,7 +87,7 @@ export default function TextInputField({
           bg-white
         `}
         style={{
-          borderRadius: borderRadius
+          borderRadius: borderRadius,
         }}
       >
         {/* Left Icon */}

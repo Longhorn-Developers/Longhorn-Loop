@@ -8,5 +8,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["@cloudflare/workers-types"]
-  }
+  },
+  "exclude": ["node_modules", "dist", "vitest.config.ts"]
 }

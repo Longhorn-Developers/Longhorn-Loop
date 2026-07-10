@@ -86,8 +86,22 @@ CREATE TABLE IF NOT EXISTS events (
   status TEXT DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Purge target for the cleanup job (LOOP-150); defaults to end_datetime + 7 days
+  expires_at TEXT,
+  -- Pins an event to the top of feeds
+  is_featured INTEGER NOT NULL DEFAULT 0,
+  -- NULL for scraped events; set for user-created events
+  created_by_user_id INTEGER REFERENCES users(id),
+  -- Soft-delete flag set by the cleanup job instead of a hard delete, so
+  -- past user-linked events remain visible in profile history (LOOP-200)
+  is_archived INTEGER NOT NULL DEFAULT 0,
+  archived_at TEXT,
   UNIQUE(source, source_event_id)
 );
+
+-- Cleanup job (LOOP-150) and past-events view (LOOP-200) both filter on these
+CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
+CREATE INDEX IF NOT EXISTS idx_events_created_by_user_id ON events(created_by_user_id);
 
 -- Event categories -- many-to-many
 CREATE TABLE IF NOT EXISTS event_categories (
@@ -112,3 +126,43 @@ CREATE TABLE IF NOT EXISTS categories (
   name TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT 'hornslink'
 );
+
+-- Saved events -- user bookmarks, drives the home screen bookmark icon
+-- and the event-reminder notification cron job
+CREATE TABLE IF NOT EXISTS saved_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  reminder_sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, event_id)
+);
+
+-- Notifications -- activity center entries per user
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'general',
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  avatar_url TEXT,
+  thumbnail_url TEXT,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Event reports -- user-submitted moderation reports. Once an event has
+-- REPORT_HIDE_THRESHOLD (5) reports it is filtered from feeds for everyone.
+-- The reporter also stops seeing it immediately regardless of the count.
+CREATE TABLE IF NOT EXISTS event_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  reasons TEXT NOT NULL,        -- JSON array of reason codes
+  description TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, event_id)     -- one report per user per event
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_reports_event ON event_reports(event_id);

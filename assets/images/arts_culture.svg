@@ -1,7 +1,7 @@
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8C1.5 11.59 4.41 14.5 8 14.5C8.55 14.5 9 14.05 9 13.5C9 13.24 8.9 13.01 8.74 12.84C8.59 12.67 8.49 12.45 8.49 12.2C8.49 11.65 8.94 11.2 9.49 11.2H10.99C12.92 11.2 14.49 9.63 14.49 7.7C14.5 4.27 11.59 1.5 8 1.5Z" stroke="#9D4A06" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="4" cy="7.5" r="1" stroke="#9D4A06" stroke-width="1.5"/>
-<circle cx="6" cy="4.5" r="1" stroke="#9D4A06" stroke-width="1.5"/>
-<circle cx="10" cy="4.5" r="1" stroke="#9D4A06" stroke-width="1.5"/>
-<circle cx="12" cy="7.5" r="1" stroke="#9D4A06" stroke-width="1.5"/>
+<path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8C1.5 11.59 4.41 14.5 8 14.5C8.55 14.5 9 14.05 9 13.5C9 13.24 8.9 13.01 8.74 12.84C8.59 12.67 8.49 12.45 8.49 12.2C8.49 11.65 8.94 11.2 9.49 11.2H10.99C12.92 11.2 14.49 9.63 14.49 7.7C14.5 4.27 11.59 1.5 8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="4" cy="7.5" r="1" stroke="currentColor" stroke-width="1.5"/>
+<circle cx="6" cy="4.5" r="1" stroke="currentColor" stroke-width="1.5"/>
+<circle cx="10" cy="4.5" r="1" stroke="currentColor" stroke-width="1.5"/>
+<circle cx="12" cy="7.5" r="1" stroke="currentColor" stroke-width="1.5"/>
 </svg>

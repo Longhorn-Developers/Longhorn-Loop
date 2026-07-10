@@ -1,14 +1,16 @@
 import BellIcon from '@/assets/images/bell.svg';
-import BookmarkIcon from '@/assets/images/bookmark.svg';
 import HookemIcon from '@/assets/images/hookem.svg';
-import LocationIcon from '@/assets/images/location.svg';
-import VerifiedIcon from '@/assets/images/verified.svg';
-import { API_BASE_URL } from '@/app/config/api';
-import React, { useEffect, useState } from 'react';
+import EventCard, { ApiEvent } from '@/app/components/EventCard';
+import EventPostedModal from '@/app/components/EventPostedModal';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { api } from '@/app/lib/api';
+import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -16,55 +18,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ---------- Types ----------
-
-interface ApiEvent {
-  id: number;
-  source: string;
-  source_event_id: string;
-  title: string;
-  description: string | null;
-  start_datetime: string;
-  end_datetime: string | null;
-  location_short: string | null;
-  location_full: string | null;
-  host_organization_id: number;
-  host_organization_name: string;
-  event_url: string | null;
-  image_url: string | null;
-  image_aspect_ratio: string | null;
-  theme: string | null;
-  visibility: string;
-  rsvp_total: number;
-  org_profile_picture: string | null;
-  categories: { id: string; name: string }[];
-  benefits: string[];
-}
-
-// ---------- Helpers ----------
-
-/**
- * Format ISO datetime to "Fri, 4/29 • 6:00 PM"
- */
-function formatEventDate(isoString: string): string {
-  const date = new Date(isoString);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const day = days[date.getDay()];
-  const month = date.getMonth() + 1;
-  const dayNum = date.getDate();
-
-  let hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
-  const timeStr = minutes === 0 ? `${hours}:00 ${ampm}` : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-
-  return `${day}, ${month}/${dayNum} • ${timeStr}`;
-}
-
-/**
- * Get a greeting based on time of day
- */
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning,';
@@ -72,114 +25,386 @@ function getGreeting(): string {
   return 'Good evening,';
 }
 
-// ---------- Components ----------
+// Shape the events list endpoint returns.
+type EventsListResponse = { events: ApiEvent[] };
+type SavedListResponse = { events: ApiEvent[] };
 
-function EventCard({ item }: { item: ApiEvent }) {
-  const hasImage = !!item.image_url;
-  const hasBenefits = item.benefits && item.benefits.length > 0;
+// Maps onboarding interest categories → event API query params.
+// Each entry produces a carousel on the home screen.
+interface CarouselDef {
+  key: string;
+  title: string;
+  search: string;
+}
 
-  return (
-    <View style={{ width: 180 }} className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey">
-      {/* Image area */}
-      <View style={{ backgroundColor: '#D9D9D9', height: 160 }} className="w-full">
-        {hasImage && (
-          <Image
-            source={{ uri: item.image_url! }}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-          />
-        )}
+// Tags the user picks during onboarding → parent category id.
+// We only need the parent category to decide which carousels to show.
+const TAG_TO_CATEGORY: Record<string, string> = {};
 
-        {/* Benefits badge (e.g., Free Food) */}
-        {hasBenefits && (
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 8,
-              left: 8,
-              backgroundColor: '#BF5700',
-              borderRadius: 12,
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-            }}
-          >
-            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-              {item.benefits[0]}
-            </Text>
-          </View>
-        )}
+// The interest categories and their tags (mirrored from InterestSelection).
+const INTEREST_CATEGORIES: { id: string; label: string; tags: string[] }[] = [
+  {
+    id: 'music',
+    label: 'Music',
+    tags: [
+      'Rock & Alternative',
+      'Hip Hop & Rap',
+      'Electronic & EDM',
+      'Country & Folk',
+      'Jazz & Blues',
+      'Classical & Opera',
+      'Pop & Top 40',
+      'R&B & Soul',
+      'Indie & Underground',
+      'Latin & Reggaeton',
+      'K-Pop & J-Pop',
+    ],
+  },
+  {
+    id: 'arts',
+    label: 'Arts & Culture',
+    tags: [
+      'Art Exhibitions & Galleries',
+      'Theater & Broadway',
+      'Dance Performances',
+      'Film & Cinema',
+      'Photography',
+      'Sculpture & Installation Art',
+      'Poetry & Spoken Word',
+      'Street Art & Graffiti',
+      'Cultural Festivals',
+      'Museum Tours',
+      'Anime',
+    ],
+  },
+  {
+    id: 'sports',
+    label: 'Sports & Fitness',
+    tags: [
+      'Football & Soccer',
+      'Basketball',
+      'Baseball & Softball',
+      'Tennis & Racquet Sports',
+      'Running & Marathon',
+      'Yoga & Meditation',
+      'Cycling & Biking',
+      'Swimming & Water Sports',
+      'Martial Arts & Boxing',
+      'Extreme Sports',
+      'Golf',
+      'CrossFit & HIIT',
+    ],
+  },
+  {
+    id: 'food',
+    label: 'Food & Drink',
+    tags: [
+      'Wine Tasting',
+      'Craft Beer & Breweries',
+      'Cocktails & Mixology',
+      'Fine Dining',
+      'Street Food & Food Trucks',
+      'Vegan & Vegetarian',
+      'Coffee & Tea',
+      'Baking & Pastries',
+      'International Cuisine',
+      'Cooking Classes',
+      'Food Festivals',
+    ],
+  },
+  {
+    id: 'tech',
+    label: 'Technology',
+    tags: [
+      'Startup & Entrepreneurship',
+      'AI & Machine Learning',
+      'Blockchain & Crypto',
+      'Web Development',
+      'Mobile Apps',
+      'Cybersecurity',
+      'Gaming & Esports',
+      'VR & AR',
+      'Robotics',
+      'Tech Conferences',
+      'Hackathons',
+    ],
+  },
+  {
+    id: 'health',
+    label: 'Health & Wellness',
+    tags: [
+      'Mindfulness & Meditation',
+      'Nutrition & Diet',
+      'Mental Health Awareness',
+      'Fitness Challenges',
+      'Spa & Self-Care',
+      'Alternative Medicine',
+      'Health Fairs',
+    ],
+  },
+  {
+    id: 'business',
+    label: 'Business',
+    tags: [
+      'Networking Events',
+      'Career Fairs',
+      'Workshops & Seminars',
+      'Leadership Summits',
+      'Investment & Finance',
+      'Marketing & Branding',
+      'Real Estate',
+    ],
+  },
+  {
+    id: 'outdoors',
+    label: 'Outdoors',
+    tags: [
+      'Hiking & Trails',
+      'Camping',
+      'Fishing',
+      'Kayaking & Canoeing',
+      'Rock Climbing',
+      'Gardening & Botany',
+      'Bird Watching',
+      'Nature Photography',
+    ],
+  },
+  {
+    id: 'learning',
+    label: 'Learning & Education',
+    tags: [
+      'Book Clubs',
+      'Language Learning',
+      'STEM Workshops',
+      'History Lectures',
+      'Creative Writing',
+      'Study Groups',
+      'Academic Competitions',
+    ],
+  },
+  {
+    id: 'nightlife',
+    label: 'Nightlife',
+    tags: [
+      'Club Events',
+      'Live DJ Sets',
+      'Bar Crawls',
+      'Karaoke Nights',
+      'Comedy Shows',
+      'Late-Night Events',
+      'Theme Parties',
+    ],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality',
+    tags: [
+      'Meditation Retreats',
+      'Religious Services',
+      'Interfaith Dialogues',
+      'Prayer Groups',
+      'Spiritual Workshops',
+      'Community Service',
+    ],
+  },
+  {
+    id: 'performing',
+    label: 'Performing Arts',
+    tags: [
+      'Stand-up Comedy',
+      'Improv Shows',
+      'Musical Theater',
+      'Orchestra & Symphony',
+      'Circus & Acrobatics',
+      'Spoken Word & Poetry Slams',
+      'Drag Shows',
+    ],
+  },
+  {
+    id: 'science',
+    label: 'Science',
+    tags: [
+      'Astronomy & Stargazing',
+      'Biology & Ecology',
+      'Chemistry Demos',
+      'Physics Talks',
+      'Environmental Science',
+      'Space Exploration',
+      'Citizen Science',
+    ],
+  },
+  {
+    id: 'shopping',
+    label: 'Shopping & Fashion',
+    tags: [
+      'Thrift & Vintage',
+      'Pop-Up Markets',
+      'Fashion Shows',
+      'Streetwear',
+      'Sustainable Fashion',
+      'DIY & Crafts',
+      'Flea Markets',
+    ],
+  },
+  {
+    id: 'travel',
+    label: 'Travel',
+    tags: [
+      'Study Abroad Info',
+      'Travel Meetups',
+      'Cultural Exchange',
+      'Road Trip Planning',
+      'Budget Travel Tips',
+      'Adventure Travel',
+    ],
+  },
+  {
+    id: 'gaming',
+    label: 'Gaming',
+    tags: [
+      'Video Game Tournaments',
+      'Board Game Nights',
+      'Tabletop RPGs',
+      'LAN Parties',
+      'Game Dev Meetups',
+      'Retro Gaming',
+      'Card Games',
+    ],
+  },
+  {
+    id: 'home',
+    label: 'Home & Lifestyle',
+    tags: [
+      'Interior Design',
+      'Home Organization',
+      'Sustainable Living',
+      'Budgeting & Finance',
+      'Meal Prep',
+      'DIY Home Projects',
+    ],
+  },
+  {
+    id: 'networking',
+    label: 'Networking',
+    tags: [
+      'Professional Mixers',
+      'Alumni Events',
+      'Mentorship Programs',
+      'Industry Panels',
+      'Speed Networking',
+      'Co-working Sessions',
+    ],
+  },
+  {
+    id: 'pets',
+    label: 'Pets & Animals',
+    tags: [
+      'Dog-Friendly Events',
+      'Pet Adoption',
+      'Animal Rescue',
+      'Wildlife Conservation',
+      'Equestrian',
+      'Pet Training',
+    ],
+  },
+];
 
-        {/* Bookmark button */}
-        <TouchableOpacity
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            backgroundColor: 'white',
-            borderRadius: 999,
-            width: 34,
-            height: 34,
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#000',
-            shadowOpacity: 0.15,
-            shadowRadius: 4,
-            elevation: 3,
-          }}
-        >
-          <BookmarkIcon width={10} height={14} />
-        </TouchableOpacity>
-      </View>
+// Build TAG_TO_CATEGORY lookup at module load.
+for (const cat of INTEREST_CATEGORIES) {
+  for (const tag of cat.tags) {
+    TAG_TO_CATEGORY[tag] = cat.id;
+  }
+}
 
-      {/* Card Info */}
-      <View style={{ padding: 12 }}>
-        {/* Title */}
-        <Text
-          style={{ fontSize: 14, fontWeight: '700', color: '#020B12', marginBottom: 2 }}
-          numberOfLines={1}
-        >
-          {item.title}
-        </Text>
+// Maps a category id to an event API query string.
+// Uses the closest available filter (theme, category, or benefit).
+const CATEGORY_TO_QUERY: Record<string, string> = {
+  music: 'theme=Music',
+  arts: 'theme=Arts',
+  sports: 'theme=Sports',
+  food: 'benefit=Free Food',
+  tech: 'theme=Technology',
+  health: 'theme=Health',
+  business: 'theme=Business',
+  outdoors: 'theme=Outdoors',
+  learning: 'category=Academic',
+  nightlife: 'theme=Social',
+  spirituality: 'theme=Spirituality',
+  performing: 'theme=Arts',
+  science: 'category=Academic',
+  shopping: 'theme=Social',
+  travel: 'theme=Social',
+  gaming: 'theme=Social',
+  home: 'theme=Social',
+  networking: 'theme=Business',
+  pets: 'theme=Social',
+};
 
-        {/* Posted by + org profile pic */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-          {item.org_profile_picture && (
-            <Image
-              source={{ uri: item.org_profile_picture }}
-              style={{ width: 14, height: 14, borderRadius: 7, marginRight: 4 }}
-            />
-          )}
-          <Text style={{ fontSize: 12, color: '#020B12', flex: 1 }} numberOfLines={1}>
-            {item.host_organization_name}
-          </Text>
-          <VerifiedIcon width={16} height={16} style={{ marginLeft: 4, flexShrink: 0 }} />
-        </View>
+// Derive carousel definitions from user's selected tags.
+function buildCarousels(userTags: string[]): CarouselDef[] {
+  // Always start with Upcoming.
+  const carousels: CarouselDef[] = [{ key: 'upcoming', title: 'Upcoming', search: 'limit=10' }];
 
-        {/* Date */}
-        <Text style={{ fontSize: 12, color: '#9A9A9A', marginBottom: 4 }}>
-          {formatEventDate(item.start_datetime)}
-        </Text>
+  // Derive unique categories from user tags, in order of first appearance.
+  const seen = new Set<string>();
+  for (const tag of userTags) {
+    const catId = TAG_TO_CATEGORY[tag];
+    if (catId && !seen.has(catId)) {
+      seen.add(catId);
+      const cat = INTEREST_CATEGORIES.find((c) => c.id === catId);
+      const query = CATEGORY_TO_QUERY[catId];
+      if (cat && query) {
+        carousels.push({
+          key: catId,
+          title: cat.label,
+          search: `limit=10&${query}`,
+        });
+      }
+    }
+  }
 
-        {/* Location */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <LocationIcon width={14} height={14} />
-          <Text style={{ fontSize: 12, color: '#9A9A9A' }} numberOfLines={1}>
-            {item.location_short || 'TBD'}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+  // If user has no tags (or very few), pad with defaults so the home screen
+  // isn't empty.
+  if (carousels.length < 3) {
+    const defaults: CarouselDef[] = [
+      { key: 'free-food', title: 'Free Food', search: 'limit=10&benefit=Free Food' },
+      { key: 'social', title: 'Social', search: 'limit=10&theme=Social' },
+      { key: 'academic', title: 'Academic', search: 'limit=10&category=Academic' },
+    ];
+    for (const d of defaults) {
+      if (!carousels.some((c) => c.key === d.key)) {
+        carousels.push(d);
+      }
+    }
+  }
+
+  // Cap at 5 carousels to keep scrolling manageable.
+  return carousels.slice(0, 5);
+}
+
+// Tiny helper: fetch one carousel's worth of events.
+function eventListQueryOptions(filterKey: string, search: string, token: string | null) {
+  return {
+    queryKey: eventsKeys.list({ filter: filterKey }),
+    queryFn: () => api.get<EventsListResponse>(`/events?${search}`, { token }),
+    staleTime: 30_000,
+  };
 }
 
 function CarouselSection({
   title,
   data,
   loading,
+  savedIds,
+  onToggleSave,
+  onViewAll,
 }: {
   title: string;
   data: ApiEvent[];
   loading?: boolean;
+  savedIds: Set<number>;
+  onToggleSave: (eventId: number) => void;
+  onViewAll?: () => void;
 }) {
   if (loading) {
     return (
@@ -206,7 +431,7 @@ function CarouselSection({
         }}
       >
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12' }}>{title}</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={onViewAll}>
           <Text style={{ fontSize: 22, color: '#9A9A9A' }}>›</Text>
         </TouchableOpacity>
       </View>
@@ -216,55 +441,119 @@ function CarouselSection({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20 }}
         keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
-        renderItem={({ item }) => <EventCard item={item} />}
+        renderItem={({ item }) => (
+          <EventCard item={item} isSaved={savedIds.has(item.id)} onToggleSave={onToggleSave} />
+        )}
       />
     </View>
   );
 }
 
-// ---------- Main Screen ----------
-
 export default function HomeScreen() {
-  const [upcoming, setUpcoming] = useState<ApiEvent[]>([]);
-  const [freeFood, setFreeFood] = useState<ApiEvent[]>([]);
-  const [social, setSocial] = useState<ApiEvent[]>([]);
-  const [academic, setAcademic] = useState<ApiEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { data } = useOnboarding();
+  const token = data.token || null;
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
-    try {
-      // Fetch multiple sections in parallel
-      const [upcomingRes, freeFoodRes, socialRes, academicRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/events?limit=10`),
-        fetch(`${API_BASE_URL}/events?limit=10&benefit=Free Food`),
-        fetch(`${API_BASE_URL}/events?limit=10&theme=Social`),
-        fetch(`${API_BASE_URL}/events?limit=10&category=Academic`),
-      ]);
-
-      const [upcomingData, freeFoodData, socialData, academicData] = await Promise.all([
-        upcomingRes.json(),
-        freeFoodRes.json(),
-        socialRes.json(),
-        academicRes.json(),
-      ]);
-
-      setUpcoming(upcomingData.events || []);
-      setFreeFood(freeFoodData.events || []);
-      setSocial(socialData.events || []);
-      setAcademic(academicData.events || []);
-    } catch (err) {
-      console.error('Failed to fetch events:', err);
-    } finally {
-      setLoading(false);
+  // Success modal after posting an event. Router sets ?justPostedEvent=1
+  // on redirect from OptionalExtras. We mirror it to local state so the
+  // modal survives the immediate query-param clear.
+  const params = useLocalSearchParams<{ justPostedEvent?: string }>();
+  const [showEventPosted, setShowEventPosted] = React.useState(false);
+  React.useEffect(() => {
+    if (params.justPostedEvent === '1') {
+      setShowEventPosted(true);
+      // Clear the param so tab switches don't retrigger the modal.
+      router.setParams({ justPostedEvent: undefined });
     }
+  }, [params.justPostedEvent, router]);
+
+  // Fetch user profile to get their tags for dynamic carousels.
+  type UserProfile = { user: { first_name?: string; tags?: string[] } };
+  const profileQuery = useQuery({
+    queryKey: ['user', 'me'],
+    queryFn: () => api.get<UserProfile>('/users/me', { token }),
+    enabled: !!token,
+    staleTime: 60_000,
+  });
+
+  const userTags = profileQuery.data?.user?.tags ?? data.selectedTags ?? [];
+  const firstName = profileQuery.data?.user?.first_name || data.firstName || 'User';
+
+  // Build carousels from the user's interest tags.
+  const carousels = React.useMemo(() => buildCarousels(userTags), [userTags]);
+
+  // Create a query for each carousel. useQueries would be ideal but we keep
+  // it simple with individual useQuery calls via a child component.
+
+  // Saved IDs — only run when signed in.
+  const savedQuery = useQuery({
+    queryKey: savedKeys.list(),
+    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
+    enabled: !!token,
+  });
+
+  const savedIds = React.useMemo(
+    () => new Set((savedQuery.data?.events ?? []).map((e: ApiEvent) => e.id)),
+    [savedQuery.data],
+  );
+
+  // Toggle save with optimistic UI.
+  const toggleSave = useMutation<
+    void,
+    unknown,
+    { eventId: number; wasSaved: boolean },
+    { previous?: SavedListResponse }
+  >({
+    mutationFn: async ({ eventId, wasSaved }) => {
+      if (wasSaved) {
+        await api.delete(`/saved/${eventId}`, { token });
+      } else {
+        await api.post(`/saved/${eventId}`, { token });
+      }
+    },
+    onMutate: async ({ eventId, wasSaved }) => {
+      await queryClient.cancelQueries({ queryKey: savedKeys.list() });
+      const previous = queryClient.getQueryData<SavedListResponse>(savedKeys.list());
+      queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
+        const list = old?.events ?? [];
+        if (wasSaved) {
+          return { events: list.filter((e: ApiEvent) => e.id !== eventId) };
+        }
+        return {
+          events: [...list, { id: eventId } as ApiEvent],
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(savedKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: savedKeys.list() });
+    },
+  });
+
+  const handleToggleSave = (eventId: number) => {
+    if (!token) return;
+    toggleSave.mutate({ eventId, wasSaved: savedIds.has(eventId) });
   };
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>
+      <EventPostedModal
+        visible={showEventPosted}
+        onClose={() => setShowEventPosted(false)}
+        onViewInProfile={() => {
+          setShowEventPosted(false);
+          // TODO: once the profile screen has an events section, deep-link
+          // to it (e.g. /(tabs)/profile?tab=events). For now, just land
+          // the user on Profile.
+          router.push('/(tabs)/profile');
+        }}
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View
@@ -282,13 +571,16 @@ export default function HomeScreen() {
               {getGreeting()}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>User</Text>
+              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>{firstName}</Text>
               <HookemIcon width={31} height={31} />
             </View>
           </View>
 
           {/* Bell */}
-          <TouchableOpacity style={{ position: 'relative', padding: 4 }}>
+          <TouchableOpacity
+            style={{ position: 'relative', padding: 4 }}
+            onPress={() => router.push('/notifications')}
+          >
             <BellIcon width={22} height={25} />
             <View
               style={{
@@ -313,14 +605,51 @@ export default function HomeScreen() {
           style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }}
         />
 
-        {/* Event Carousels — real data from API */}
-        <CarouselSection title="Upcoming" data={upcoming} loading={loading} />
-        <CarouselSection title="Free Food" data={freeFood} loading={loading} />
-        <CarouselSection title="Social" data={social} loading={loading} />
-        <CarouselSection title="Academic" data={academic} loading={loading} />
+        {/* Dynamic carousels */}
+        {carousels.map((carousel) => (
+          <DynamicCarousel
+            key={carousel.key}
+            carousel={carousel}
+            token={token}
+            savedIds={savedIds}
+            onToggleSave={handleToggleSave}
+          />
+        ))}
 
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Each carousel is its own component so it has its own useQuery hook.
+function DynamicCarousel({
+  carousel,
+  token,
+  savedIds,
+  onToggleSave,
+}: {
+  carousel: CarouselDef;
+  token: string | null;
+  savedIds: Set<number>;
+  onToggleSave: (eventId: number) => void;
+}) {
+  const router = useRouter();
+  const query = useQuery(eventListQueryOptions(carousel.key, carousel.search, token));
+
+  return (
+    <CarouselSection
+      title={carousel.title}
+      data={query.data?.events ?? []}
+      loading={query.isPending}
+      savedIds={savedIds}
+      onToggleSave={onToggleSave}
+      onViewAll={() =>
+        router.push({
+          pathname: '/view-all' as any,
+          params: { title: carousel.title, search: carousel.search },
+        })
+      }
+    />
   );
 }
