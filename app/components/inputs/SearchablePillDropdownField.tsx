@@ -21,7 +21,7 @@ export default function SearchablePillDropdownField({
   options = [],
   selectedValues = [],
   onSelect,
-  borderRadius = 8,
+  borderRadius = 4,
   maxPillTextLength = 50,
 }: SearchablePillDropdownFieldProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,10 +94,10 @@ export default function SearchablePillDropdownField({
                   label={truncateText(option)}
                   isSelected={isSelected}
                   onPress={() => handlePillPress(option)}
-                  height={23}
-                  gap={8}
+                  height={28}
+                  gap={10}
                   textSize={12}
-                  padding={8}
+                  padding={9}
                   iconSize={8}
                 />
               );
@@ -119,10 +119,10 @@ export default function SearchablePillDropdownField({
               label={truncateText(option)}
               isSelected={true}
               onPress={() => handlePillPress(option)}
-              height={23}
-              gap={8}
+              height={28}
+              gap={10}
               textSize={12}
-              padding={8}
+              padding={9}
               iconSize={8}
             />
           ))}

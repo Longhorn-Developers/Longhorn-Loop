@@ -1,27 +1,21 @@
 import * as React from "react";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, SvgProps } from "react-native-svg";
 
-interface LhlCaretDownIconProps {
-  size?: number;
-  color?: string;
-}
-
-const LhlCaretDownIcon = ({ size = 15, color = "#1A2024" }: LhlCaretDownIconProps) => {
-  const height = (size * 8) / 15;
-
-  return (
-    <Svg
-      width={size}
-      height={height}
-      viewBox="0 0 15 8"
-      fill="none"
-    >
-      <Path
-        d="M14.8002 1.13858L7.98236 7.8045C7.91904 7.86648 7.84385 7.91564 7.76108 7.94919C7.67831 7.98273 7.5896 8 7.5 8C7.4104 8 7.32168 7.98273 7.23892 7.94919C7.15615 7.91564 7.08096 7.86648 7.01764 7.8045L0.199801 1.13858C0.0718705 1.0135 0 0.843852 0 0.666963C0 0.490073 0.0718705 0.320428 0.199801 0.195349C0.327731 0.0702687 0.501242 0 0.682163 0C0.863084 0 1.03659 0.0702687 1.16452 0.195349L7.5 6.39049L13.8355 0.195349C13.8988 0.133415 13.974 0.0842872 14.0568 0.0507692C14.1395 0.0172512 14.2283 0 14.3178 0C14.4074 0 14.4961 0.0172512 14.5789 0.0507692C14.6617 0.0842872 14.7369 0.133415 14.8002 0.195349C14.8635 0.257282 14.9138 0.330807 14.9481 0.411727C14.9824 0.492647 15 0.579376 15 0.666963C15 0.75455 14.9824 0.841279 14.9481 0.922198C14.9138 1.00312 14.8635 1.07664 14.8002 1.13858Z"
-        fill={color}
-      />
-    </Svg>
-  );
-};
+const LhlCaretDownIcon = (props: SvgProps) => (
+  <Svg
+    width={12}
+    height={7}
+    viewBox="0 0 12 7"
+    fill="none"
+    {...props}
+  >
+    <Path
+      fill="#000"
+      fillRule="evenodd"
+      d="M6.147 6.147a.833.833 0 0 1-1.178 0L.254 1.433A.833.833 0 1 1 1.433.254L5.558 4.38 9.683.254a.833.833 0 0 1 1.178 1.179z"
+      clipRule="evenodd"
+    />
+  </Svg>
+);
 
 export default LhlCaretDownIcon;

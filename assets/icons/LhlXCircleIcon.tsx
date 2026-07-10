@@ -10,7 +10,7 @@ interface LhlXCircleProps {
 export default function LhlXCircle({ 
   size = 24, 
   color = "currentColor", 
-  strokeWidth = 1.5
+  strokeWidth = 2
 }: LhlXCircleProps) {
   return (
     <Svg

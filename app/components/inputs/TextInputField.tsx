@@ -82,7 +82,7 @@ export default function TextInputField({
           mt-[6px]
           flex-row items-center
           border
-          px-4 h-[33px] gap-2
+          px-[9px] h-[33px] gap-2
           ${borderColorClass}
           bg-white
         `}
@@ -116,7 +116,7 @@ export default function TextInputField({
             hitSlop={8}
           >
             <LhlXCircleIcon
-              size={15}
+              size={13}
               color={"#000"}
             />
           </Pressable>

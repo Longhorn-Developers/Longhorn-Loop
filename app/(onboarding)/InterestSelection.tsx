@@ -1,7 +1,7 @@
+import { useOnboarding } from '@/app/context/OnboardingContext';
 import ArtsIcon from '@/assets/images/arts_culture.svg';
 import BallIcon from '@/assets/images/ball.svg';
 import BusinessIcon from '@/assets/images/business.svg';
-import DropdownArrow from '@/assets/images/dropdown-arrow.svg';
 import FoodIcon from '@/assets/images/food&drink.svg';
 import HealthIcon from '@/assets/images/health_wellness.svg';
 import HomeIcon from '@/assets/images/home_lifestyle.svg';
@@ -19,27 +19,21 @@ import SpiritualityIcon from '@/assets/images/spirituality.svg';
 import TechIcon from '@/assets/images/technology.svg';
 import TravelIcon from '@/assets/images/travel.svg';
 import VideoGameIcon from '@/assets/images/Video_Game.svg';
-import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import {
-  Keyboard,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native';
-import { SvgProps } from 'react-native-svg';
+import React, { useMemo, useState } from 'react';
+import { View } from 'react-native';
+import InlineAlert from '../components/alerts/InlineAlert';
+import PrimaryButton from '../components/buttons/PrimaryButton';
+import PillDropdownField from '../components/inputs/PillDropdownField';
+import SearchablePillDropdownField from '../components/inputs/SearchablePillDropdownField';
+import FlowLayout from '../components/layouts/FlowLayout';
 
-type Category = {
+interface Category {
   id: string;
   label: string;
-  icon: React.FC<SvgProps>;
+  icon: React.ComponentType<any>;
   tags: string[];
-};
+}
 
 const CATEGORIES: Category[] = [
   { id: 'music', label: 'Music', icon: MusicIcon, tags: ['Rock & Alternative', 'Hip Hop & Rap', 'Electronic & EDM', 'Country & Folk', 'Jazz & Blues', 'Classical & Opera', 'Pop & Top 40', 'R&B & Soul', 'Indie & Underground', 'Latin & Reggaeton', 'K-Pop & J-Pop'] },
@@ -63,201 +57,111 @@ const CATEGORIES: Category[] = [
   { id: 'spirituality', label: 'Spirituality & Religion', icon: SpiritualityIcon, tags: ['Meditation & Mindfulness', 'Yoga & Spiritual Practice', 'Religious Services', 'Interfaith Dialogue', 'Buddhist Teachings', 'Christian Fellowship', 'Jewish Community Events', 'Islamic Gatherings', 'New Age & Metaphysical', 'Prayer Groups'] },
 ];
 
-export default function InterestSelection() {
+export default function CategorySelectorScreen() {
   const router = useRouter();
   const { update } = useOnboarding();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  const [inlineError, setInlineError] = useState('');
+
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
-  const allTags = CATEGORIES.flatMap((c) => c.tags);
 
-  const filteredTags = allTags.filter(
-    (t) =>
-      t.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !selectedTags.includes(t)
-  );
+  const allGlobalTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    CATEGORIES.forEach((category) => {
+      category.tags.forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet);
+  }, []);
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
+  const handleToggleDropdown = (id: string) => {
+    setOpenDropdownId(prev => (prev === id ? null : id));
   };
 
-  const toggleCategory = (id: string) => {
-    setExpandedCategories((prev) =>
-      prev.includes(id) ? [] : [id]
-    );
-    setShowSearchResults(false);
-    Keyboard.dismiss();
+  const handleSubmit = () => {
+    if (selectedTags.length === 0) {
+      setInlineError('Please select at least one tag.');
+      return;
+    }
+
+    setInlineError('');
+
+    update({
+      selectedTags
+    });
+
+    router.push('/Avatar');
   };
 
-  const getSelectedCountForCategory = (tags: string[]) =>
-    tags.filter((t) => selectedTags.includes(t)).length;
-
-  const handleSearchTag = (tag: string) => {
-    toggleTag(tag);
-    setSearchQuery('');
-    setShowSearchResults(false);
-    Keyboard.dismiss();
-  };
-
-  const closeSearch = () => {
-    setShowSearchResults(false);
-    Keyboard.dismiss();
-  };
-
-  const allFilled = selectedTags.length > 0;
+  const allFilled = selectedTags.length > 0
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView className="flex-1 px-8 pt-6" keyboardShouldPersistTaps="handled">
-
-        {/* Back Arrow */}
-        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
-          <Text className="text-2xl text-gray-800">←</Text>
-        </TouchableOpacity>
-
-        {/* Progress Bar */}
-        <View className="h-1.5 bg-gray-200 rounded-full mb-12 overflow-hidden">
-          <View className="h-full w-2/3 bg-orange-700 rounded-full" />
-        </View>
-
-        {/* Title */}
-        <TouchableWithoutFeedback onPress={closeSearch}>
-          <View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2">Tell Us About You</Text>
-            <Text className="text-sm text-gray-500 mb-8">
-              Pick tags from any category — we'll use them to customize your experience
-            </Text>
-          </View>
-        </TouchableWithoutFeedback>
-
-        {/* Search Bar */}
-        <View className="border border-gray-300 rounded-lg mb-3 px-4 flex-row items-center">
-          <SearchIcon width={16} height={16} style={{ marginRight: 10 }} />
-          <TextInput
-            className="flex-1 py-4 text-sm text-gray-800"
-            placeholder="Search for interests, events, activities..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={(text) => {
-              setSearchQuery(text);
-              setShowSearchResults(text.length > 0);
-            }}
-            onFocus={() => setShowSearchResults(searchQuery.length > 0)}
+    <FlowLayout
+      title='Tell Us About You!'
+      subTitle="Pick tags from any category and we'll use them to customize your experience."
+      onBackPress={() => router.back()}
+      showProgressBar={true}
+      startingPercentage={25}
+      progressBarPercentage={50}
+      footer={
+        <View className='mt-[16px] mb-[42px]'>
+          <PrimaryButton
+            label="Next"
+            isFilled={allFilled}
+            onPress={handleSubmit}
           />
         </View>
+      }
+    >
 
-        {/* Search Results */}
-        {showSearchResults && (
-          <View className="border border-gray-200 rounded-lg mb-6 bg-white shadow-sm">
-            {filteredTags.length > 0 ? (
-              <>
-                <Text className="text-xs text-gray-400 px-4 pt-3 pb-1">
-                  {filteredTags.length} results - tap to select tag(s)
-                </Text>
-                <View className="flex-row flex-wrap px-4 pb-4 gap-2">
-                  {filteredTags.slice(0, 6).map((tag) => (
-                    <TouchableOpacity
-                      key={tag}
-                      onPress={() => handleSearchTag(tag)}
-                      className="flex-row items-center border border-gray-300 rounded-full px-3 py-1.5"
-                    >
-                      <Text className="text-xs text-gray-700">+ {tag}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            ) : (
-              <View className="px-4 py-4">
-                <Text className="text-sm text-gray-500">
-                  No results for "{searchQuery}"
-                </Text>
-                <TouchableOpacity className="mt-1">
-                  <Text className="text-sm text-orange-700 font-semibold">
-                    Tag not listed? Send it in
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Categories */}
-        <View className="gap-3 mb-8">
-          {CATEGORIES.map((category) => {
-            const isExpanded = expandedCategories.includes(category.id);
-            const selectedCount = getSelectedCountForCategory(category.tags);
-            const IconComponent = category.icon;
-
-            return (
-              <View key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <TouchableOpacity
-                  className="px-4 py-4 flex-row items-center justify-between bg-white"
-                  onPress={() => toggleCategory(category.id)}
-                >
-                  <View className="flex-row items-center gap-3">
-                    <IconComponent width={24} height={24} />
-                    <Text className="text-sm font-semibold text-gray-800">{category.label}</Text>
-                    {selectedCount > 0 && (
-                      <View className="bg-orange-700 rounded-full w-5 h-5 items-center justify-center">
-                        <Text className="text-white text-xs font-bold">{selectedCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <DropdownArrow
-                    width={16}
-                    height={16}
-                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
-                  />
-                </TouchableOpacity>
-
-                {isExpanded && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
-                    {category.tags.map((tag) => {
-                      const isSelected = selectedTags.includes(tag);
-                      return (
-                        <TouchableOpacity
-                          key={tag}
-                          onPress={() => toggleTag(tag)}
-                          className={`flex-row items-center rounded-full px-3 py-1.5 mt-2 ${
-                            isSelected
-                              ? 'bg-orange-700 border border-orange-700'
-                              : 'border border-gray-300'
-                          }`}
-                        >
-                          <Text className={`text-xs ${isSelected ? 'text-white' : 'text-gray-700'}`}>
-                            {isSelected ? '× ' : '+ '}{tag}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+      {inlineError && (
+        <View className="mt-4">
+          <InlineAlert message={inlineError} />
         </View>
+      )}
 
-        {/* Next Button */}
-        <TouchableOpacity
-          className={`rounded-lg py-4 items-center justify-center mt-2 mb-16 ${
-            allFilled ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
-          }`}
-          onPress={allFilled ? () => {
-            update({ selectedTags });
-            router.push('/Avatar');
-          } : undefined}
-          activeOpacity={allFilled ? 0.8 : 1}
-        >
-          <Text className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}>
-            Next
-          </Text>
-        </TouchableOpacity>
+      <View className='mt-[16px]'>
+        <SearchablePillDropdownField
+          leftIcon={<SearchIcon width={15} height={15} fill="#a3a3a3" />}
+          placeholder="Search for interests, events, activities..."
+          options={allGlobalTags}
+          selectedValues={selectedTags}
+          onSelect={setSelectedTags}
+        />
+      </View>
 
-      </ScrollView>
-    </SafeAreaView>
-  );
+      <View className='mt-[16px] gap-[16px]'>
+        {CATEGORIES.map((category) => {
+          const IconComponent = category.icon;
+          
+          const currentCategorySelectedTags = selectedTags.filter((tag) =>
+            category.tags.includes(tag)
+          );
+
+          const handleCategorySelect = (updatedCategoryTags: string[]) => {
+            const cleanGlobalTags = selectedTags.filter(
+              (tag) => !category.tags.includes(tag)
+            );
+            setSelectedTags([...cleanGlobalTags, ...updatedCategoryTags]);
+          };
+
+          return (
+            <View key={category.id}>
+              <PillDropdownField
+                titleText={category.label}
+                leftIcon={<IconComponent width={16} height={16} />}
+                options={category.tags}
+                selectedValues={currentCategorySelectedTags}
+                onSelect={handleCategorySelect}
+                isOpen={openDropdownId === category.id}
+                onToggle={() => handleToggleDropdown(category.id)}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+    </FlowLayout>
+  )
 }
