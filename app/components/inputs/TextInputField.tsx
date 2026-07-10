@@ -20,7 +20,7 @@ export default function TextInputField({
   label,
   leftIcon,
   clearable,
-  borderRadius=8,
+  borderRadius=4,
   forceFocusStyles=false,
   ...props
 }: TextInputFieldProps) {

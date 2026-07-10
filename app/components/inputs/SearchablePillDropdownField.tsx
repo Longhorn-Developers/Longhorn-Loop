@@ -40,16 +40,10 @@ export default function SearchablePillDropdownField({
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
 
-    const selected = selectedValues;
-
-    const matches = options.filter(
-      (option) =>
-        !selectedValues.includes(option) &&
-        option.toLowerCase().includes(query)
+    return options.filter((option) =>
+      option.toLowerCase().includes(query)
     );
-
-    return [...selected, ...matches];
-  }, [searchQuery, options, selectedValues]);
+  }, [searchQuery, options]);
 
   const truncateText = (text: string) => {
     if (text.length > maxPillTextLength) {
@@ -81,33 +75,41 @@ export default function SearchablePillDropdownField({
           className="mt-1 border border-lhlBorderColor bg-white p-[6px]"
           style={{ borderRadius }}
         >
-          <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-neutral-500 mb-[10px] ml-[10px]">
-            {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''} - tap to select tag(s)
-          </Text>
-
-          <View className="flex-row flex-wrap gap-2">
-            {filteredOptions.map((option) => {
-              const isSelected = selectedValues.includes(option);
-              return (
-                <PillButton
-                  key={option}
-                  label={truncateText(option)}
-                  isSelected={isSelected}
-                  onPress={() => handlePillPress(option)}
-                  height={28}
-                  gap={10}
-                  textSize={12}
-                  padding={9}
-                  iconSize={8}
-                />
-              );
-            })}
-            {filteredOptions.length === 0 && (
-              <Text className="font-['Roboto-Flex'] text-[13px] text-neutral-400 italic">
-                No results found
+          {filteredOptions.length > 0 ? (
+            <>
+              <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-neutral-500 mb-[10px] ml-[10px]">
+                {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''} - tap to select tag(s)
               </Text>
-            )}
-          </View>
+
+              <View className="flex-row flex-wrap gap-2">
+                {filteredOptions.map((option) => {
+                  const isSelected = selectedValues.includes(option);
+                  return (
+                    <PillButton
+                      key={option}
+                      label={truncateText(option)}
+                      isSelected={isSelected}
+                      onPress={() => handlePillPress(option)}
+                      height={28}
+                      gap={10}
+                      textSize={12}
+                      padding={9}
+                      iconSize={8}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <View className="py-4 items-center justify-center">
+              <Text className="font-['Roboto-Flex'] text-[12px] text-neutral-500">
+                No results for{' '}
+                <Text className="font-['Roboto-Flex'] font-semibold text-neutral-500">
+                  "{searchQuery.trim()}"
+                </Text>
+              </Text>
+            </View>
+          )}
         </View>
       )}
 

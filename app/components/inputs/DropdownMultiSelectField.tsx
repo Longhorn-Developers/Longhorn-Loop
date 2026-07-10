@@ -27,7 +27,7 @@ export default function DropdownMultiSelectField({
   onSelect,
   isOpen,
   onToggle,
-  borderRadius = 8,
+  borderRadius = 4,
 }: DropdownMultiSelectFieldProps) {
   
   const borderColorClass = isOpen
@@ -78,7 +78,7 @@ export default function DropdownMultiSelectField({
           mt-[6px]
           flex-row items-center
           border
-          px-4 h-[33px] gap-2
+          px-[9px] h-[33px] gap-2
           ${borderColorClass}
           bg-white
         `}
@@ -99,7 +99,7 @@ export default function DropdownMultiSelectField({
         </Text>
 
         <View className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-          <LhlCaretDownIcon size={16} color="#000" />
+          <LhlCaretDownIcon color="#000" />
         </View>
       </Pressable>
 

@@ -188,9 +188,9 @@ export default function CreateAccount() {
       onBackPress={() => router.back()}
       showProgressBar={true}
       startingPercentage={0}
-      progressBarPercentage={100/3}
+      progressBarPercentage={25}
       footer={
-        <View className='mb-[42px]'>
+        <View className='mt-[16px] mb-[42px]'>
           <PrimaryButton
             label="Next"
             isFilled={allFilled}
