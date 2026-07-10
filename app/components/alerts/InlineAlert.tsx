@@ -25,7 +25,8 @@ export default function InlineAlert({
     >
       <Text
         className="font-['Roboto-Flex'] text-sm font-medium pb-[1px]"
-        style={{ color: textColor }}>
+        style={{ color: textColor }}
+      >
         {message}
       </Text>
     </View>

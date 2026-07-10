@@ -12,7 +12,7 @@ module.exports = {
         lhlBackgroundColor: 'hsla(45, 25%, 97%, 1)',
       },
       fontFamily: {
-        roboto: ["Roboto-Flex"],
+        roboto: ['Roboto-Flex'],
       },
     },
   },

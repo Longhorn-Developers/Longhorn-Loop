@@ -23,11 +23,11 @@ const OtpInput: React.FC<OtpInputProps> = ({
       {code.map((digit, index) => {
         const isFocused = focusedIndex === index;
 
-        let borderColor = 'black'; 
+        let borderColor = 'black';
         if (error) {
           borderColor = '#EF4444'; // red-500
         } else if (isFocused || digit) {
-          borderColor = "hsla(27, 93%, 32%, 1)"; // lhlBurntOrange
+          borderColor = 'hsla(27, 93%, 32%, 1)'; // lhlBurntOrange
         }
 
         const borderWidth = isFocused ? 2 : 1;
@@ -41,14 +41,14 @@ const OtpInput: React.FC<OtpInputProps> = ({
               }
             }}
             className="w-12 h-14 rounded-lg font-['Roboto-Flex'] text-center text-xl font-semibold"
-            style={{ 
-              borderColor, 
+            style={{
+              borderColor,
               borderWidth,
               // Cast as any to bypass React Native's strict non-web layout types
               ...({
-                outlineStyle: 'none', 
-                outlineColor: 'transparent'
-              } as any)
+                outlineStyle: 'none',
+                outlineColor: 'transparent',
+              } as any),
             }}
             value={digit}
             onChangeText={(text) => {

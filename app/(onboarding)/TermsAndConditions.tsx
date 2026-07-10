@@ -49,11 +49,7 @@ export default function TermsAndConditions() {
       progressBarPercentage={100}
       footer={
         <View className="mt-[16px] mb-[42px]">
-          <PrimaryButton
-            label="Next"
-            isFilled={allChecked}
-            onPress={handleSubmit}
-          />
+          <PrimaryButton label="Next" isFilled={allChecked} onPress={handleSubmit} />
         </View>
       }
     >

@@ -1,10 +1,6 @@
 import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
 import React from 'react';
-import {
-  Pressable,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import PillButton from '../buttons/PillButton';
 
 interface PillDropdownFieldProps {
@@ -32,7 +28,6 @@ export default function PillDropdownField({
   borderRadius = 4,
   maxPillTextLength = 50,
 }: PillDropdownFieldProps) {
-  
   const handlePillPress = (option: string) => {
     if (selectedValues.includes(option)) {
       onSelect(selectedValues.filter((item) => item !== option));
@@ -66,9 +61,7 @@ export default function PillDropdownField({
       {/* Optional Top Label */}
       {label && (
         <Pressable onPress={onToggle} className="mb-[6px]">
-          <Text className="font-['Roboto-Flex'] font-semibold text-[16px] text-black">
-            {label}
-          </Text>
+          <Text className="font-['Roboto-Flex'] font-semibold text-[16px] text-black">{label}</Text>
         </Pressable>
       )}
 
@@ -106,17 +99,16 @@ export default function PillDropdownField({
         )}
 
         {/* Caret Icon*/}
-        <View className={`ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
+        <View
+          className={`ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+        >
           <LhlCaretDownIcon color="#000" />
         </View>
       </Pressable>
 
       {/* Dropdown Options Area */}
       {isOpen && (
-        <View
-          className={`border-x border-b bg-white p-[10px]`}
-          style={dropdownStyle}
-        >
+        <View className={`border-x border-b bg-white p-[10px]`} style={dropdownStyle}>
           <View className="flex-row flex-wrap gap-2">
             {options.map((option) => {
               const isSelected = selectedValues.includes(option);

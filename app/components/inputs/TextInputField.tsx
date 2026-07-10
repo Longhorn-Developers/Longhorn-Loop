@@ -1,12 +1,6 @@
 import LhlXCircleIcon from '@/assets/icons/LhlXCircleIcon';
 import React, { useRef, useState } from 'react';
-import {
-  Pressable,
-  Text,
-  TextInput,
-  TextInputProps,
-  View,
-} from 'react-native';
+import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 
 interface TextInputFieldProps extends TextInputProps {
   label?: string;
@@ -20,8 +14,8 @@ export default function TextInputField({
   label,
   leftIcon,
   clearable,
-  borderRadius=4,
-  forceFocusStyles=false,
+  borderRadius = 4,
+  forceFocusStyles = false,
   ...props
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -61,9 +55,8 @@ export default function TextInputField({
   };
 
   // --- DERIVED VALUES ---
-  const borderColorClass = (isFocused || forceFocusStyles)
-    ? 'border-lhlBurntOrange'
-    : 'border-lhlBorderColor';
+  const borderColorClass =
+    isFocused || forceFocusStyles ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   // --- RENDER: TEXT INPUT FIELD ---
   return (
@@ -110,15 +103,8 @@ export default function TextInputField({
         />
         {/* Clear Button */}
         {clearable && (isFocused || forceFocusStyles) && (
-          <Pressable
-            onPressIn={(e) => e.preventDefault?.()}
-            onPress={handleClear}
-            hitSlop={8}
-          >
-            <LhlXCircleIcon
-              size={13}
-              color={"#000"}
-            />
+          <Pressable onPressIn={(e) => e.preventDefault?.()} onPress={handleClear} hitSlop={8}>
+            <LhlXCircleIcon size={13} color={'#000'} />
           </Pressable>
         )}
       </Pressable>

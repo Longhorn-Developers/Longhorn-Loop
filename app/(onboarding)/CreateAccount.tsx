@@ -2,9 +2,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import {
-  View
-} from 'react-native';
+import { View } from 'react-native';
 import InlineAlert from '../components/alerts/InlineAlert';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 import DropdownMultiSelectField from '../components/inputs/DropdownMultiSelectField';
@@ -131,12 +129,7 @@ const MAJORS = [
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 
-const UNIQUE_CLASS_OPTIONS = [
-  'First Generation',
-  'International',
-  'Transfer',
-  'Not Applicable',
-];
+const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
 
 export default function CreateAccount() {
   const router = useRouter();
@@ -183,30 +176,25 @@ export default function CreateAccount() {
 
   return (
     <FlowLayout
-      title='Get In The Loop!'
+      title="Get In The Loop!"
       subTitle="Let's create your account!"
       onBackPress={() => router.back()}
       showProgressBar={true}
       startingPercentage={0}
       progressBarPercentage={25}
       footer={
-        <View className='mt-[16px] mb-[42px]'>
-          <PrimaryButton
-            label="Next"
-            isFilled={allFilled}
-            onPress={handleSubmit}
-          />
+        <View className="mt-[16px] mb-[42px]">
+          <PrimaryButton label="Next" isFilled={allFilled} onPress={handleSubmit} />
         </View>
       }
     >
-
       {inlineError && (
         <View className="mt-4">
           <InlineAlert message={inlineError} />
         </View>
       )}
 
-      <View className='mt-[42px]'>
+      <View className="mt-[42px]">
         <SearchablePillDropdownField
           label="Major(s)"
           leftIcon={<LhlSearchIcon />}
@@ -217,7 +205,7 @@ export default function CreateAccount() {
         />
       </View>
 
-      <View className='mt-[16px]'>
+      <View className="mt-[16px]">
         <DropdownSelectField
           label="Year Classification"
           placeholder="Select year"
@@ -225,11 +213,13 @@ export default function CreateAccount() {
           selectedValue={selectedYear}
           onSelect={setSelectedYear}
           isOpen={yearOpen}
-          onToggle={() => {setYearOpen(!yearOpen)}}
+          onToggle={() => {
+            setYearOpen(!yearOpen);
+          }}
         />
       </View>
 
-      <View className='mt-[16px]'>
+      <View className="mt-[16px]">
         <DropdownMultiSelectField
           label="Unique Classification"
           placeholder="Select all that apply"
@@ -237,10 +227,11 @@ export default function CreateAccount() {
           selectedValues={selectedUnique}
           onSelect={setSelectedUnique}
           isOpen={uniqueOpen}
-          onToggle={() => {setUniqueOpen(!uniqueOpen)}}
+          onToggle={() => {
+            setUniqueOpen(!uniqueOpen);
+          }}
         />
       </View>
-
     </FlowLayout>
   );
 }

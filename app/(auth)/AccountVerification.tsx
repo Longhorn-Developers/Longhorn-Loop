@@ -8,12 +8,12 @@ import {
   Text,
   TextInput,
   TextInputKeyPressEventData,
-  View
+  View,
 } from 'react-native';
-import InlineAlert from "../components/alerts/InlineAlert";
-import PrimaryButton from "../components/buttons/PrimaryButton";
-import OtpInput from "../components/inputs/OtpInputField";
-import FlowLayout from "../components/layouts/FlowLayout";
+import InlineAlert from '../components/alerts/InlineAlert';
+import PrimaryButton from '../components/buttons/PrimaryButton';
+import OtpInput from '../components/inputs/OtpInputField';
+import FlowLayout from '../components/layouts/FlowLayout';
 
 export default function AccountVerification() {
   const router = useRouter();
@@ -205,18 +205,18 @@ export default function AccountVerification() {
 
   return (
     <FlowLayout
-      title='Account Verification'
+      title="Account Verification"
       subTitle={`We've sent a verification code to your email.\nEnter the code below.`}
       onBackPress={() => router.back()}
     >
       {showAlert && (
-        <View className='mt-4'>
+        <View className="mt-4">
           <InlineAlert message={error} />
         </View>
       )}
 
-      <View className='mt-[42px]'>
-        <OtpInput 
+      <View className="mt-[42px]">
+        <OtpInput
           code={code}
           error={showAlert}
           inputs={inputs}
@@ -225,9 +225,9 @@ export default function AccountVerification() {
         />
       </View>
 
-      <View className='mt-[42px]'>
+      <View className="mt-[42px]">
         <PrimaryButton
-          label='Verify Email'
+          label="Verify Email"
           isFilled={allFilled}
           onPress={handleVerify}
           isLoading={loading}
@@ -235,11 +235,11 @@ export default function AccountVerification() {
         />
       </View>
 
-      <Pressable className='mt-4' onPress={handleResend}>
+      <Pressable className="mt-4" onPress={handleResend}>
         <Text className="font-['Roboto-Flex'] text-base text-center">
           Didn't receive the code?{' '}
           <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">
-            {resending ? "Sending..." : "Resend Code"}
+            {resending ? 'Sending...' : 'Resend Code'}
           </Text>
         </Text>
       </Pressable>

@@ -40,9 +40,7 @@ export default function SearchablePillDropdownField({
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
 
-    return options.filter((option) =>
-      option.toLowerCase().includes(query)
-    );
+    return options.filter((option) => option.toLowerCase().includes(query));
   }, [searchQuery, options]);
 
   const truncateText = (text: string) => {
@@ -78,7 +76,8 @@ export default function SearchablePillDropdownField({
           {filteredOptions.length > 0 ? (
             <>
               <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-neutral-500 mb-[10px] ml-[10px]">
-                {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''} - tap to select tag(s)
+                {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''} - tap to
+                select tag(s)
               </Text>
 
               <View className="flex-row flex-wrap gap-2">

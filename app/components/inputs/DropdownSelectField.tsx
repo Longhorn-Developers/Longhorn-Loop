@@ -1,10 +1,6 @@
 import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
 import React from 'react';
-import {
-  Pressable,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 interface DropdownSelectFieldProps {
   label?: string;
@@ -15,7 +11,7 @@ interface DropdownSelectFieldProps {
   onSelect: (value: string) => void;
   isOpen: boolean;
   onToggle: () => void;
-  borderRadius?: number; 
+  borderRadius?: number;
 }
 
 export default function DropdownSelectField({
@@ -29,10 +25,7 @@ export default function DropdownSelectField({
   onToggle,
   borderRadius = 4,
 }: DropdownSelectFieldProps) {
-  
-  const borderColorClass = isOpen
-    ? 'border-lhlBurntOrange'
-    : 'border-lhlBorderColor';
+  const borderColorClass = isOpen ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   return (
     <View>
@@ -54,15 +47,17 @@ export default function DropdownSelectField({
           ${borderColorClass}
           bg-white
         `}
-        style={{ 
-          borderRadius: borderRadius,
-          outlineStyle: 'none' 
-        } as any}
+        style={
+          {
+            borderRadius: borderRadius,
+            outlineStyle: 'none',
+          } as any
+        }
       >
         {leftIcon && <View>{leftIcon}</View>}
 
-        <Text 
-          numberOfLines={1} 
+        <Text
+          numberOfLines={1}
           className={`flex-1 font-['Roboto-Flex'] text-[14px] ${
             selectedValue ? 'text-black' : 'text-neutral-400'
           }`}
@@ -76,7 +71,7 @@ export default function DropdownSelectField({
       </Pressable>
 
       {isOpen && (
-        <View 
+        <View
           className="mt-1 border border-lhlBorderColor bg-white overflow-hidden"
           style={{ borderRadius: borderRadius }}
         >
@@ -94,9 +89,7 @@ export default function DropdownSelectField({
                 ${index !== options.length - 1 ? 'border-b' : ''}
               `}
             >
-              <Text className="font-['Roboto-Flex'] text-[14px] text-black">
-                {option}
-              </Text>
+              <Text className="font-['Roboto-Flex'] text-[14px] text-black">{option}</Text>
             </Pressable>
           ))}
         </View>

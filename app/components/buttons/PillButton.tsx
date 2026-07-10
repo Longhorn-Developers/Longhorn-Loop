@@ -1,12 +1,7 @@
 import LhlPillCross from '@/assets/icons/LhlPillCross';
 import LhlPillPlus from '@/assets/icons/LhlPillPlus';
 import React, { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Easing,
-  Pressable,
-  Text,
-} from 'react-native';
+import { Animated, Easing, Pressable, Text } from 'react-native';
 
 interface PillButtonProps {
   label: string;
@@ -31,7 +26,6 @@ export default function PillButton({
   padding = 12,
   iconSize = 8,
 }: PillButtonProps) {
-  
   const rotationAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -82,9 +76,9 @@ export default function PillButton({
       }}
     >
       {selectable && (
-        <Animated.View 
-          style={{ 
-            transform: isSelected ? [] : [{ rotate: rotateInterpolate }] 
+        <Animated.View
+          style={{
+            transform: isSelected ? [] : [{ rotate: rotateInterpolate }],
           }}
         >
           {isSelected ? (

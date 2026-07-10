@@ -57,15 +57,11 @@ export default function LoginPage() {
         />
       </View>
 
-      <View className='mt-[42px]'>
-        <PrimaryButton
-          label='Verify Email'
-          isFilled={isEmailValid}
-          onPress={handleSubmit}
-        />
+      <View className="mt-[42px]">
+        <PrimaryButton label="Verify Email" isFilled={isEmailValid} onPress={handleSubmit} />
       </View>
 
-      <Pressable className='mt-4' onPress={handleCreateAccount}>
+      <Pressable className="mt-4" onPress={handleCreateAccount}>
         <Text className="font-['Roboto-Flex'] text-base text-center">
           Don't have an account?{' '}
           <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">Sign Up</Text>

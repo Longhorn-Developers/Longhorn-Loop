@@ -21,33 +21,23 @@ export default function PrimaryButton({
   disabled,
   ...props
 }: PrimaryButtonProps) {
+  const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
-  const borderColorClass = isFilled
-    ? 'border-lhlBurntOrange'
-    : 'border-lhlBorderColor';
-  
-  const backgroundColorClass = isFilled
-    ? 'bg-lhlBurntOrange'
-    : 'bg-white';
-  
-  const textColorClass = isFilled
-    ? 'text-white'
-    : 'text-lhlSecondaryTextGrey';
-  
-  const iconColorClass = isFilled
-    ? 'white'
-    : 'hsla(180, 9%, 31%, 1)'; // lhlSecondaryTextGrey
+  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-white';
 
-  const displayedText = isLoading ? (loadingLabel || label) : label;
+  const textColorClass = isFilled ? 'text-white' : 'text-lhlSecondaryTextGrey';
+
+  const iconColorClass = isFilled ? 'white' : 'hsla(180, 9%, 31%, 1)'; // lhlSecondaryTextGrey
+
+  const displayedText = isLoading ? loadingLabel || label : label;
 
   return (
-    <Pressable 
+    <Pressable
       className={`flex-row items-center justify-center gap-x-2 h-[55px] border-2 rounded-lg px-2 relative ${borderColorClass} ${backgroundColorClass}`}
       disabled={disabled || isLoading}
       {...props}
     >
       <View className="flex-row items-center justify-center gap-x-2">
-        
         {isLoading ? (
           <ActivityIndicator color={iconColorClass} size="small" />
         ) : (

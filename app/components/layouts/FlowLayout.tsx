@@ -1,13 +1,13 @@
-import { ArrowLeftIcon } from "phosphor-react-native";
-import React, { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { ArrowLeftIcon } from 'phosphor-react-native';
+import React, { useEffect } from 'react';
+import { Pressable, Text, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
 interface FlowLayoutProps {
   title?: string;
@@ -62,9 +62,9 @@ export default function FlowLayout({
               <Animated.View
                 style={[
                   {
-                    height: "100%",
+                    height: '100%',
                     borderRadius: 999,
-                    backgroundColor: "hsla(27, 100%, 37%, 1)",
+                    backgroundColor: 'hsla(27, 100%, 37%, 1)',
                   },
                   animatedStyle,
                 ]}

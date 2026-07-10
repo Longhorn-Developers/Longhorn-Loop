@@ -1,14 +1,8 @@
-import * as React from "react";
-import Svg, { Path, SvgProps } from "react-native-svg";
+import * as React from 'react';
+import Svg, { Path, SvgProps } from 'react-native-svg';
 
 const LhlCaretDownIcon = (props: SvgProps) => (
-  <Svg
-    width={12}
-    height={7}
-    viewBox="0 0 12 7"
-    fill="none"
-    {...props}
-  >
+  <Svg width={12} height={7} viewBox="0 0 12 7" fill="none" {...props}>
     <Path
       fill="#000"
       fillRule="evenodd"
