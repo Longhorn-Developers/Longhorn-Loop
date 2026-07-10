@@ -29,7 +29,7 @@ export default function SplashScreen({ onFinish }: Props) {
       // Fade out
       Animated.timing(containerOpacity, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]).start(() => onFinish());
-  }, []);
+  });
 
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>

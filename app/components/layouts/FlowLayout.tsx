@@ -39,7 +39,7 @@ export default function FlowLayout({
       duration: 500,
       easing: Easing.out(Easing.cubic),
     });
-  }, [startingPercentage, progressBarPercentage]);
+  }, [startingPercentage, progressBarPercentage, progress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     width: `${progress.value}%`,

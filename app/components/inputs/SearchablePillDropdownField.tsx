@@ -104,7 +104,7 @@ export default function SearchablePillDropdownField({
               <Text className="font-['Roboto-Flex'] text-[12px] text-neutral-500">
                 No results for{' '}
                 <Text className="font-['Roboto-Flex'] font-semibold text-neutral-500">
-                  "{searchQuery.trim()}"
+                  {`"${searchQuery.trim()}"`}
                 </Text>
               </Text>
             </View>
