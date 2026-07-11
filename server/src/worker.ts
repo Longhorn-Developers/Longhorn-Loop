@@ -10,12 +10,17 @@ import { SCRAPERS } from './scrapers/registry';
 
 export type Env = {
   DB: D1Database;
+  EVENT_IMAGES?: R2Bucket;
+  EVENT_IMAGE_PUBLIC_BASE_URL?: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   // When set to "true" in .dev.vars, the Worker logs verification codes to
   // the wrangler console instead of sending them through Resend. Never set
   // in production.
   RESEND_DEV_MODE?: string;
+  // Local/remote dev only: lets the create-event UI be tested from the
+  // dev skip-to-home path, which has no JWT token.
+  DEV_ALLOW_UNAUTHENTICATED_EVENT_CREATE?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();

@@ -26,22 +26,12 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-async function request<T>(
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-  path: string,
-  opts: RequestOptions = {},
-): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
+interface FormRequestOptions {
+  token?: string | null;
+  signal?: AbortSignal;
+}
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
-  });
-
+async function parseResponse<T>(res: Response): Promise<T> {
   // Try to parse JSON, but tolerate empty bodies / non-JSON errors.
   let parsed: unknown = null;
   const text = await res.text();
@@ -64,9 +54,49 @@ async function request<T>(
   return parsed as T;
 }
 
+async function request<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: opts.signal,
+  });
+
+  return parseResponse<T>(res);
+}
+
+async function requestForm<T>(
+  method: 'POST' | 'PUT' | 'PATCH',
+  path: string,
+  form: FormData,
+  opts: FormRequestOptions = {},
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers,
+    body: form,
+    signal: opts.signal,
+  });
+
+  return parseResponse<T>(res);
+}
+
 export const api = {
   get: <T>(path: string, opts?: RequestOptions) => request<T>('GET', path, opts),
   post: <T>(path: string, opts?: RequestOptions) => request<T>('POST', path, opts),
+  postForm: <T>(path: string, form: FormData, opts?: FormRequestOptions) =>
+    requestForm<T>('POST', path, form, opts),
   put: <T>(path: string, opts?: RequestOptions) => request<T>('PUT', path, opts),
   patch: <T>(path: string, opts?: RequestOptions) => request<T>('PATCH', path, opts),
   delete: <T>(path: string, opts?: RequestOptions) => request<T>('DELETE', path, opts),

@@ -46,6 +46,16 @@ to log what would be written without touching D1, or omit it (or set
 - `.dev.vars.example` — template, committed.
 - Production secrets — set via `wrangler secret put NAME` (needs Cloudflare access).
 
+## Event Images
+
+User-created event uploads are stored in the `longhorn-loop-event-images`
+R2 bucket through the Worker binding `EVENT_IMAGES`.
+
+Set `EVENT_IMAGE_PUBLIC_BASE_URL` to the bucket's public r2.dev URL or a
+custom domain, without a trailing slash. Uploaded objects are written under
+`events/user-created/{userId}/{uuid}.{ext}` and the event row stores
+`EVENT_IMAGE_PUBLIC_BASE_URL` plus that object key.
+
 ### `RESEND_DEV_MODE`
 
 When `RESEND_DEV_MODE=true`, `/auth/send-code` prints the verification

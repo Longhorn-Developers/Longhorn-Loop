@@ -7,6 +7,10 @@ binding = "DB"
 database_name = "loop-db"
 database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
 
+[[r2_buckets]]
+binding = "EVENT_IMAGES"
+bucket_name = "longhorn-loop-event-images"
+
 [triggers]
 # Both schedules fire the same scheduled() handler in worker.ts, which
 # dispatches on event.cron:
@@ -17,3 +21,6 @@ crons = ["0 */6 * * *", "*/15 * * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
+
+[vars]
+EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
