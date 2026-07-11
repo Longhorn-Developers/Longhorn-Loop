@@ -95,6 +95,10 @@ userRoutes.post('/me/profile', async (c) => {
     tags,
   } = await c.req.json();
 
+  const uniqueClassificationJson = Array.isArray(unique_classification)
+    ? JSON.stringify(unique_classification)
+    : unique_classification;
+
   // Upsert user record
   await c.env.DB.prepare(
     `INSERT INTO users (email, first_name, last_name, avatar, year_classification, unique_classification)
@@ -106,7 +110,7 @@ userRoutes.post('/me/profile', async (c) => {
        year_classification = excluded.year_classification,
        unique_classification = excluded.unique_classification`,
   )
-    .bind(user.email, first_name, last_name, avatar, year_classification, unique_classification)
+    .bind(user.email, first_name, last_name, avatar, year_classification, uniqueClassificationJson)
     .run();
 
   // Get user ID
