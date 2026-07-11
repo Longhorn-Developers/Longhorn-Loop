@@ -3,15 +3,17 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   NativeSyntheticEvent,
-  SafeAreaView,
+  Pressable,
   Text,
   TextInput,
   TextInputKeyPressEventData,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import InlineAlert from '../components/alerts/InlineAlert';
+import PrimaryButton from '../components/buttons/PrimaryButton';
+import OtpInput from '../components/inputs/OtpInputField';
+import FlowLayout from '../components/layouts/FlowLayout';
 
 export default function AccountVerification() {
   const router = useRouter();
@@ -26,10 +28,6 @@ export default function AccountVerification() {
 
   const allFilled = code.every((digit) => digit !== '');
 
-  // Send a verification code as soon as this screen mounts, so the page
-  // works correctly regardless of how the user landed here (fresh signup,
-  // back-navigation, hot reload, etc.) instead of relying solely on the
-  // Register page having already triggered the send.
   useEffect(() => {
     if (hasSentInitialCode.current || !data.email) {
       setSendingInitialCode(false);
@@ -49,8 +47,7 @@ export default function AccountVerification() {
 
         if (!res.ok) {
           if (result.error === 'RESEND_TOO_SOON') {
-            // A code was already sent very recently (e.g. RegisterPage
-            // already triggered one) -- this is not an error state.
+            // A code was already sent very recently
           } else if (result.error === 'INVALID_UT_EMAIL') {
             setError('Please use a valid @utexas.edu email address.');
           } else {
@@ -68,12 +65,17 @@ export default function AccountVerification() {
   }, [data.email]);
 
   const handleChange = (text: string, index: number) => {
+    const cleanText = text.replace(/[^0-9]/g, '');
+
+    if (text.length > 0 && cleanText.length === 0) {
+      return;
+    }
+
     const newCode = [...code];
     newCode[index] = text.slice(-1);
     setCode(newCode);
     setError('');
 
-    // Auto-advance to next input
     if (text && index < 5) {
       inputs.current[index + 1]?.focus();
     }
@@ -82,12 +84,10 @@ export default function AccountVerification() {
   const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
     if (e.nativeEvent.key === 'Backspace') {
       if (code[index]) {
-        // Clear current digit immediately
         const newCode = [...code];
         newCode[index] = '';
         setCode(newCode);
       } else if (index > 0) {
-        // Already empty — clear previous digit and move focus back
         const newCode = [...code];
         newCode[index - 1] = '';
         setCode(newCode);
@@ -133,13 +133,11 @@ export default function AccountVerification() {
         return;
       }
 
-      // Store the JWT token
       const token = result.token;
       if (token) {
         update({ token });
       }
 
-      // Check if user already completed onboarding (returning login)
       try {
         const profileRes = await fetch(`${API_BASE_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -148,7 +146,6 @@ export default function AccountVerification() {
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           if (profileData.user?.onboarding_completed) {
-            // Returning user — load profile into context and go home
             update({
               firstName: profileData.user.first_name || '',
               lastName: profileData.user.last_name || '',
@@ -161,7 +158,6 @@ export default function AccountVerification() {
         // If profile check fails, fall through to onboarding
       }
 
-      // New user or onboarding not completed — start onboarding
       router.push('/CreateAccount');
     } catch (_err) {
       setError('Something went wrong. Please try again.');
@@ -196,7 +192,6 @@ export default function AccountVerification() {
         return;
       }
 
-      // Clear inputs for new code
       setCode(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } catch (_err) {
@@ -206,87 +201,48 @@ export default function AccountVerification() {
     }
   };
 
+  const showAlert = error.length > 0;
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 px-6 pt-4">
-        {/* Back Arrow */}
-        <TouchableOpacity onPress={() => router.back()} className="mb-8 self-start">
-          <Text className="text-2xl text-gray-800">←</Text>
-        </TouchableOpacity>
-
-        {/* Title */}
-        <Text className="text-2xl font-bold text-gray-900 mb-2">Account Verification</Text>
-        <Text className="text-sm text-gray-500 mb-8">
-          {sendingInitialCode
-            ? 'Sending a verification code to'
-            : "We've sent a verification code to"}
-          {'\n'}
-          <Text className="font-semibold text-gray-700">{data.email}</Text>
-        </Text>
-
-        {/* Code Input Boxes */}
-        <View className="flex-row justify-center gap-3 mb-4">
-          {code.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                inputs.current[index] = ref;
-              }}
-              style={{
-                width: 48,
-                height: 56,
-                borderWidth: 1,
-                borderRadius: 8,
-                textAlign: 'center',
-                fontSize: 20,
-                fontWeight: '600',
-                borderColor: error ? '#EF4444' : digit ? '#9CA3AF' : '#D1D5DB',
-              }}
-              value={digit}
-              onChangeText={(text) => handleChange(text, index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-              keyboardType="number-pad"
-              maxLength={1}
-            />
-          ))}
+    <FlowLayout
+      title="Account Verification"
+      subTitle={`We've sent a verification code to your email.\nEnter the code below.`}
+      onBackPress={() => router.back()}
+    >
+      {showAlert && (
+        <View className="mt-4">
+          <InlineAlert message={error} />
         </View>
+      )}
 
-        {/* Error Message */}
-        {error ? (
-          <Text className="text-red-500 text-sm text-center mb-4">{error}</Text>
-        ) : (
-          <View className="mb-4" />
-        )}
-
-        {/* Verify Button */}
-        <TouchableOpacity
-          className={`rounded-lg py-4 items-center justify-center mb-4 ${
-            allFilled && !loading ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
-          }`}
-          onPress={handleVerify}
-          activeOpacity={allFilled ? 0.8 : 1}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text
-              className={`text-base font-semibold ${allFilled ? 'text-white' : 'text-gray-400'}`}
-            >
-              Verify
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Resend Code */}
-        <View className="flex-row justify-center mt-2">
-          <Text className="text-sm text-gray-500">Didn&apos;t receive the code? </Text>
-          <TouchableOpacity onPress={handleResend}>
-            <Text className="text-sm text-orange-700 font-semibold">
-              {resending ? 'Sending...' : 'Resend Code'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <View className="mt-[42px]">
+        <OtpInput
+          code={code}
+          error={showAlert}
+          inputs={inputs}
+          handleChange={handleChange}
+          handleKeyPress={handleKeyPress}
+        />
       </View>
-    </SafeAreaView>
+
+      <View className="mt-[42px]">
+        <PrimaryButton
+          label="Verify Email"
+          isFilled={allFilled}
+          onPress={handleVerify}
+          isLoading={loading}
+          loadingLabel="Verifying..."
+        />
+      </View>
+
+      <Pressable className="mt-4" onPress={handleResend}>
+        <Text className="font-['Roboto-Flex'] text-base text-center">
+          {"Didn't receive the code? "}
+          <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">
+            {resending ? 'Sending...' : 'Resend Code'}
+          </Text>
+        </Text>
+      </Pressable>
+    </FlowLayout>
   );
 }

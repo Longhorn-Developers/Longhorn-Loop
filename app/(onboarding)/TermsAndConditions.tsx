@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import PrimaryButton from '../components/buttons/PrimaryButton';
+import FlowLayout from '../components/layouts/FlowLayout';
 
 const TERMS = [
   {
@@ -31,68 +33,57 @@ export default function TermsAndConditions() {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleSubmit = () => {
+    if (allChecked) {
+      router.push('/OnboardingComplete');
+    }
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-4">
-        {/* Back Arrow */}
-        <TouchableOpacity onPress={() => router.back()} className="mb-4 self-start">
-          <Text className="text-2xl text-gray-800">←</Text>
-        </TouchableOpacity>
-
-        {/* Progress Bar */}
-        <View className="h-1.5 bg-gray-200 rounded-full mb-8 overflow-hidden">
-          <View className="h-full w-full bg-orange-700 rounded-full" />
+    <FlowLayout
+      title="Terms and Conditions"
+      subTitle="By continuing, I acknowledge that:"
+      onBackPress={() => router.back()}
+      showProgressBar={true}
+      startingPercentage={75}
+      progressBarPercentage={100}
+      footer={
+        <View className="mt-[16px] mb-[42px]">
+          <PrimaryButton label="Next" isFilled={allChecked} onPress={handleSubmit} />
         </View>
+      }
+    >
+      {/* Checkboxes List */}
+      <View className="mt-[42px] mx-[16px] gap-5">
+        {TERMS.map((term) => {
+          const isSelected = checked[term.id];
 
-        {/* Title */}
-        <Text className="text-2xl font-bold text-gray-900 mb-2">Terms and Conditions</Text>
-        <Text className="text-sm text-gray-500 mb-7">By continuing, I acknowledge that:</Text>
-
-        {/* Checkboxes */}
-        <View className="gap-5">
-          {TERMS.map((term) => (
-            <TouchableOpacity
+          return (
+            <Pressable
               key={term.id}
-              className="flex-row items-start gap-3"
               onPress={() => toggleCheckbox(term.id)}
-              activeOpacity={0.7}
+              className="flex-row items-center gap-3"
+              style={{ outlineStyle: 'none' } as any}
             >
+              {/* Checkbox UI */}
               <View
-                className={`w-5 h-5 rounded border-2 items-center justify-center mt-0.5 shrink-0 ${
-                  checked[term.id] ? 'bg-orange-700 border-orange-700' : 'bg-white border-gray-400'
+                className={`w-4 h-4 border rounded sm items-center justify-center ${
+                  isSelected ? 'bg-lhlBurntOrange border-lhlBurntOrange' : 'border-black'
                 }`}
               >
-                {checked[term.id] && <Text className="text-white text-xs font-bold">✓</Text>}
+                {isSelected && (
+                  <Text className="text-white text-[10px] leading-none font-bold">✓</Text>
+                )}
               </View>
-              <Text className="text-sm text-gray-700 leading-5 flex-1">{term.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* Spacer */}
-        <View className="flex-1" />
-
-        {/* Next Button */}
-        <TouchableOpacity
-          className={`mt-10 mb-8 rounded-lg py-4 items-center justify-center ${
-            allChecked ? 'bg-orange-700' : 'bg-transparent border border-gray-300'
-          }`}
-          onPress={
-            allChecked
-              ? () => {
-                  router.push('/OnboardingComplete');
-                }
-              : undefined
-          }
-          activeOpacity={allChecked ? 0.8 : 1}
-        >
-          <Text
-            className={`text-base font-semibold ${allChecked ? 'text-white' : 'text-gray-400'}`}
-          >
-            Next
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+              {/* Label Text */}
+              <Text className="font-['Roboto-Flex'] text-[12px]  font-normal text-lhlBurntOrange flex-1">
+                {term.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </FlowLayout>
   );
 }

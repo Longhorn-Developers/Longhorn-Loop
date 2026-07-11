@@ -6,10 +6,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        lhlBorderColor: 'hsla(0,0%,78%,1)',
-        lhlBurntOrange: 'hsla(27, 93%, 32%, 1)',
+        lhlBorderColor: 'hsla(0,0%,7%,1)',
+        lhlBurntOrange: 'hsla(27, 100%, 37%, 1)',
         lhlSecondaryTextGrey: 'hsla(180, 9%, 31%, 1)',
         lhlBackgroundColor: 'hsla(45, 25%, 97%, 1)',
+      },
+      fontFamily: {
+        roboto: ['Roboto-Flex'],
       },
     },
   },

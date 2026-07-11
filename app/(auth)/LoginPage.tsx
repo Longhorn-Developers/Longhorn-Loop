@@ -1,11 +1,11 @@
+import InlineAlert from '@/app/components/alerts/InlineAlert';
 import PrimaryButton from '@/app/components/buttons/PrimaryButton';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import InlineAlert from '@/app/components/alerts/InlineAlert';
+import { Pressable, Text, View } from 'react-native';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -57,14 +57,14 @@ export default function LoginPage() {
         />
       </View>
 
-      <View className="mt-[42px] mx-2">
+      <View className="mt-[42px]">
         <PrimaryButton label="Verify Email" isFilled={isEmailValid} onPress={handleSubmit} />
       </View>
 
       <Pressable className="mt-4" onPress={handleCreateAccount}>
-        <Text className="text-base text-center">
-          Don&apos;t have an account?{' '}
-          <Text className="font-semibold text-lhlBurntOrange">Sign Up</Text>
+        <Text className="font-['Roboto-Flex'] text-base text-center">
+          {"Don't have an account? "}
+          <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">Sign Up</Text>
         </Text>
       </Pressable>
     </FlowLayout>

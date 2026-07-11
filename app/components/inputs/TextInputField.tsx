@@ -1,24 +1,21 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, TextInputProps, Pressable } from 'react-native';
-import { XCircleIcon } from 'phosphor-react-native';
+import LhlXCircleIcon from '@/assets/icons/LhlXCircleIcon';
+import React, { useRef, useState } from 'react';
+import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 
 interface TextInputFieldProps extends TextInputProps {
   label?: string;
   leftIcon?: React.ReactNode;
   clearable?: boolean;
   borderRadius?: number; // px
+  forceFocusStyles?: boolean;
 }
-
-const CLEARABLE_ICON_COLORS = {
-  border: 'hsla(0,0%,78%,1)', // lhlBorderColor
-  active: 'hsla(27, 93%, 32%, 1)', // lhlBurntOrange
-};
 
 export default function TextInputField({
   label,
   leftIcon,
   clearable,
-  borderRadius = 8,
+  borderRadius = 4,
+  forceFocusStyles = false,
   ...props
 }: TextInputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -58,10 +55,8 @@ export default function TextInputField({
   };
 
   // --- DERIVED VALUES ---
-  const borderColorClass = isFocused ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
-
-  const clearIconColor =
-    isFocused && props.value ? CLEARABLE_ICON_COLORS.active : CLEARABLE_ICON_COLORS.border;
+  const borderColorClass =
+    isFocused || forceFocusStyles ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   // --- RENDER: TEXT INPUT FIELD ---
   return (
@@ -69,7 +64,7 @@ export default function TextInputField({
       {/* LABEL */}
       {label && (
         <Pressable onPress={focusInput}>
-          <Text className="font-semibold text-base mb-1">{label}</Text>
+          <Text className="font-['Roboto-Flex'] font-semibold text-[16px]">{label}</Text>
         </Pressable>
       )}
 
@@ -77,9 +72,10 @@ export default function TextInputField({
       <Pressable
         onPress={focusInput}
         className={`
+          mt-[6px]
           flex-row items-center
           border
-          px-3 h-[48] gap-2
+          px-[9px] h-[33px] gap-2
           ${borderColorClass}
           bg-white
         `}
@@ -96,22 +92,19 @@ export default function TextInputField({
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`
-            flex-1
-            text-base border-none
+            flex-1 font-['Roboto-Flex'] text-[14px]
             focus:ring-0 focus:outline-none
-            placeholder:text-lhlSecondaryTextGrey
+            placeholder:text-black
           `}
-          style={{ height: '100%', textAlignVertical: 'center', fontSize: 16 }}
           underlineColorAndroid="transparent"
           onFocus={handleFocus}
           onBlur={handleBlur}
           {...props}
         />
-
         {/* Clear Button */}
-        {clearable && isFocused && (
-          <Pressable onPressIn={(e) => e.preventDefault?.()} onPress={handleClear}>
-            <XCircleIcon size={22} weight="light" color={clearIconColor} />
+        {clearable && (isFocused || forceFocusStyles) && (
+          <Pressable onPressIn={(e) => e.preventDefault?.()} onPress={handleClear} hitSlop={8}>
+            <LhlXCircleIcon size={13} color={'#000'} />
           </Pressable>
         )}
       </Pressable>

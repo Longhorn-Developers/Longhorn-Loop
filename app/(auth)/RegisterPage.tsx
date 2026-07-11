@@ -1,12 +1,12 @@
+import InlineAlert from '@/app/components/alerts/InlineAlert';
 import PrimaryButton from '@/app/components/buttons/PrimaryButton';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
-import { useOnboarding } from '@/app/context/OnboardingContext';
 import { API_BASE_URL } from '@/app/config/api';
+import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
-import InlineAlert from '@/app/components/alerts/InlineAlert';
 
 export default function RegisterPage() {
   const router = useRouter();

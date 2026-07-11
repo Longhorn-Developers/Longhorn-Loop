@@ -10,7 +10,7 @@ interface OnboardingData {
   // Profile
   selectedMajors: string[];
   selectedYear: string;
-  uniqueClassification: string;
+  uniqueClassification: string[];
 
   // Interests
   selectedTags: string[];
@@ -32,7 +32,7 @@ const DEFAULT_DATA: OnboardingData = {
   token: '',
   selectedMajors: [],
   selectedYear: '',
-  uniqueClassification: '',
+  uniqueClassification: [],
   selectedTags: [],
   avatar: null,
 };

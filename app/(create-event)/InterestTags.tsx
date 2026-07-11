@@ -1,3 +1,5 @@
+import ChipCloseIcon from '@/assets/images/chip-close.svg';
+import ChipPlusIcon from '@/assets/images/chip-plus.svg';
 import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import { useRouter } from 'expo-router';
@@ -90,9 +92,11 @@ export default function InterestTags() {
                   disabled && styles.chipDisabled,
                 ]}
               >
-                <Text style={[styles.chipGlyph, isSelected && styles.chipGlyphSelected]}>
-                  {isSelected ? '×' : '+'}
-                </Text>
+                {isSelected ? (
+                  <ChipCloseIcon width={7} height={7} color="#FFFFFF" />
+                ) : (
+                  <ChipPlusIcon width={8} height={8} color="#020B12" />
+                )}
                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{tag}</Text>
               </TouchableOpacity>
             );
@@ -219,14 +223,6 @@ const styles = StyleSheet.create({
   },
   chipDisabled: {
     opacity: 0.4,
-  },
-  chipGlyph: {
-    fontSize: 14,
-    color: '#020B12',
-    lineHeight: 16,
-  },
-  chipGlyphSelected: {
-    color: '#FFFFFF',
   },
   chipText: {
     fontSize: 12,
