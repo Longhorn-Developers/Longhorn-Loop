@@ -52,8 +52,11 @@ class FakeD1Statement {
 
 class FakeD1Database {
   readonly events: EventRow[] = [];
-  readonly eventCategories: { event_id: number; category_id: string; category_name: string | null }[] =
-    [];
+  readonly eventCategories: {
+    event_id: number;
+    category_id: string;
+    category_name: string | null;
+  }[] = [];
 
   constructor(
     private readonly users: UserRow[] = [
@@ -96,25 +99,6 @@ class FakeD1Database {
   }
 
   run(sql: string, params: unknown[]): { meta: { last_row_id?: number } } {
-    if (sql.includes('INSERT INTO users')) {
-      const email = params[0] as string;
-      const existing = this.users.find((user) => user.email === email);
-      if (existing) {
-        existing.first_name = 'Dev';
-        existing.last_name = 'User';
-        return { meta: { last_row_id: existing.id } };
-      }
-
-      const nextId = Math.max(0, ...this.users.map((user) => user.id)) + 1;
-      this.users.push({
-        id: nextId,
-        email,
-        first_name: 'Dev',
-        last_name: 'User',
-      });
-      return { meta: { last_row_id: nextId } };
-    }
-
     if (sql.includes('INSERT INTO events')) {
       const id = this.events.length + 1;
       const event: EventRow = {
@@ -312,28 +296,6 @@ describe('POST /events/create', () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'UNAUTHORIZED' });
     expect(db.events).toHaveLength(0);
-  });
-
-  it('allows unauthenticated creates only when the dev bypass flag is enabled', async () => {
-    const db = new FakeD1Database([]);
-
-    const res = await postCreate(
-      makeEnv(db, undefined, { DEV_ALLOW_UNAUTHENTICATED_EVENT_CREATE: 'true' }),
-      {
-        title: 'Dev Skip Event',
-        start_datetime: '2026-07-07T19:00:00-05:00',
-      },
-    );
-
-    expect(res.status).toBe(201);
-    const json = (await res.json()) as { event: EventRow };
-    expect(json.event).toMatchObject({
-      title: 'Dev Skip Event',
-      host_organization_name: 'Dev User',
-      created_by_user_id: 1,
-    });
-    expect(json.event.source_event_id).toMatch(/^user-1-/);
-    expect(db.events).toHaveLength(1);
   });
 
   it('stores an uploaded base64 image when R2 is configured', async () => {

@@ -18,9 +18,6 @@ export type Env = {
   // the wrangler console instead of sending them through Resend. Never set
   // in production.
   RESEND_DEV_MODE?: string;
-  // Local/remote dev only: lets the create-event UI be tested from the
-  // dev skip-to-home path, which has no JWT token.
-  DEV_ALLOW_UNAUTHENTICATED_EVENT_CREATE?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();

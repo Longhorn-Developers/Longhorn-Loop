@@ -76,14 +76,11 @@ async function appendImageToForm(form: FormData, data: CreateEventData): Promise
     return;
   }
 
-  form.append(
-    'image',
-    {
-      uri: data.imageUrl,
-      name: fileName,
-      type: mimeType,
-    } as unknown as Blob,
-  );
+  form.append('image', {
+    uri: data.imageUrl,
+    name: fileName,
+    type: mimeType,
+  } as unknown as Blob);
 }
 
 async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
@@ -139,7 +136,7 @@ export default function OptionalExtras() {
 
   const createEvent = useMutation<CreateEventResponse>({
     mutationFn: async () => {
-      if (!token && !__DEV__) throw new Error('AUTH_REQUIRED');
+      if (!token) throw new Error('AUTH_REQUIRED');
       if (!data.title.trim() || !data.startDatetime) throw new Error('MISSING_REQUIRED_FIELDS');
       const form = await buildCreateEventForm(data);
       return api.postForm<CreateEventResponse>('/events/create', form, {
@@ -198,7 +195,7 @@ export default function OptionalExtras() {
 
   const onPost = () => {
     if (createEvent.isPending) return;
-    if (!token && !__DEV__) {
+    if (!token) {
       Alert.alert('Sign in required', 'Please sign in before posting an event.');
       return;
     }
@@ -309,7 +306,9 @@ export default function OptionalExtras() {
                 createEvent.isPending && styles.actionButtonDisabled,
               ]}
             >
-              <Text style={styles.postText}>{createEvent.isPending ? 'Posting...' : 'Post Event'}</Text>
+              <Text style={styles.postText}>
+                {createEvent.isPending ? 'Posting...' : 'Post Event'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

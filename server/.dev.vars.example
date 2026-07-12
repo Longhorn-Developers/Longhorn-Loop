@@ -16,8 +16,3 @@ EVENT_IMAGE_PUBLIC_BASE_URL=
 # emailing them. Lets you test signup locally without a verified Resend
 # domain. Never set this in production.
 RESEND_DEV_MODE=true
-
-# Local testing only. When true, POST /events/create accepts requests with no
-# JWT and attributes them to dev-event-create@utexas.edu. Never set this in
-# production.
-DEV_ALLOW_UNAUTHENTICATED_EVENT_CREATE=false

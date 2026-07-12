@@ -13,7 +13,6 @@ const REPORT_HIDE_THRESHOLD = 5;
 
 const REPORT_REASONS = new Set(['violent_harmful', 'misinformation', 'troll_spam', 'other']);
 const USER_CREATED_SOURCE = 'user_created';
-const DEV_CREATE_EVENT_EMAIL = 'dev-event-create@utexas.edu';
 const MAX_TITLE_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_LOCATION_LENGTH = 200;
@@ -30,12 +29,7 @@ const VALID_IMAGE_ASPECT_RATIOS = new Set<ImageAspectRatio>([
   'horizontal',
   'none',
 ]);
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-]);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const THEME_BY_DISCOVERY_BUCKET: Record<string, string> = {
   music: 'Music',
   arts: 'Arts',
@@ -129,38 +123,6 @@ async function getUserByEmail(db: D1Database, email: string): Promise<AuthDbUser
     first_name: (row.first_name as string | null | undefined) ?? null,
     last_name: (row.last_name as string | null | undefined) ?? null,
   };
-}
-
-async function getOrCreateDevCreateEventUser(db: D1Database): Promise<AuthDbUser> {
-  await db
-    .prepare(
-      `INSERT INTO users (email, first_name, last_name, onboarding_completed)
-       VALUES (?, 'Dev', 'User', 1)
-       ON CONFLICT(email) DO UPDATE SET
-         first_name = excluded.first_name,
-         last_name = excluded.last_name`,
-    )
-    .bind(DEV_CREATE_EVENT_EMAIL)
-    .run();
-
-  const user = await getUserByEmail(db, DEV_CREATE_EVENT_EMAIL);
-  if (!user) throw new Error('Failed to create dev event user');
-  return user;
-}
-
-async function getCreateEventUser(c: {
-  env: Env;
-  req: { header: (name: string) => string | undefined };
-}): Promise<AuthDbUser | null> {
-  const authHeader = c.req.header('Authorization');
-  const auth = await getAuthUser(authHeader, c.env.JWT_SECRET);
-  if (auth) return getUserByEmail(c.env.DB, auth.email);
-
-  if (!authHeader && c.env.DEV_ALLOW_UNAUTHENTICATED_EVENT_CREATE === 'true') {
-    return getOrCreateDevCreateEventUser(c.env.DB);
-  }
-
-  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -273,11 +235,7 @@ function truncateLocation(location: string | null): string | null {
   return `${location.slice(0, 37)}...`;
 }
 
-function validateUrl(
-  value: string | null,
-  field: string,
-  errors: ValidationErrors,
-): string | null {
+function validateUrl(value: string | null, field: string, errors: ValidationErrors): string | null {
   if (!value) return null;
   if (value.length > MAX_URL_LENGTH) {
     errors[field] = `Must be ${MAX_URL_LENGTH} characters or fewer`;
@@ -305,7 +263,10 @@ function slugifyCategoryId(name: string, index: number): string {
   return slug || `category-${index + 1}`;
 }
 
-function normalizeCategories(body: CreateEventBody, errors: ValidationErrors): NormalizedCategory[] {
+function normalizeCategories(
+  body: CreateEventBody,
+  errors: ValidationErrors,
+): NormalizedCategory[] {
   const raw = body.categories ?? body.interestTags ?? body.interest_tags;
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) {
@@ -401,7 +362,12 @@ function parseImageUrlFields(
     errors,
   );
   const imageAspectRatio = normalizeAspectRatio(
-    readStringField(metadata, ['image_aspect_ratio', 'imageAspectRatio', 'aspect_ratio', 'aspectRatio']),
+    readStringField(metadata, [
+      'image_aspect_ratio',
+      'imageAspectRatio',
+      'aspect_ratio',
+      'aspectRatio',
+    ]),
     imageWidth,
     imageHeight,
     true,
@@ -418,7 +384,10 @@ function parseImageUrlFields(
   };
 }
 
-function parseDataImage(input: string, fallbackMimeType: string | null): {
+function parseDataImage(
+  input: string,
+  fallbackMimeType: string | null,
+): {
   bytes: Uint8Array;
   mimeType: string;
 } | null {
@@ -615,7 +584,10 @@ async function resolveImageFields(
     const imageString = image.trim();
     if (imageString.length > 0) {
       if (imageString.startsWith('data:')) {
-        const parsed = parseDataImage(imageString, readStringField(body, ['image_mime_type', 'imageMimeType']));
+        const parsed = parseDataImage(
+          imageString,
+          readStringField(body, ['image_mime_type', 'imageMimeType']),
+        );
         if (!parsed) {
           errors.image = 'Must include valid base64 image data and a MIME type';
           return empty;
@@ -628,7 +600,10 @@ async function resolveImageFields(
 
   const imageBase64 = readStringField(body, ['image_base64', 'imageBase64']);
   if (imageBase64) {
-    const parsed = parseDataImage(imageBase64, readStringField(body, ['image_mime_type', 'imageMimeType']));
+    const parsed = parseDataImage(
+      imageBase64,
+      readStringField(body, ['image_mime_type', 'imageMimeType']),
+    );
     if (!parsed) {
       errors.image = 'Must include valid base64 image data and a MIME type';
       return empty;
@@ -656,7 +631,10 @@ function getHostName(body: CreateEventBody, user: AuthDbUser): string {
   return name || user.email;
 }
 
-async function getCreatedEvent(db: D1Database, eventId: number): Promise<Record<string, unknown> | null> {
+async function getCreatedEvent(
+  db: D1Database,
+  eventId: number,
+): Promise<Record<string, unknown> | null> {
   const event = await db
     .prepare(
       `SELECT e.*, o.profile_picture as org_profile_picture
@@ -715,23 +693,17 @@ function buildVisibilityFilter(userId: number | null): {
 
 // POST /events/create -- authenticated users create their own events.
 eventRoutes.post('/create', async (c) => {
-  const hasAuthHeader = !!c.req.header('Authorization');
-  const user = await getCreateEventUser(c);
-  if (!user) {
-    return c.json({ error: hasAuthHeader ? 'USER_NOT_FOUND' : 'UNAUTHORIZED' }, 401);
-  }
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const user = await getUserByEmail(c.env.DB, auth.email);
+  if (!user) return c.json({ error: 'USER_NOT_FOUND' }, 401);
 
   const { body, uploadedImage, malformed } = await readCreateEventBody(c.req.raw);
   if (malformed || !body) return c.json({ error: 'INVALID_BODY' }, 400);
 
   const errors: ValidationErrors = {};
-  const title = parseRequiredString(
-    body,
-    ['title'],
-    'title',
-    MAX_TITLE_LENGTH,
-    errors,
-  );
+  const title = parseRequiredString(body, ['title'], 'title', MAX_TITLE_LENGTH, errors);
   const description = parseOptionalString(
     body,
     ['description'],
@@ -753,13 +725,23 @@ eventRoutes.post('/create', async (c) => {
   );
   const endDatetime = rawEndDatetime ?? startDatetime;
 
-  if (startDatetime && endDatetime && new Date(endDatetime).getTime() < new Date(startDatetime).getTime()) {
+  if (
+    startDatetime &&
+    endDatetime &&
+    new Date(endDatetime).getTime() < new Date(startDatetime).getTime()
+  ) {
     errors.end_datetime = 'Must be on or after start_datetime';
   }
 
   const locationObject = isRecord(body.location) ? body.location : null;
   const locationFull =
-    parseOptionalString(body, ['location_full', 'locationFull'], 'location_full', MAX_LOCATION_LENGTH, errors) ??
+    parseOptionalString(
+      body,
+      ['location_full', 'locationFull'],
+      'location_full',
+      MAX_LOCATION_LENGTH,
+      errors,
+    ) ??
     parseOptionalString(
       locationObject ?? {},
       ['full', 'full_name', 'fullName', 'name'],
@@ -770,13 +752,15 @@ eventRoutes.post('/create', async (c) => {
     parseOptionalString(body, ['location'], 'location', MAX_LOCATION_LENGTH, errors);
   const locationShort =
     parseOptionalString(body, ['location_short', 'locationShort'], 'location_short', 40, errors) ??
-    parseOptionalString(locationObject ?? {}, ['short', 'short_name', 'shortName'], 'location_short', 40, errors) ??
+    parseOptionalString(
+      locationObject ?? {},
+      ['short', 'short_name', 'shortName'],
+      'location_short',
+      40,
+      errors,
+    ) ??
     truncateLocation(locationFull);
-  const rsvpUrl = validateUrl(
-    readStringField(body, ['rsvp_url', 'rsvpUrl']),
-    'rsvp_url',
-    errors,
-  );
+  const rsvpUrl = validateUrl(readStringField(body, ['rsvp_url', 'rsvpUrl']), 'rsvp_url', errors);
   const eventUrl = validateUrl(
     readStringField(body, ['event_url', 'eventUrl']),
     'event_url',
@@ -786,7 +770,7 @@ eventRoutes.post('/create', async (c) => {
     parseOptionalString(body, ['theme'], 'theme', 80, errors) ??
     (() => {
       const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
-      return discoveryBucket ? THEME_BY_DISCOVERY_BUCKET[discoveryBucket] ?? null : null;
+      return discoveryBucket ? (THEME_BY_DISCOVERY_BUCKET[discoveryBucket] ?? null) : null;
     })();
   const latitude = readNumberField(body, ['latitude', 'lat']);
   const longitude = readNumberField(body, ['longitude', 'lng', 'lon']);
