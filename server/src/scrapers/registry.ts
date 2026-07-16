@@ -7,6 +7,7 @@
 
 import { run as runHornsLink } from './hornslink';
 import { run as runMccombs } from './mccombs';
+import { run as runTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
 import type { Env } from '../worker';
 
@@ -19,4 +20,5 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'hornslink', run: runHornsLink },
   { name: 'texasToday', run: runTexasToday },
   { name: 'mccombs', run: runMccombs },
+  { name: 'texasGlobal', run: runTexasGlobal },
 ];

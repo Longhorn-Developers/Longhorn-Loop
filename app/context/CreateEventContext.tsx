@@ -57,6 +57,8 @@ export interface CreateEventData {
   locationFull: string;
   rsvpUrl: string;
   imageUrl: string | null;
+  imageName: string | null;
+  imageMimeType: string | null;
 }
 
 interface CreateEventContextType {
@@ -78,6 +80,8 @@ const DEFAULT_DATA: CreateEventData = {
   locationFull: '',
   rsvpUrl: '',
   imageUrl: null,
+  imageName: null,
+  imageMimeType: null,
 };
 
 const CreateEventContext = createContext<CreateEventContextType>({

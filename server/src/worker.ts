@@ -10,6 +10,8 @@ import { SCRAPERS } from './scrapers/registry';
 
 export type Env = {
   DB: D1Database;
+  EVENT_IMAGES?: R2Bucket;
+  EVENT_IMAGE_PUBLIC_BASE_URL?: string;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   // When set to "true" in .dev.vars, the Worker logs verification codes to

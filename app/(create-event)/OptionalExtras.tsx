@@ -1,5 +1,10 @@
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
+import type { CreateEventData } from '@/app/context/CreateEventContext';
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { ApiError, api } from '@/app/lib/api';
+import { events as eventsKeys, explore as exploreKeys } from '@/app/lib/queryKeys';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -24,14 +29,137 @@ const INPUT_BORDER = '#00000033';
 const BG = '#F9F8F5';
 const TEXT_SECONDARY = '#485656';
 
+type CreateEventResponse = { event: unknown };
+
+function appendOptional(form: FormData, key: string, value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (trimmed) form.append(key, trimmed);
+}
+
+function getFileNameFromUri(uri: string): string {
+  const fallback = 'event-image.jpg';
+  const withoutQuery = uri.split('?')[0] ?? uri;
+  const lastSegment = withoutQuery.split('/').filter(Boolean).pop();
+  if (!lastSegment) return fallback;
+
+  try {
+    return decodeURIComponent(lastSegment);
+  } catch {
+    return lastSegment;
+  }
+}
+
+function inferImageMimeType(fileName: string, pickerMimeType: string | null): string {
+  if (pickerMimeType?.startsWith('image/')) return pickerMimeType;
+
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  if (extension === 'png') return 'image/png';
+  if (extension === 'gif') return 'image/gif';
+  if (extension === 'webp') return 'image/webp';
+  return 'image/jpeg';
+}
+
+async function appendImageToForm(form: FormData, data: CreateEventData): Promise<void> {
+  if (!data.imageUrl) return;
+
+  const fileName = data.imageName ?? getFileNameFromUri(data.imageUrl);
+  const mimeType = inferImageMimeType(fileName, data.imageMimeType);
+
+  if (Platform.OS === 'web') {
+    const response = await fetch(data.imageUrl);
+    if (!response.ok) throw new Error('IMAGE_READ_FAILED');
+
+    const blob = await response.blob();
+    const uploadBlob =
+      blob.type === mimeType ? blob : new Blob([await blob.arrayBuffer()], { type: mimeType });
+    form.append('image', uploadBlob, fileName);
+    return;
+  }
+
+  form.append('image', {
+    uri: data.imageUrl,
+    name: fileName,
+    type: mimeType,
+  } as unknown as Blob);
+}
+
+async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
+  const form = new FormData();
+
+  form.append('title', data.title.trim());
+  appendOptional(form, 'description', data.description);
+  if (data.startDatetime) form.append('start_datetime', data.startDatetime);
+  if (data.dateMode === 'range' && data.endDatetime) {
+    form.append('end_datetime', data.endDatetime);
+  }
+  appendOptional(form, 'location', data.locationFull);
+  appendOptional(form, 'rsvp_url', data.rsvpUrl);
+  if (data.discoveryBucket) form.append('discoveryBucket', data.discoveryBucket);
+  if (data.eventType) form.append('event_type', data.eventType);
+  if (data.interestTags.length > 0) {
+    form.append('categories', JSON.stringify(data.interestTags));
+  }
+
+  await appendImageToForm(form, data);
+
+  return form;
+}
+
+function getCreateEventErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === 'AUTH_REQUIRED') {
+    return 'Please sign in before posting an event.';
+  }
+  if (error instanceof Error && error.message === 'MISSING_REQUIRED_FIELDS') {
+    return 'Add an event title and start time before posting.';
+  }
+  if (error instanceof Error && error.message === 'IMAGE_READ_FAILED') {
+    return 'Could not read the selected image. Try choosing it again.';
+  }
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Please sign in again before posting this event.';
+    if (error.body && typeof error.body === 'object' && 'fields' in error.body) {
+      const fields = (error.body as { fields?: Record<string, string> }).fields;
+      const firstError = fields ? Object.values(fields)[0] : null;
+      if (firstError) return firstError;
+    }
+    return error.message;
+  }
+  return 'Something went wrong while posting your event. Please try again.';
+}
+
 export default function OptionalExtras() {
   const router = useRouter();
   const { data, update, reset } = useCreateEvent();
+  const { data: onboarding } = useOnboarding();
+  const queryClient = useQueryClient();
+  const token = onboarding.token || null;
+
+  const createEvent = useMutation<CreateEventResponse>({
+    mutationFn: async () => {
+      if (!token) throw new Error('AUTH_REQUIRED');
+      if (!data.title.trim() || !data.startDatetime) throw new Error('MISSING_REQUIRED_FIELDS');
+      const form = await buildCreateEventForm(data);
+      return api.postForm<CreateEventResponse>('/events/create', form, {
+        token,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: eventsKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: exploreKeys.all }),
+      ]);
+      reset();
+      router.replace('/(tabs)/home?justPostedEvent=1');
+    },
+    onError: (error) => {
+      if (__DEV__) {
+        console.error('Create event failed', error);
+      }
+      Alert.alert('Could not post event', getCreateEventErrorMessage(error));
+    },
+  });
 
   const onUpload = async () => {
-    // TODO: currently just holds a local URI in context. When the POST
-    // endpoint is wired, upload the file to storage first and swap the
-    // local URI for the permanent URL before submitting the event.
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert(
@@ -49,8 +177,14 @@ export default function OptionalExtras() {
     });
 
     if (result.canceled) return;
-    const uri = result.assets[0]?.uri;
-    if (uri) update({ imageUrl: uri });
+    const asset = result.assets[0];
+    if (asset?.uri) {
+      update({
+        imageUrl: asset.uri,
+        imageName: asset.fileName ?? null,
+        imageMimeType: asset.mimeType ?? null,
+      });
+    }
   };
 
   const onPreview = () => {
@@ -60,16 +194,16 @@ export default function OptionalExtras() {
   };
 
   const onPost = () => {
-    // TODO: replace with a real POST once the backend endpoint is wired.
-    //   1. POST /events with the context payload
-    //   2. On 2xx, invalidate the events + user's-events queries
-    //   3. Attach the created event to the poster's profile so it shows
-    //      up in their event list
-    //   4. Only then reset() and route home
-    // For now we optimistically reset and route straight to home; the
-    // ?justPostedEvent=1 param triggers the success modal there.
-    reset();
-    router.replace('/(tabs)/home?justPostedEvent=1');
+    if (createEvent.isPending) return;
+    if (!token) {
+      Alert.alert('Sign in required', 'Please sign in before posting an event.');
+      return;
+    }
+    if (!data.title.trim() || !data.startDatetime) {
+      Alert.alert('Missing details', 'Add an event title and start time before posting.');
+      return;
+    }
+    createEvent.mutate();
   };
 
   return (
@@ -156,17 +290,25 @@ export default function OptionalExtras() {
           <View style={styles.buttonRow}>
             <TouchableOpacity
               onPress={onPreview}
-              activeOpacity={0.85}
+              activeOpacity={createEvent.isPending ? 1 : 0.85}
+              disabled={createEvent.isPending}
               style={[styles.actionButton, styles.previewButton]}
             >
               <Text style={styles.previewText}>Preview Event</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={onPost}
-              activeOpacity={0.85}
-              style={[styles.actionButton, styles.postButton]}
+              activeOpacity={createEvent.isPending ? 1 : 0.85}
+              disabled={createEvent.isPending}
+              style={[
+                styles.actionButton,
+                styles.postButton,
+                createEvent.isPending && styles.actionButtonDisabled,
+              ]}
             >
-              <Text style={styles.postText}>Post Event</Text>
+              <Text style={styles.postText}>
+                {createEvent.isPending ? 'Posting...' : 'Post Event'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -298,6 +440,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtonDisabled: {
+    opacity: 0.65,
   },
   previewButton: {
     backgroundColor: CARD_BG,

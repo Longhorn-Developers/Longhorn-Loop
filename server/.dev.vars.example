@@ -8,6 +8,10 @@ JWT_SECRET=local-dev-jwt-secret-change-me
 # Get one at https://resend.com (free tier OK).
 RESEND_API_KEY=
 
+# Public URL base for objects in the EVENT_IMAGES R2 bucket. Use the
+# bucket's r2.dev public URL or a custom domain, without a trailing slash.
+EVENT_IMAGE_PUBLIC_BASE_URL=
+
 # When "true", the Worker logs verification codes to the console instead of
 # emailing them. Lets you test signup locally without a verified Resend
 # domain. Never set this in production.

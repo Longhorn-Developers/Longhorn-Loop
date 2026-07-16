@@ -67,7 +67,10 @@ export default function OnboardingComplete() {
           tags: data.selectedTags,
         }),
       });
-      if (!profileRes.ok) throw new Error('profile failed');
+      if (!profileRes.ok) {
+        const body = await profileRes.text().catch(() => '(no body)');
+        throw new Error(`profile ${profileRes.status}: ${body}`);
+      }
 
       const agreementsRes = await fetch(`${API_BASE_URL}/users/me/agreements`, {
         method: 'POST',
@@ -79,7 +82,10 @@ export default function OnboardingComplete() {
           notifications_enabled: true,
         }),
       });
-      if (!agreementsRes.ok) throw new Error('agreements failed');
+      if (!agreementsRes.ok) {
+        const body = await agreementsRes.text().catch(() => '(no body)');
+        throw new Error(`agreements ${agreementsRes.status}: ${body}`);
+      }
 
       router.replace('/(tabs)/home');
     } catch (err) {
