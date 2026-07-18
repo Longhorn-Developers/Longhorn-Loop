@@ -44,6 +44,29 @@ describe('server taxonomy module', () => {
     expect(BUCKET_ID_SET.has('tech')).toBe(true);
     expect(BUCKET_ID_SET.has('sports')).toBe(true);
     expect(BUCKET_ID_SET.has('food')).toBe(true);
-    expect(BUCKET_ID_SET.has('learning')).toBe(true);
+    expect(BUCKET_ID_SET.has('education')).toBe(true);
+  });
+
+  it('has exactly the 16 buckets from the client taxonomy', () => {
+    // Source of truth: app/lib/interestCategories.ts. Update both together.
+    const expected = [
+      'music',
+      'performing',
+      'spirituality',
+      'arts',
+      'sports',
+      'food',
+      'tech',
+      'science',
+      'education',
+      'outdoors',
+      'gaming',
+      'social',
+      'health',
+      'business',
+      'travel',
+      'nightlife',
+    ];
+    expect(TAXONOMY_BUCKETS.map((b) => b.id)).toEqual(expected);
   });
 });
