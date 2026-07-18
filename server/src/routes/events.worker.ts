@@ -1081,4 +1081,3 @@ eventRoutes.post('/scrape/:name', async (c) => {
 
   return c.json(result);
 });
-

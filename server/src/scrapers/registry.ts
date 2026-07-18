@@ -6,7 +6,7 @@
 //   run:     the (env) => Promise<void> cron entrypoint
 //   manual:  (optional) scrape function exposed via POST /events/scrape/:name
 //            Accepts the DB + a freeform options bag from the request body.
-// NOTE: Manual is used for testing and shold not be called in production 
+// NOTE: Manual is used for testing and shold not be called in production
 
 import type { Env } from '../worker';
 import { run as runHornsLink, scrapeHornsLink } from './hornslink';
@@ -31,8 +31,6 @@ export const SCRAPERS: ScraperEntry[] = [
 ];
 
 /** Lookup a scraper by route slug. */
-export function getManualScraper(
-  slug: string,
-): ScraperEntry['manual'] | undefined {
+export function getManualScraper(slug: string): ScraperEntry['manual'] | undefined {
   return SCRAPERS.find((s) => s.name === slug)?.manual;
 }

@@ -2,7 +2,7 @@
 //
 // LiveWhale has no JSON API,but does publish a
 // clean public iCal feed at /calendar/feed/ics/ covering ~1 year of
-// upcoming events. We fetch that single feed and parse the VEVENTs 
+// upcoming events. We fetch that single feed and parse the VEVENTs
 
 // iCal quirks we handle:
 //   - Lines are folded (RFC 5545): continuation lines start with a space
