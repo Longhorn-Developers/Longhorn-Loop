@@ -2,8 +2,7 @@
 import { Hono } from 'hono';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
-import { scrapeHornsLink } from '../scrapers/hornslink';
-import { scrapeMccombs } from '../scrapers/mccombs';
+import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
 
 export const eventRoutes = new Hono<{ Bindings: Env }>();
@@ -864,6 +863,7 @@ eventRoutes.get('/', async (c) => {
   const benefit = c.req.query('benefit');
   const theme = c.req.query('theme');
   const orgId = c.req.query('orgId');
+  const source = c.req.query('source');
 
   // If the caller is signed in, also hide events they've already reported.
   // Anonymous callers only get the global threshold filter.
@@ -890,6 +890,11 @@ eventRoutes.get('/', async (c) => {
   if (orgId) {
     query += ` AND e.host_organization_id = ?`;
     params.push(parseInt(orgId));
+  }
+
+  if (source) {
+    query += ` AND e.source = ?`;
+    params.push(source);
   }
 
   if (category) {
@@ -1061,24 +1066,19 @@ eventRoutes.post('/:id/report', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /events/scrape -- manually trigger a scrape (for testing)
-eventRoutes.post('/scrape', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const maxPages = (body as any).maxPages ?? 3;
-  const dryRun = (body as any).dryRun ?? false;
+// POST /events/scrape/:name -- manually trigger any registered scraper (for testing)
+eventRoutes.post('/scrape/:name', async (c) => {
+  const scraperName = c.req.param('name');
+  const scraper = getManualScraper(scraperName);
 
-  const result = await scrapeHornsLink(c.env.DB, { maxPages, dryRun });
+  if (!scraper) {
+    const available = SCRAPERS.filter((s) => s.manual).map((s) => s.name);
+    return c.json({ error: 'UNKNOWN_SCRAPER', available }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const result = await scraper(c.env.DB, body as Record<string, unknown>);
 
   return c.json(result);
 });
 
-// POST /events/scrape/mccombs -- manually trigger the McCombs scrape (for testing)
-eventRoutes.post('/scrape/mccombs', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const maxEvents = (body as any).maxEvents ?? 500;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeMccombs(c.env.DB, { maxEvents, dryRun });
-
-  return c.json(result);
-});
