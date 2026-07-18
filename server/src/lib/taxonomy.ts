@@ -1,23 +1,23 @@
 /**
- * Server-side taxonomy data — bucket IDs, labels, and tags.
+ * Server-side taxonomy data: bucket IDs, labels, and tags.
  *
- * This file is a copy of shared/taxonomy.ts, kept inside server/src/ so
- * the server's TypeScript project (rootDir: "./src") can import it without
- * crossing directory boundaries.
+ * This is a data-only mirror of app/lib/interestCategories.ts (minus the
+ * icons/descriptions/React deps), kept inside server/src/ so the server
+ * can import it easily
  *
- * KEEP IN SYNC with shared/taxonomy.ts.
- * The vitest test server/test/taxonomy.test.ts enforces this — it imports
- * from BOTH files and fails if the bucket lists diverge.
+ * SOURCE OF TRUTH: app/lib/interestCategories.ts. If you add or rename a
+ * bucket/tag there, update this file to match. The vitest test
+ * server/test/test_taxonomy.ts guards structural invariants.
  *
  * Server imports: import { TAXONOMY_BUCKETS } from './lib/taxonomy'
  */
 
 export type TaxonomyBucket = {
-  /** Stable snake_case ID — used as a foreign key in event_tags.bucket_id */
+  // id used as a foreign key in event_tags.bucket_id
   id: string;
-  /** Human-readable label */
+  // Human-readable label
   label: string;
-  /** Child tags belonging to this bucket */
+  // Child tags belonging to this bucket
   tags: string[];
 };
 
@@ -28,11 +28,9 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     tags: [
       'Rock & Alternative',
       'Hip Hop & Rap',
-      'Electronic & EDM',
       'Country & Folk',
       'Jazz & Blues',
-      'Classical & Opera',
-      'Pop & Top 40',
+      'Pop',
       'R&B & Soul',
       'Indie & Underground',
       'Latin & Reggaeton',
@@ -40,52 +38,65 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     ],
   },
   {
+    id: 'performing',
+    label: 'Performing Arts',
+    tags: [
+      'Comedy',
+      'Theater & Musicals',
+      'Classical & Opera',
+      'Dance Performances',
+      'Circus & Magic',
+      'Poetry & Spoken Word',
+    ],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality & Religion',
+    tags: [
+      'Meditation & Mindfulness',
+      'Interfaith Events',
+      'Buddhism',
+      'Hinduism',
+      'Christianity',
+      'Judaism',
+      'Islam',
+    ],
+  },
+  {
     id: 'arts',
     label: 'Arts & Culture',
     tags: [
-      'Art Exhibitions & Galleries',
-      'Theater & Broadway',
-      'Dance Performances',
       'Film & Cinema',
-      'Photography',
-      'Sculpture & Installation Art',
-      'Poetry & Spoken Word',
-      'Street Art & Graffiti',
+      'Anime',
+      'Pop Culture',
+      'Visual Arts & Galleries',
       'Cultural Festivals',
       'Museum Tours',
-      'Anime',
     ],
   },
   {
     id: 'sports',
     label: 'Sports & Fitness',
     tags: [
-      'Football & Soccer',
-      'Basketball',
-      'Baseball & Softball',
-      'Tennis & Racquet Sports',
-      'Running & Marathon',
-      'Yoga & Meditation',
-      'Cycling & Biking',
-      'Swimming & Water Sports',
-      'Martial Arts & Boxing',
-      'Extreme Sports',
+      'Team Sports',
+      'Racquet Sports',
+      'Running & Endurance',
+      'Cycling & Water Sports',
+      'Yoga & Fitness Classes',
+      'Combat Sports',
       'Golf',
-      'CrossFit & HIIT',
+      'Extreme & Adventure Sports',
     ],
   },
   {
     id: 'food',
     label: 'Food & Drink',
     tags: [
-      'Wine Tasting',
-      'Craft Beer & Breweries',
-      'Cocktails & Mixology',
+      'Cocktails, Wine, & Breweries',
       'Fine Dining',
       'Street Food & Food Trucks',
       'Vegan & Vegetarian',
-      'Coffee & Tea',
-      'Baking & Pastries',
+      'Coffee, Tea & Baking',
       'International Cuisine',
       'Cooking Classes',
       'Food Festivals',
@@ -97,47 +108,47 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     tags: [
       'Startup & Entrepreneurship',
       'AI & Machine Learning',
-      'Blockchain & Crypto',
-      'Web Development',
-      'Mobile Apps',
+      'Hardware',
+      'Web & App Development',
       'Cybersecurity',
-      'Gaming & Esports',
-      'VR & AR',
-      'Robotics',
-      'Tech Conferences',
-      'Hackathons',
+      'VR & AR, & Robotics',
+      'Hackathons & Tech Conferences',
     ],
   },
   {
-    id: 'learning',
-    label: 'Learning & Education',
+    id: 'science',
+    label: 'Science & Academia',
     tags: [
+      'Physics & Astronomy',
+      'Biology & Life Sciences',
+      'Chemistry & Mathematics',
+      'Psychology & Social Sciences',
+      'Philosophy',
+      'Academic Research',
+    ],
+  },
+  {
+    id: 'education',
+    label: 'Education & Career',
+    tags: [
+      'Career Fairs',
       'Workshops & Seminars',
-      'Language Learning',
       'Personal Development',
-      'Career & Professional Growth',
-      'Science & Research',
       'History & Archaeology',
-      'Book Clubs',
-      'Study Groups',
-      'Online Courses',
-      'Academic Lectures',
-      'Undergraduate Research',
+      'Book Clubs & Study Groups',
+      'Lectures & Online Courses',
     ],
   },
   {
     id: 'outdoors',
     label: 'Outdoors & Nature',
     tags: [
-      'Hiking & Trekking',
+      'Hiking & Backpacking',
       'Camping',
       'Rock Climbing',
       'Kayaking & Canoeing',
       'Wildlife & Bird Watching',
-      'Gardening',
-      'Beach Activities',
-      'Fishing',
-      'Environmental Conservation',
+      'Gardening & Fishing',
     ],
   },
   {
@@ -145,15 +156,12 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     label: 'Gaming & Entertainment',
     tags: [
       'Video Gaming',
-      'Board Games & Tabletop',
-      'Card Games',
-      'Esports Tournaments',
-      'Virtual Reality Gaming',
-      'Retro Gaming',
+      'Board Games',
+      'Esports & Competitive Gaming',
+      'VR & Immersive Gaming',
       'Role-Playing Games (RPG)',
       'Trivia Nights',
       'Escape Rooms',
-      'Comedy Shows',
     ],
   },
   {
@@ -161,12 +169,8 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     label: 'Social & Networking',
     tags: [
       'Meetups & Mixers',
-      'Speed Networking',
       'Singles & Dating',
       'LGBTQ+ Events',
-      "Women's Networking",
-      'Young Professionals',
-      'Alumni Gatherings',
       'Community Service',
       'Cultural Exchange',
       'Social Clubs',
@@ -177,155 +181,40 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     label: 'Health & Wellness',
     tags: [
       'Mental Health & Therapy',
+      'Gym',
       'Nutrition & Diet',
-      'Wellness Retreats',
-      'Spa & Relaxation',
-      'Alternative Medicine',
-      'Mindfulness & Meditation',
-      'Fitness Challenges',
-      'Weight Loss Support',
-      'Holistic Health',
-      'Sleep & Recovery',
-    ],
-  },
-  {
-    id: 'shopping',
-    label: 'Shopping & Fashion',
-    tags: [
-      'Fashion Shows',
-      'Vintage & Thrift',
-      'Luxury & Designer',
-      'Streetwear',
-      'Sustainable Fashion',
-      'Jewelry & Accessories',
-      'Pop-Up Shops',
-      'Sample Sales',
-      'Beauty & Makeup',
-      'Fashion Markets',
+      'Mindfulness Practice',
+      'Spa, Retreats & Relaxation',
     ],
   },
   {
     id: 'business',
     label: 'Business & Professional',
     tags: [
-      'Career Fairs',
       'Case Competitions',
-      'Conferences & Summits',
-      'Trade Shows',
+      'Networking & Conferences',
       'Leadership Development',
       'Sales & Marketing',
       'Finance & Investing',
       'Real Estate',
-      'Legal & Compliance',
-      'Human Resources',
       'Project Management',
-      'B2B Networking',
-    ],
-  },
-  {
-    id: 'performing',
-    label: 'Performing Arts',
-    tags: [
-      'Stand-Up Comedy',
-      'Improv & Sketch',
-      'Musical Theater',
-      'Opera & Classical Performance',
-      'Magic Shows',
-      'Circus & Acrobatics',
-      'Live Performance Art',
     ],
   },
   {
     id: 'travel',
     label: 'Travel & Adventure',
-    tags: [
-      'Travel Meetups',
-      'Adventure Travel',
-      'Backpacking',
-      'Road Trips',
-      'Cultural Tours',
-      'Luxury Travel',
-      'Solo Travel',
-      'Budget Travel',
-      'Travel Photography',
-      'Study Abroad',
-    ],
-  },
-  {
-    id: 'pets',
-    label: 'Pets & Animals',
-    tags: [
-      'Dog Meetups & Walks',
-      'Cat Cafes & Events',
-      'Pet Adoption Events',
-      'Exotic Pets',
-      'Pet Training',
-      'Animal Rescue & Advocacy',
-      'Wildlife Conservation',
-      'Aquarium & Fish Keeping',
-      'Pet-Friendly Activities',
-    ],
-  },
-  {
-    id: 'home',
-    label: 'Home & Lifestyle',
-    tags: [
-      'Interior Design',
-      'DIY & Home Improvement',
-      'Real Estate & Housing',
-      'Sustainable Living',
-      'Minimalism',
-      'Organization & Decluttering',
-      'Home Decor',
-      'Smart Home Technology',
-    ],
+    tags: ['Road Trips', 'Budget Travel', 'Travel Photography', 'Study Abroad'],
   },
   {
     id: 'nightlife',
     label: 'Nightlife & Parties',
     tags: [
-      'Clubs & Dancing',
-      'Bar Hopping',
-      'Live DJ Sets',
+      'Clubs & Live DJ Sets',
       'Karaoke',
       'Themed Parties',
       'Raves & Electronic Music',
-      'Pub Quizzes',
-      'Rooftop Bars',
       'Happy Hour Events',
       'Silent Discos',
-    ],
-  },
-  {
-    id: 'science',
-    label: 'Science & Academia',
-    tags: [
-      'Physics & Astronomy',
-      'Biology & Life Sciences',
-      'Chemistry',
-      'Mathematics',
-      'Psychology',
-      'Social Sciences',
-      'Philosophy',
-      'Research Symposiums',
-      'Science Cafes',
-      'Lab Tours & Demos',
-    ],
-  },
-  {
-    id: 'spirituality',
-    label: 'Spirituality & Religion',
-    tags: [
-      'Meditation & Mindfulness',
-      'Yoga & Spiritual Practice',
-      'Religious Services',
-      'Interfaith Dialogue',
-      'Buddhist Teachings',
-      'Christian Fellowship',
-      'Jewish Community Events',
-      'Islamic Gatherings',
-      'New Age & Metaphysical',
-      'Prayer Groups',
     ],
   },
 ];
@@ -333,5 +222,5 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
 /** Flat list of every tag in taxonomy order. Handy for classifier keyword lookups. */
 export const ALL_TAXONOMY_TAGS: string[] = TAXONOMY_BUCKETS.flatMap((b) => b.tags);
 
-/** Set of all valid bucket IDs — useful for fast membership checks. */
+/** Set of all valid bucket IDs- useful for fast membership checks. */
 export const BUCKET_ID_SET: ReadonlySet<string> = new Set(TAXONOMY_BUCKETS.map((b) => b.id));
