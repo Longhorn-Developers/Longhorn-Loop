@@ -15,7 +15,7 @@ import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
-import { addRsvp, isRsvped as isRsvpedInStore, removeRsvp } from '@/app/lib/rsvpStore';
+import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -203,7 +203,7 @@ export default function EventDetailScreen() {
   const token = onboarding.token || null;
   const queryClient = useQueryClient();
 
-  // RSVP UI state stays local — it's not server data.
+  // RSVP UI state stays local — initialised from the event query (is_rsvped field).
   const [isRsvped, setIsRsvped] = useState(false);
   const [showOpenLinkModal, setShowOpenLinkModal] = useState(false);
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
@@ -268,10 +268,12 @@ export default function EventDetailScreen() {
     toggleSave.mutate(isSaved);
   };
 
+  // Seed isRsvped from the event response once it resolves.
   useEffect(() => {
-    if (!id) return;
-    isRsvpedInStore(Number(id)).then(setIsRsvped);
-  }, [id]);
+    if (event?.is_rsvped !== undefined) {
+      setIsRsvped(event.is_rsvped);
+    }
+  }, [event?.is_rsvped]);
 
   // Map the query state to the existing loading / error / event UI.
   const loading = eventQuery.isPending;
@@ -298,14 +300,14 @@ export default function EventDetailScreen() {
 
   const confirmRsvp = async () => {
     if (!event) return;
-    await addRsvp(event.id);
+    await addRsvp(event.id, token);
     setIsRsvped(true);
     setShowToast(true);
   };
 
   const confirmCancel = async () => {
     if (!event) return;
-    await removeRsvp(event.id);
+    await removeRsvp(event.id, token);
     setIsRsvped(false);
     setShowCancelModal(false);
   };

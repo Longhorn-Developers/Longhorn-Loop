@@ -1000,6 +1000,12 @@ eventRoutes.get('/:id', async (c) => {
     .bind(id)
     .all();
 
+  const isRsvped = userId
+    ? !!(await c.env.DB.prepare('SELECT 1 FROM event_rsvps WHERE user_id = ? AND event_id = ?')
+        .bind(userId, id)
+        .first())
+    : false;
+
   return c.json({
     ...event,
     categories: categories.results.map((c: any) => ({
@@ -1007,7 +1013,53 @@ eventRoutes.get('/:id', async (c) => {
       name: c.category_name,
     })),
     benefits: benefits.results.map((b: any) => b.benefit_name),
+    is_rsvped: isRsvped,
   });
+});
+
+// POST /events/:id/rsvp -- auth-gated, idempotent RSVP for an event.
+eventRoutes.post('/:id/rsvp', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  await c.env.DB.prepare(`INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`)
+    .bind(userId, eventId)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+// DELETE /events/:id/rsvp -- auth-gated, removes the caller's RSVP.
+eventRoutes.delete('/:id/rsvp', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  await c.env.DB.prepare(`DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`)
+    .bind(userId, eventId)
+    .run();
+
+  return c.json({ ok: true });
 });
 
 // POST /events/:id/report -- user reports an event for moderation.
