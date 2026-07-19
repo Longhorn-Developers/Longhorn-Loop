@@ -1,36 +1,43 @@
 // =====================================================================
-// TEMPORARY IN-MEMORY RSVP STORE
+// RSVP store — backed by the real API.
 //
-// This module is a stand-in until the backend RSVP work lands. It only
-// remembers RSVPs for the lifetime of the running app — close the app
-// and the list is gone.
+// Endpoints used:
+//   POST   /events/:id/rsvp   (auth-gated, idempotent)
+//   DELETE /events/:id/rsvp   (auth-gated)
 //
-// TODO(backend): replace the bodies of these functions with real API
-// calls once the following exist on the server:
-//   - `event_rsvps(user_id, event_id, created_at)` table in D1
-//   - `POST   /events/:id/rsvp`   (auth-gated, adds row)
-//   - `DELETE /events/:id/rsvp`   (auth-gated, removes row)
-//   - `is_rsvped` field on the GET /events/:id response
+// `is_rsvped` on GET /events/:id is the authoritative source for initial
+// RSVP state — callers should prefer reading that field from the event
+// query rather than calling isRsvped() as a separate request.
 //
-// Public function signatures (names + Promise return types) are chosen
-// to match the eventual fetch-based implementation, so callers won't
-// need to change.
+// All functions accept an optional `token` parameter. When omitted or
+// null (unauthenticated), writes are silently skipped and reads return
+// false / empty, so the UI degrades gracefully.
 // =====================================================================
 
-const rsvpedIds = new Set<number>();
+import { api } from './api';
 
-export async function getRsvpedIds(): Promise<number[]> {
-  return Array.from(rsvpedIds);
+export async function getRsvpedIds(_token?: string | null): Promise<number[]> {
+  // No batch endpoint exists yet. Callers that need per-event state should
+  // read `is_rsvped` from the GET /events/:id response instead.
+  return [];
 }
 
-export async function isRsvped(eventId: number): Promise<boolean> {
-  return rsvpedIds.has(eventId);
+export async function isRsvped(eventId: number, token?: string | null): Promise<boolean> {
+  if (!token) return false;
+  try {
+    const res = await api.get<{ is_rsvped?: boolean }>(`/events/${eventId}`, { token });
+    return res.is_rsvped ?? false;
+  } catch {
+    return false;
+  }
 }
 
-export async function addRsvp(eventId: number): Promise<void> {
-  rsvpedIds.add(eventId);
+export async function addRsvp(eventId: number, token?: string | null): Promise<void> {
+  if (!token) return;
+  await api.post(`/events/${eventId}/rsvp`, { token });
 }
 
-export async function removeRsvp(eventId: number): Promise<void> {
-  rsvpedIds.delete(eventId);
+export async function removeRsvp(eventId: number, token?: string | null): Promise<void> {
+  if (!token) return;
+  await api.delete(`/events/${eventId}/rsvp`, { token });
 }

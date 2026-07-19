@@ -1,0 +1,87 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//LiveWhale Calendar//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Texas Law Events
+BEGIN:VTIMEZONE
+TZID:US/Central
+X-LIC-LOCATION:America/Chicago
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;VALUE=DATE-TIME;TZID=US/Central:20260727T113000
+DTEND;VALUE=DATE-TIME;TZID=US/Central:20260727T124500
+DTSTAMP:20260717T233000Z
+CREATED:20260520T163400Z
+LAST-MODIFIED:20260520T163400Z
+UID:20260727T113000-88639@law.utexas.edu
+SUMMARY:Drawing Board Luncheon: Avihay Dorfman
+DESCRIPTION:<p>Drawing Board Luncheon: Avihay Dorfman</p>If you need an
+  accommodation to participate in this event, please contact the event
+  sponsor or the Texas Law Special Events Office at
+  specialevents@law.utexas.edu no later than seven business days prior to
+  the event. Speaker: Avihay Dorfman, "The Friends of Joe Jamail" Regents
+  Chair in Law, Professor, University of Texas
+X-ALT-DESC;FMTTYPE=text/html:<p>Drawing Board Luncheon: Avihay
+  Dorfman</p>
+LOCATION:TNH 2.111 - Sheffield-Massey Room
+URL:https://law.utexas.edu/calendar/2026/07/27/88639/
+CLASS:PUBLIC
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE-TIME;TZID=US/Central:20260729T070000
+DTEND;VALUE=DATE-TIME;TZID=US/Central:20260729T083000
+DTSTAMP:20260717T233000Z
+CREATED:20260422T160000Z
+LAST-MODIFIED:20260623T162600Z
+UID:20260729T070000-88420@law.utexas.edu
+SUMMARY:Alumni Breakfast at NBA
+DESCRIPTION:<p>Join your fellow Texas Law alumni for breakfast at the
+  National Bar Association's Annual Convention and Exhibits. Start your
+  day by visiting with the Dean\, hearing about the latest from your alma
+  mater\, and connecting with old friends and new!</p>
+LOCATION:
+URL:https://law.utexas.edu/calendar/2026/07/29/88420/
+CLASS:PUBLIC
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE-TIME;TZID=US/Central:20270115T090000
+DTEND;VALUE=DATE-TIME;TZID=US/Central:20270115T100000
+DTSTAMP:20260717T233000Z
+UID:20270115T090000-90001@law.utexas.edu
+SUMMARY:Spring Semester Kickoff
+DESCRIPTION:Welcome back to a new semester at Texas Law.
+LOCATION:Eidman Courtroom
+URL:https://law.utexas.edu/calendar/2027/01/15/90001/
+CLASS:PUBLIC
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;VALUE=DATE-TIME;TZID=US/Central:20200310T120000
+DTEND;VALUE=DATE-TIME;TZID=US/Central:20200310T130000
+DTSTAMP:20200217T233000Z
+UID:20200310T120000-70000@law.utexas.edu
+SUMMARY:Past Event That Should Be Skipped
+DESCRIPTION:This event already happened.
+LOCATION:Old Hall
+URL:https://law.utexas.edu/calendar/2020/03/10/70000/
+CLASS:PUBLIC
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR

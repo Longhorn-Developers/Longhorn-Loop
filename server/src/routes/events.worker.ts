@@ -2,8 +2,7 @@
 import { Hono } from 'hono';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
-import { scrapeHornsLink } from '../scrapers/hornslink';
-import { scrapeMccombs } from '../scrapers/mccombs';
+import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
 
 export const eventRoutes = new Hono<{ Bindings: Env }>();
@@ -864,6 +863,7 @@ eventRoutes.get('/', async (c) => {
   const benefit = c.req.query('benefit');
   const theme = c.req.query('theme');
   const orgId = c.req.query('orgId');
+  const source = c.req.query('source');
 
   // If the caller is signed in, also hide events they've already reported.
   // Anonymous callers only get the global threshold filter.
@@ -890,6 +890,11 @@ eventRoutes.get('/', async (c) => {
   if (orgId) {
     query += ` AND e.host_organization_id = ?`;
     params.push(parseInt(orgId));
+  }
+
+  if (source) {
+    query += ` AND e.source = ?`;
+    params.push(source);
   }
 
   if (category) {
@@ -995,6 +1000,12 @@ eventRoutes.get('/:id', async (c) => {
     .bind(id)
     .all();
 
+  const isRsvped = userId
+    ? !!(await c.env.DB.prepare('SELECT 1 FROM event_rsvps WHERE user_id = ? AND event_id = ?')
+        .bind(userId, id)
+        .first())
+    : false;
+
   return c.json({
     ...event,
     categories: categories.results.map((c: any) => ({
@@ -1002,7 +1013,53 @@ eventRoutes.get('/:id', async (c) => {
       name: c.category_name,
     })),
     benefits: benefits.results.map((b: any) => b.benefit_name),
+    is_rsvped: isRsvped,
   });
+});
+
+// POST /events/:id/rsvp -- auth-gated, idempotent RSVP for an event.
+eventRoutes.post('/:id/rsvp', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  await c.env.DB.prepare(`INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`)
+    .bind(userId, eventId)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+// DELETE /events/:id/rsvp -- auth-gated, removes the caller's RSVP.
+eventRoutes.delete('/:id/rsvp', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  await c.env.DB.prepare(`DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`)
+    .bind(userId, eventId)
+    .run();
+
+  return c.json({ ok: true });
 });
 
 // POST /events/:id/report -- user reports an event for moderation.
@@ -1061,24 +1118,18 @@ eventRoutes.post('/:id/report', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /events/scrape -- manually trigger a scrape (for testing)
-eventRoutes.post('/scrape', async (c) => {
+// POST /events/scrape/:name -- manually trigger any registered scraper (for testing)
+eventRoutes.post('/scrape/:name', async (c) => {
+  const scraperName = c.req.param('name');
+  const scraper = getManualScraper(scraperName);
+
+  if (!scraper) {
+    const available = SCRAPERS.filter((s) => s.manual).map((s) => s.name);
+    return c.json({ error: 'UNKNOWN_SCRAPER', available }, 404);
+  }
+
   const body = await c.req.json().catch(() => ({}));
-  const maxPages = (body as any).maxPages ?? 3;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeHornsLink(c.env.DB, { maxPages, dryRun });
-
-  return c.json(result);
-});
-
-// POST /events/scrape/mccombs -- manually trigger the McCombs scrape (for testing)
-eventRoutes.post('/scrape/mccombs', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const maxEvents = (body as any).maxEvents ?? 500;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeMccombs(c.env.DB, { maxEvents, dryRun });
+  const result = await scraper(c.env.DB, body as Record<string, unknown>);
 
   return c.json(result);
 });
