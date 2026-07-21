@@ -1133,3 +1133,27 @@ eventRoutes.post('/scrape/:name', async (c) => {
 
   return c.json(result);
 });
+
+// POST /events/reclassify -- backfill event_tags for all existing events (LOOP-221)
+eventRoutes.post('/reclassify', async (c) => {
+  const { classifyEvent, writeEventTags } = await import('../lib/classifier');
+
+  const rows = await c.env.DB.prepare(
+    'SELECT id, title, description FROM events WHERE is_archived = 0',
+  ).all<{ id: number; title: string; description: string | null }>();
+
+  let processed = 0;
+  const errors: string[] = [];
+
+  for (const event of rows.results) {
+    try {
+      const matches = classifyEvent(event.title, event.description);
+      await writeEventTags(c.env.DB, event.id, matches);
+      processed++;
+    } catch (err) {
+      errors.push(`event ${event.id}: ${err}`);
+    }
+  }
+
+  return c.json({ ok: true, processed, errors });
+});
