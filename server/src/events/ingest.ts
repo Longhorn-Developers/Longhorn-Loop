@@ -1,6 +1,7 @@
 // Writes NormalizedEvent[] into D1. Only place that knows the schema.
 
 import type { IngestResult, NormalizedEvent } from './types';
+import { classifyEvent, writeEventTags } from '../lib/classifier';
 
 // LOOP-150 retention window. Purge job uses expires_at.
 const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -182,6 +183,8 @@ export async function ingestEvents(
       await upsertOrganization(db, event);
       const { eventId, isNew } = await upsertEvent(db, event);
       await replaceCategoriesAndBenefits(db, eventId, event);
+      const tags = classifyEvent(event.title, event.description);
+      await writeEventTags(db, eventId, tags);
       if (isNew) result.inserted++;
       else result.updated++;
     } catch (err) {
