@@ -1,0 +1,50 @@
+{
+  "event": {
+    "id": 60000000000001,
+    "title": "CNS Weekly Seminar Series",
+    "description": null,
+    "location": null,
+    "room": "",
+    "address": null,
+    "url": "https://calendar.utexas.edu/event/cns-weekly-seminar-series",
+    "localist_url": "https://calendar.utexas.edu/event/cns-weekly-seminar-series",
+    "photo_url": null,
+    "photo_width": null,
+    "photo_height": null,
+    "photo_alt": null,
+    "photo_content_type": null,
+    "departments": [],
+    "filters": {},
+    "tags": [],
+    "keywords": [],
+    "event_instances": [
+      {
+        "event_instance": {
+          "id": 60000000000010,
+          "event_id": 60000000000001,
+          "start": "2020-01-06T14:00:00-06:00",
+          "end": "2020-01-06T15:00:00-06:00",
+          "all_day": false
+        }
+      },
+      {
+        "event_instance": {
+          "id": 60000000000011,
+          "event_id": 60000000000001,
+          "start": "2026-08-11T14:00:00-05:00",
+          "end": "2026-08-11T15:00:00-05:00",
+          "all_day": false
+        }
+      },
+      {
+        "event_instance": {
+          "id": 60000000000012,
+          "event_id": 60000000000001,
+          "start": "2026-08-18T14:00:00-05:00",
+          "end": "2026-08-18T15:00:00-05:00",
+          "all_day": false
+        }
+      }
+    ]
+  }
+}
