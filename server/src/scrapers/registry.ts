@@ -9,6 +9,7 @@
 // NOTE: Manual is used for testing and shold not be called in production
 
 import type { Env } from '../worker';
+import { run as runCockrell, scrapeCockrell } from './cockrell';
 import { run as runFineArts, scrapeFineArts } from './finearts';
 import { run as runCns } from './cns';
 import { run as runHornsLink, scrapeHornsLink } from './hornslink';
@@ -30,6 +31,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'mccombs', run: runMccombs, manual: scrapeMccombs },
   { name: 'texasGlobal', run: runTexasGlobal, manual: scrapeTexasGlobal },
   { name: 'lawSchool', run: runLawSchool, manual: scrapeLawSchool },
+  { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'cns', run: runCns },
 ];
