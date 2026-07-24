@@ -21,13 +21,17 @@ Worker is now running at `http://localhost:8787`. The app's
 
 ### Seed events
 
+Manual scrapes are triggered per source via `POST /events/scrape/:name`.
+Available sources: `hornslink`, `mccombs`, `texasGlobal`, `lawSchool`,
+`cockrell`, `cofa`.
+
 ```bash
-curl -X POST http://localhost:8787/events/scrape \
+curl -X POST http://localhost:8787/events/scrape/hornslink \
   -H "Content-Type: application/json" \
   -d '{"maxPages":3}'
 ```
 
-Pulls ~60 events from HornsLink into your local D1.
+Pulls events from HornsLink into your local D1.
 
 ```bash
 curl -X POST http://localhost:8787/events/scrape/mccombs \

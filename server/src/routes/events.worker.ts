@@ -1035,9 +1035,19 @@ eventRoutes.post('/:id/rsvp', async (c) => {
     .first();
   if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
 
-  await c.env.DB.prepare(`INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`)
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Bump the denormalized counter only when this RSVP is new (deduped per
+  // user), so re-POSTing the same RSVP doesn't inflate rsvp_count.
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
@@ -1055,9 +1065,53 @@ eventRoutes.delete('/:id/rsvp', async (c) => {
     return c.json({ error: 'INVALID_EVENT_ID' }, 400);
   }
 
-  await c.env.DB.prepare(`DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`)
+  const deleted = await c.env.DB.prepare(
+    `DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Only decrement when a row was actually removed, so a repeat DELETE can't
+  // drive rsvp_count negative.
+  if (deleted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count - 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
+
+  return c.json({ ok: true });
+});
+
+// POST /events/:id/view -- auth-gated, idempotent view signal. Deduped per
+// user (one row per user/event), so view_count tracks distinct viewers.
+eventRoutes.post('/:id/view', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_views (user_id, event_id) VALUES (?, ?)`,
+  )
+    .bind(userId, eventId)
+    .run();
+
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET view_count = view_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
