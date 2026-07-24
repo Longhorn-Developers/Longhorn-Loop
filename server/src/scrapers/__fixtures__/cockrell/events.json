@@ -1,0 +1,94 @@
+[
+  {
+    "id": 44287,
+    "slug": "run-the-code-data-driven-art-decoded",
+    "link": "https://cockrell.utexas.edu/event/run-the-code-data-driven-art-decoded/",
+    "title": { "rendered": "Run the Code: Data&#8211;Driven Art Decoded" },
+    "excerpt": {
+      "rendered": "<p>What happens when code and data become the raw materials of art?</p>\n"
+    },
+    "meta": {
+      "cockrell_event_date": "2026-03-08",
+      "cockrell_event_end_date": "2026-08-02",
+      "cockrell_event_start_time": "",
+      "cockrell_event_end_time": "",
+      "cockrell_event_location": "Blanton Museum of Art",
+      "cockrell_event_image": {
+        "id": 44288,
+        "url": "https://cockrell.utexas.edu/wp-content/uploads/2026/03/Blanton-Grounds-HERO-1440x846-1.jpg",
+        "alt": "Exterior of the Blanton Museum of Art"
+      }
+    },
+    "_embedded": {
+      "wp:term": [
+        [{ "id": 3538, "taxonomy": "cockrell_event_type", "name": "In Person" }],
+        [{ "id": 3536, "taxonomy": "cockrell_event_category", "name": "Public Event" }]
+      ]
+    }
+  },
+  {
+    "id": 36430,
+    "slug": "tiw-fab-friday-design-party",
+    "link": "https://cockrell.utexas.edu/event/tiw-fab-friday-design-party/",
+    "title": { "rendered": "TIW Fab Friday Design Party &#8211; Try It" },
+    "excerpt": {
+      "rendered": "<p>Join Texas Inventionworks (TIW) every Friday for a variety of programming.</p>\n"
+    },
+    "meta": {
+      "cockrell_event_date": "2026-08-28",
+      "cockrell_event_end_date": "",
+      "cockrell_event_start_time": "2:00 pm",
+      "cockrell_event_end_time": "4:00 pm",
+      "cockrell_event_location": "\"HQ\" Room, Floor 1<br>North Tower, EER Building",
+      "cockrell_event_image": {
+        "id": 41488,
+        "url": "https://cockrell.utexas.edu/wp-content/uploads/2025/12/2025-TXiW-Fab-Friday-55.jpg",
+        "alt": "A student works on a project at Texas Inventionworks."
+      }
+    },
+    "_embedded": {
+      "wp:term": [
+        [{ "id": 3538, "taxonomy": "cockrell_event_type", "name": "In Person" }],
+        [{ "id": 3536, "taxonomy": "cockrell_event_category", "name": "Public Event" }]
+      ]
+    }
+  },
+  {
+    "id": 36752,
+    "slug": "ecac-fall-engineering-expo",
+    "link": "https://cockrell.utexas.edu/event/ecac-fall-engineering-expo/",
+    "title": { "rendered": "ECAC Fall Engineering Expo" },
+    "excerpt": {
+      "rendered": "<p>Hosted by the Engineering Career Assistance Center (ECAC).</p>\n"
+    },
+    "meta": {
+      "cockrell_event_date": "2026-09-09",
+      "cockrell_event_end_date": "2026-09-10",
+      "cockrell_event_start_time": "10:00 am",
+      "cockrell_event_end_time": "4:00 pm",
+      "cockrell_event_location": "UT Rec Sports Center (RSC)",
+      "cockrell_event_image": false
+    },
+    "_embedded": {
+      "wp:term": []
+    }
+  },
+  {
+    "id": 11111,
+    "slug": "past-event-already-ended",
+    "link": "https://cockrell.utexas.edu/event/past-event-already-ended/",
+    "title": { "rendered": "Past Event Already Ended" },
+    "excerpt": { "rendered": "<p>This already happened.</p>\n" },
+    "meta": {
+      "cockrell_event_date": "2020-01-01",
+      "cockrell_event_end_date": "",
+      "cockrell_event_start_time": "9:00 am",
+      "cockrell_event_end_time": "10:00 am",
+      "cockrell_event_location": "Somewhere",
+      "cockrell_event_image": false
+    },
+    "_embedded": {
+      "wp:term": []
+    }
+  }
+]
