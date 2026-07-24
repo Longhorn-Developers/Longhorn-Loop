@@ -1000,6 +1000,14 @@ eventRoutes.get('/:id', async (c) => {
     .bind(id)
     .all();
 
+  // Classifier-assigned tags (Phase 2). Distinct tag names, shown as chips in
+  // the app in place of the raw scraped categories.
+  const tagRows = await c.env.DB.prepare(
+    'SELECT DISTINCT tag FROM event_tags WHERE event_id = ? ORDER BY tag',
+  )
+    .bind(id)
+    .all();
+
   const isRsvped = userId
     ? !!(await c.env.DB.prepare('SELECT 1 FROM event_rsvps WHERE user_id = ? AND event_id = ?')
         .bind(userId, id)
@@ -1013,6 +1021,7 @@ eventRoutes.get('/:id', async (c) => {
       name: c.category_name,
     })),
     benefits: benefits.results.map((b: any) => b.benefit_name),
+    tags: tagRows.results.map((t: any) => t.tag as string),
     is_rsvped: isRsvped,
   });
 });
