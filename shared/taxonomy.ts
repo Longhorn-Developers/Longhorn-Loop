@@ -1,15 +1,14 @@
 /**
- * Server-side taxonomy data: bucket IDs, labels, and tags.
+ * Shared interest taxonomy: single source of truth for buckets + tags.
  *
- * This is a data-only mirror of app/lib/interestCategories.ts (minus the
- * icons/descriptions/React deps), kept inside server/src/ so the server
- * can import it easily
+ * Dependency-free by design (no React, no SVGs, no server-only APIs) so BOTH
+ * sides can import it directly:
+ *   - app/lib/interestCategories.ts decorates these with icons for the UI
+ *   - server/src/lib/taxonomy.ts re-exports them for the classifier + feeds
  *
- * SOURCE OF TRUTH: app/lib/interestCategories.ts. If you add or rename a
- * bucket/tag there, update this file to match. The vitest test
- * server/test/test_taxonomy.ts guards structural invariants.
- *
- * Server imports: import { TAXONOMY_BUCKETS } from './lib/taxonomy'
+ * `bucket.id` is used as event_tags.bucket_id; `tags` are the child tags the
+ * classifier assigns. Keep additions/renames here — everything else derives
+ * from this file, so there is nothing to keep in sync.
  */
 
 export type TaxonomyBucket = {
@@ -17,6 +16,8 @@ export type TaxonomyBucket = {
   id: string;
   // Human-readable label
   label: string;
+  // One-liner used in Create Event Step 2 bucket cards.
+  description: string;
   // Child tags belonging to this bucket
   tags: string[];
 };
@@ -25,6 +26,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'music',
     label: 'Music',
+    description: 'Concerts, DJ sets, & live performances',
     tags: [
       'Rock & Alternative',
       'Hip Hop & Rap',
@@ -40,6 +42,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'performing',
     label: 'Performing Arts',
+    description: 'Comedy, theater, dance, & live shows',
     tags: [
       'Comedy',
       'Theater & Musicals',
@@ -52,6 +55,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'spirituality',
     label: 'Spirituality & Religion',
+    description: 'Services, fellowship, & meditation groups',
     tags: [
       'Meditation & Mindfulness',
       'Interfaith Events',
@@ -65,6 +69,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'arts',
     label: 'Arts & Culture',
+    description: 'Film, galleries, festivals, & pop culture',
     tags: [
       'Film & Cinema',
       'Anime',
@@ -77,6 +82,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'sports',
     label: 'Sports & Fitness',
+    description: 'Team sports, fitness classes, & outdoor activities',
     tags: [
       'Team Sports',
       'Racquet Sports',
@@ -91,6 +97,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'food',
     label: 'Food & Drink',
+    description: 'Restaurant outings, coffee chats, & happy hours',
     tags: [
       'Cocktails, Wine, & Breweries',
       'Fine Dining',
@@ -105,6 +112,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'tech',
     label: 'Technology & Innovation',
+    description: 'Startups, hackathons, AI, & tech talks',
     tags: [
       'Startup & Entrepreneurship',
       'AI & Machine Learning',
@@ -118,6 +126,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'science',
     label: 'Science & Academia',
+    description: 'Physics, biology, research, & academic talks',
     tags: [
       'Physics & Astronomy',
       'Biology & Life Sciences',
@@ -130,6 +139,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'education',
     label: 'Education & Career',
+    description: 'Career fairs, workshops, & study groups',
     tags: [
       'Career Fairs',
       'Workshops & Seminars',
@@ -142,6 +152,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'outdoors',
     label: 'Outdoors & Nature',
+    description: 'Hiking, camping, & outdoor adventures',
     tags: [
       'Hiking & Backpacking',
       'Camping',
@@ -154,6 +165,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'gaming',
     label: 'Gaming & Entertainment',
+    description: 'Esports, game nights, & tabletop',
     tags: [
       'Video Gaming',
       'Board Games',
@@ -167,6 +179,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'social',
     label: 'Social & Networking',
+    description: 'Mixers, meetups, & social clubs',
     tags: [
       'Meetups & Mixers',
       'Singles & Dating',
@@ -179,6 +192,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'health',
     label: 'Health & Wellness',
+    description: 'Wellness, therapy, gym, & mindfulness',
     tags: [
       'Mental Health & Therapy',
       'Gym',
@@ -190,6 +204,7 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'business',
     label: 'Business & Professional',
+    description: 'Case comps, networking, & conferences',
     tags: [
       'Case Competitions',
       'Networking & Conferences',
@@ -203,11 +218,13 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'travel',
     label: 'Travel & Adventure',
+    description: 'Study abroad, road trips, & travel meetups',
     tags: ['Road Trips', 'Budget Travel', 'Travel Photography', 'Study Abroad'],
   },
   {
     id: 'nightlife',
     label: 'Nightlife & Parties',
+    description: 'Bars, clubs, karaoke, & late-night events',
     tags: [
       'Clubs & Live DJ Sets',
       'Karaoke',
@@ -219,8 +236,8 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   },
 ];
 
-/** Flat list of every tag in taxonomy order. Handy for classifier keyword lookups. */
+/** Flat list of every tag in taxonomy order. Handy for search/classifier lookups. */
 export const ALL_TAXONOMY_TAGS: string[] = TAXONOMY_BUCKETS.flatMap((b) => b.tags);
 
-/** Set of all valid bucket IDs- useful for fast membership checks. */
+/** Set of all valid bucket IDs — useful for fast membership checks. */
 export const BUCKET_ID_SET: ReadonlySet<string> = new Set(TAXONOMY_BUCKETS.map((b) => b.id));

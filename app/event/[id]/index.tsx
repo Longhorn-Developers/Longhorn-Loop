@@ -356,10 +356,9 @@ export default function EventDetailScreen() {
   }
 
   const hasRsvpLink = !!event.rsvp_url;
-  const chips = [
-    ...(event.benefits ?? []),
-    ...(event.categories?.map((c) => c.name).filter(Boolean) ?? []),
-  ];
+  // Chips are our own benefits + classifier-assigned taxonomy tags — not the
+  // raw scraped categories (which surfaced generic labels like "Social").
+  const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
