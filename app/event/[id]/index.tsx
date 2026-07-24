@@ -16,6 +16,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
+import { recordView } from '@/app/lib/signals';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -274,6 +275,13 @@ export default function EventDetailScreen() {
       setIsRsvped(event.is_rsvped);
     }
   }, [event?.is_rsvped]);
+
+  // Record a view once the event resolves. Deduped per user server-side
+  useEffect(() => {
+    if (event?.id) {
+      recordView(event.id, token);
+    }
+  }, [event?.id, token]);
 
   // Map the query state to the existing loading / error / event UI.
   const loading = eventQuery.isPending;

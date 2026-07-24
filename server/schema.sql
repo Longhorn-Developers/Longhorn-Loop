@@ -96,6 +96,11 @@ CREATE TABLE IF NOT EXISTS events (
   -- past user-linked events remain visible in profile history (LOOP-200)
   is_archived INTEGER NOT NULL DEFAULT 0,
   archived_at TEXT,
+  -- Denormalized signal counters (Phase 1). Kept in sync inline by the
+  -- save/rsvp/view endpoints; count distinct users, not raw pings.
+  save_count INTEGER NOT NULL DEFAULT 0,
+  rsvp_count INTEGER NOT NULL DEFAULT 0,
+  view_count INTEGER NOT NULL DEFAULT 0,
   UNIQUE(source, source_event_id)
 );
 
@@ -137,6 +142,34 @@ CREATE TABLE IF NOT EXISTS saved_events (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(user_id, event_id)
 );
+
+-- Event RSVPs -- deduped per user (LOOP-211). Drives rsvp_count.
+CREATE TABLE IF NOT EXISTS event_rsvps (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_rsvps_event ON event_rsvps(event_id);
+
+-- Event views -- deduped per user (Phase 1). Drives view_count.
+CREATE TABLE IF NOT EXISTS event_views (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_views_event ON event_views(event_id);
+
+-- Event tags -- classifier-assigned bucket + tag pairs (LOOP-221)
+CREATE TABLE IF NOT EXISTS event_tags (
+  event_id  INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  bucket_id TEXT    NOT NULL,
+  tag       TEXT    NOT NULL,
+  PRIMARY KEY (event_id, bucket_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_event_tags_event  ON event_tags(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_tags_bucket ON event_tags(bucket_id);
 
 -- Notifications -- activity center entries per user
 CREATE TABLE IF NOT EXISTS notifications (

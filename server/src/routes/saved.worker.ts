@@ -74,13 +74,21 @@ savedRoutes.post('/:eventId', async (c) => {
   const event = await c.env.DB.prepare('SELECT id FROM events WHERE id = ?').bind(eventId).first();
   if (!event) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
 
-  await c.env.DB.prepare(
+  const inserted = await c.env.DB.prepare(
     `INSERT INTO saved_events (user_id, event_id)
      VALUES (?, ?)
      ON CONFLICT(user_id, event_id) DO NOTHING`,
   )
     .bind(userId, eventId)
     .run();
+
+  // Keep the denormalized counter in sync, but only for a genuinely new
+  // bookmark so re-saving doesn't inflate save_count.
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare('UPDATE events SET save_count = save_count + 1 WHERE id = ?')
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ saved: true });
 });
@@ -96,9 +104,19 @@ savedRoutes.delete('/:eventId', async (c) => {
   const eventId = parseInt(c.req.param('eventId'), 10);
   if (isNaN(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
 
-  await c.env.DB.prepare('DELETE FROM saved_events WHERE user_id = ? AND event_id = ?')
+  const deleted = await c.env.DB.prepare(
+    'DELETE FROM saved_events WHERE user_id = ? AND event_id = ?',
+  )
     .bind(userId, eventId)
     .run();
+
+  // Only decrement when a bookmark was actually removed, so a repeat DELETE
+  // can't drive save_count negative.
+  if (deleted.meta.changes > 0) {
+    await c.env.DB.prepare('UPDATE events SET save_count = save_count - 1 WHERE id = ?')
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ saved: false });
 });
