@@ -3,7 +3,7 @@ import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent } from '@/app/components/MapViewWrapper';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { explore as exploreKeys, saved as savedKeys } from '@/app/lib/queryKeys';
+import { feed as feedKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { ListIcon, MapPin } from 'phosphor-react-native';
@@ -35,10 +35,9 @@ export default function ExploreScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>(IS_WEB ? 'list' : 'map');
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
-  // GET /events is a public endpoint — no auth required, no `enabled` guard needed.
   const eventsQuery = useQuery({
-    queryKey: exploreKeys.events({ limit: '100' }),
-    queryFn: () => api.get<EventsListResponse>('/events?limit=100', { token }),
+    queryKey: feedKeys.explore({ limit: '100' }),
+    queryFn: () => api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
     staleTime: 30_000,
   });
 

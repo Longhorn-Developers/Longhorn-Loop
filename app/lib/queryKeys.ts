@@ -22,8 +22,11 @@ export const notifications = {
   list: () => [...notifications.all, 'list'] as const,
 };
 
-export const explore = {
-  all: ['explore'] as const,
-  events: (params: Record<string, string | undefined> = {}) =>
-    [...explore.all, 'events', params] as const,
+// Phase 3 personalized feed endpoints (/feed/*).
+export const feed = {
+  all: ['feed'] as const,
+  home: () => [...feed.all, 'home'] as const,
+  explore: (params: Record<string, string | undefined> = {}) =>
+    [...feed.all, 'explore', params] as const,
+  bucket: (id: string) => [...feed.all, 'bucket', id] as const,
 };

@@ -4,7 +4,7 @@ import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventPostedModal from '@/app/components/EventPostedModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
+import { feed as feedKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
@@ -25,399 +25,30 @@ function getGreeting(): string {
   return 'Good evening,';
 }
 
-// Shape the events list endpoint returns.
-type EventsListResponse = { events: ApiEvent[] };
+// Shape of the /feed/home response. Each section is a carousel; the first is
+// always "Upcoming", followed by one section per interest bucket. Ranking and
+// bucket selection are entirely server-driven (server/src/routes/feed.worker.ts).
+type FeedSection = {
+  key: string;
+  label: string;
+  bucketId?: string;
+  events: ApiEvent[];
+};
+type FeedHomeResponse = { sections: FeedSection[] };
 type SavedListResponse = { events: ApiEvent[] };
 
-// Maps onboarding interest categories → event API query params.
-// Each entry produces a carousel on the home screen.
-interface CarouselDef {
-  key: string;
-  title: string;
-  search: string;
-}
-
-// Tags the user picks during onboarding → parent category id.
-// We only need the parent category to decide which carousels to show.
-const TAG_TO_CATEGORY: Record<string, string> = {};
-
-// The interest categories and their tags (mirrored from InterestSelection).
-const INTEREST_CATEGORIES: { id: string; label: string; tags: string[] }[] = [
-  {
-    id: 'music',
-    label: 'Music',
-    tags: [
-      'Rock & Alternative',
-      'Hip Hop & Rap',
-      'Electronic & EDM',
-      'Country & Folk',
-      'Jazz & Blues',
-      'Classical & Opera',
-      'Pop & Top 40',
-      'R&B & Soul',
-      'Indie & Underground',
-      'Latin & Reggaeton',
-      'K-Pop & J-Pop',
-    ],
-  },
-  {
-    id: 'arts',
-    label: 'Arts & Culture',
-    tags: [
-      'Art Exhibitions & Galleries',
-      'Theater & Broadway',
-      'Dance Performances',
-      'Film & Cinema',
-      'Photography',
-      'Sculpture & Installation Art',
-      'Poetry & Spoken Word',
-      'Street Art & Graffiti',
-      'Cultural Festivals',
-      'Museum Tours',
-      'Anime',
-    ],
-  },
-  {
-    id: 'sports',
-    label: 'Sports & Fitness',
-    tags: [
-      'Football & Soccer',
-      'Basketball',
-      'Baseball & Softball',
-      'Tennis & Racquet Sports',
-      'Running & Marathon',
-      'Yoga & Meditation',
-      'Cycling & Biking',
-      'Swimming & Water Sports',
-      'Martial Arts & Boxing',
-      'Extreme Sports',
-      'Golf',
-      'CrossFit & HIIT',
-    ],
-  },
-  {
-    id: 'food',
-    label: 'Food & Drink',
-    tags: [
-      'Wine Tasting',
-      'Craft Beer & Breweries',
-      'Cocktails & Mixology',
-      'Fine Dining',
-      'Street Food & Food Trucks',
-      'Vegan & Vegetarian',
-      'Coffee & Tea',
-      'Baking & Pastries',
-      'International Cuisine',
-      'Cooking Classes',
-      'Food Festivals',
-    ],
-  },
-  {
-    id: 'tech',
-    label: 'Technology',
-    tags: [
-      'Startup & Entrepreneurship',
-      'AI & Machine Learning',
-      'Blockchain & Crypto',
-      'Web Development',
-      'Mobile Apps',
-      'Cybersecurity',
-      'Gaming & Esports',
-      'VR & AR',
-      'Robotics',
-      'Tech Conferences',
-      'Hackathons',
-    ],
-  },
-  {
-    id: 'health',
-    label: 'Health & Wellness',
-    tags: [
-      'Mindfulness & Meditation',
-      'Nutrition & Diet',
-      'Mental Health Awareness',
-      'Fitness Challenges',
-      'Spa & Self-Care',
-      'Alternative Medicine',
-      'Health Fairs',
-    ],
-  },
-  {
-    id: 'business',
-    label: 'Business',
-    tags: [
-      'Networking Events',
-      'Career Fairs',
-      'Workshops & Seminars',
-      'Leadership Summits',
-      'Investment & Finance',
-      'Marketing & Branding',
-      'Real Estate',
-    ],
-  },
-  {
-    id: 'outdoors',
-    label: 'Outdoors',
-    tags: [
-      'Hiking & Trails',
-      'Camping',
-      'Fishing',
-      'Kayaking & Canoeing',
-      'Rock Climbing',
-      'Gardening & Botany',
-      'Bird Watching',
-      'Nature Photography',
-    ],
-  },
-  {
-    id: 'learning',
-    label: 'Learning & Education',
-    tags: [
-      'Book Clubs',
-      'Language Learning',
-      'STEM Workshops',
-      'History Lectures',
-      'Creative Writing',
-      'Study Groups',
-      'Academic Competitions',
-    ],
-  },
-  {
-    id: 'nightlife',
-    label: 'Nightlife',
-    tags: [
-      'Club Events',
-      'Live DJ Sets',
-      'Bar Crawls',
-      'Karaoke Nights',
-      'Comedy Shows',
-      'Late-Night Events',
-      'Theme Parties',
-    ],
-  },
-  {
-    id: 'spirituality',
-    label: 'Spirituality',
-    tags: [
-      'Meditation Retreats',
-      'Religious Services',
-      'Interfaith Dialogues',
-      'Prayer Groups',
-      'Spiritual Workshops',
-      'Community Service',
-    ],
-  },
-  {
-    id: 'performing',
-    label: 'Performing Arts',
-    tags: [
-      'Stand-up Comedy',
-      'Improv Shows',
-      'Musical Theater',
-      'Orchestra & Symphony',
-      'Circus & Acrobatics',
-      'Spoken Word & Poetry Slams',
-      'Drag Shows',
-    ],
-  },
-  {
-    id: 'science',
-    label: 'Science',
-    tags: [
-      'Astronomy & Stargazing',
-      'Biology & Ecology',
-      'Chemistry Demos',
-      'Physics Talks',
-      'Environmental Science',
-      'Space Exploration',
-      'Citizen Science',
-    ],
-  },
-  {
-    id: 'shopping',
-    label: 'Shopping & Fashion',
-    tags: [
-      'Thrift & Vintage',
-      'Pop-Up Markets',
-      'Fashion Shows',
-      'Streetwear',
-      'Sustainable Fashion',
-      'DIY & Crafts',
-      'Flea Markets',
-    ],
-  },
-  {
-    id: 'travel',
-    label: 'Travel',
-    tags: [
-      'Study Abroad Info',
-      'Travel Meetups',
-      'Cultural Exchange',
-      'Road Trip Planning',
-      'Budget Travel Tips',
-      'Adventure Travel',
-    ],
-  },
-  {
-    id: 'gaming',
-    label: 'Gaming',
-    tags: [
-      'Video Game Tournaments',
-      'Board Game Nights',
-      'Tabletop RPGs',
-      'LAN Parties',
-      'Game Dev Meetups',
-      'Retro Gaming',
-      'Card Games',
-    ],
-  },
-  {
-    id: 'home',
-    label: 'Home & Lifestyle',
-    tags: [
-      'Interior Design',
-      'Home Organization',
-      'Sustainable Living',
-      'Budgeting & Finance',
-      'Meal Prep',
-      'DIY Home Projects',
-    ],
-  },
-  {
-    id: 'networking',
-    label: 'Networking',
-    tags: [
-      'Professional Mixers',
-      'Alumni Events',
-      'Mentorship Programs',
-      'Industry Panels',
-      'Speed Networking',
-      'Co-working Sessions',
-    ],
-  },
-  {
-    id: 'pets',
-    label: 'Pets & Animals',
-    tags: [
-      'Dog-Friendly Events',
-      'Pet Adoption',
-      'Animal Rescue',
-      'Wildlife Conservation',
-      'Equestrian',
-      'Pet Training',
-    ],
-  },
-];
-
-// Build TAG_TO_CATEGORY lookup at module load.
-for (const cat of INTEREST_CATEGORIES) {
-  for (const tag of cat.tags) {
-    TAG_TO_CATEGORY[tag] = cat.id;
-  }
-}
-
-// Maps a category id to an event API query string.
-// Uses the closest available filter (theme, category, or benefit).
-const CATEGORY_TO_QUERY: Record<string, string> = {
-  music: 'theme=Music',
-  arts: 'theme=Arts',
-  sports: 'theme=Sports',
-  food: 'benefit=Free Food',
-  tech: 'theme=Technology',
-  health: 'theme=Health',
-  business: 'theme=Business',
-  outdoors: 'theme=Outdoors',
-  learning: 'category=Academic',
-  nightlife: 'theme=Social',
-  spirituality: 'theme=Spirituality',
-  performing: 'theme=Arts',
-  science: 'category=Academic',
-  shopping: 'theme=Social',
-  travel: 'theme=Social',
-  gaming: 'theme=Social',
-  home: 'theme=Social',
-  networking: 'theme=Business',
-  pets: 'theme=Social',
-};
-
-// Derive carousel definitions from user's selected tags.
-function buildCarousels(userTags: string[]): CarouselDef[] {
-  // Always start with Upcoming.
-  const carousels: CarouselDef[] = [{ key: 'upcoming', title: 'Upcoming', search: 'limit=10' }];
-
-  // Derive unique categories from user tags, in order of first appearance.
-  const seen = new Set<string>();
-  for (const tag of userTags) {
-    const catId = TAG_TO_CATEGORY[tag];
-    if (catId && !seen.has(catId)) {
-      seen.add(catId);
-      const cat = INTEREST_CATEGORIES.find((c) => c.id === catId);
-      const query = CATEGORY_TO_QUERY[catId];
-      if (cat && query) {
-        carousels.push({
-          key: catId,
-          title: cat.label,
-          search: `limit=10&${query}`,
-        });
-      }
-    }
-  }
-
-  // If user has no tags (or very few), pad with defaults so the home screen
-  // isn't empty.
-  if (carousels.length < 3) {
-    const defaults: CarouselDef[] = [
-      { key: 'free-food', title: 'Free Food', search: 'limit=10&benefit=Free Food' },
-      { key: 'social', title: 'Social', search: 'limit=10&theme=Social' },
-      { key: 'academic', title: 'Academic', search: 'limit=10&category=Academic' },
-    ];
-    for (const d of defaults) {
-      if (!carousels.some((c) => c.key === d.key)) {
-        carousels.push(d);
-      }
-    }
-  }
-
-  // Cap at 5 carousels to keep scrolling manageable.
-  return carousels.slice(0, 5);
-}
-
-// Tiny helper: fetch one carousel's worth of events.
-function eventListQueryOptions(filterKey: string, search: string, token: string | null) {
-  return {
-    queryKey: eventsKeys.list({ filter: filterKey }),
-    queryFn: () => api.get<EventsListResponse>(`/events?${search}`, { token }),
-    staleTime: 30_000,
-  };
-}
-
 function CarouselSection({
-  title,
-  data,
-  loading,
+  section,
   savedIds,
   onToggleSave,
   onViewAll,
 }: {
-  title: string;
-  data: ApiEvent[];
-  loading?: boolean;
+  section: FeedSection;
   savedIds: Set<number>;
   onToggleSave: (eventId: number) => void;
   onViewAll?: () => void;
 }) {
-  if (loading) {
-    return (
-      <View style={{ marginBottom: 28, paddingHorizontal: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12', marginBottom: 12 }}>
-          {title}
-        </Text>
-        <ActivityIndicator size="small" color="#BF5700" />
-      </View>
-    );
-  }
-
-  if (data.length === 0) return null;
+  if (section.events.length === 0) return null;
 
   return (
     <View style={{ marginBottom: 28 }}>
@@ -430,13 +61,15 @@ function CarouselSection({
           marginBottom: 12,
         }}
       >
-        <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12' }}>{title}</Text>
-        <TouchableOpacity onPress={onViewAll}>
-          <Text style={{ fontSize: 22, color: '#9A9A9A' }}>›</Text>
-        </TouchableOpacity>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12' }}>{section.label}</Text>
+        {onViewAll && (
+          <TouchableOpacity onPress={onViewAll}>
+            <Text style={{ fontSize: 22, color: '#9A9A9A' }}>›</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <FlatList
-        data={data}
+        data={section.events}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20 }}
@@ -468,23 +101,16 @@ export default function HomeScreen() {
     }
   }, [params.justPostedEvent, router]);
 
-  // Fetch user profile to get their tags for dynamic carousels.
-  type UserProfile = { user: { first_name?: string; tags?: string[] } };
-  const profileQuery = useQuery({
-    queryKey: ['user', 'me'],
-    queryFn: () => api.get<UserProfile>('/users/me', { token }),
-    enabled: !!token,
-    staleTime: 60_000,
+  // The whole personalized home feed in one request. Works signed-out too
+  // (server returns just the Upcoming section).
+  const feedQuery = useQuery({
+    queryKey: feedKeys.home(),
+    queryFn: () => api.get<FeedHomeResponse>('/feed/home', { token }),
+    staleTime: 30_000,
   });
 
-  const userTags = profileQuery.data?.user?.tags ?? data.selectedTags ?? [];
-  const firstName = profileQuery.data?.user?.first_name || data.firstName || 'User';
-
-  // Build carousels from the user's interest tags.
-  const carousels = React.useMemo(() => buildCarousels(userTags), [userTags]);
-
-  // Create a query for each carousel. useQueries would be ideal but we keep
-  // it simple with individual useQuery calls via a child component.
+  const firstName = data.firstName || 'User';
+  const sections = feedQuery.data?.sections ?? [];
 
   // Saved IDs — only run when signed in.
   const savedQuery = useQuery({
@@ -605,51 +231,35 @@ export default function HomeScreen() {
           style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }}
         />
 
-        {/* Dynamic carousels */}
-        {carousels.map((carousel) => (
-          <DynamicCarousel
-            key={carousel.key}
-            carousel={carousel}
-            token={token}
-            savedIds={savedIds}
-            onToggleSave={handleToggleSave}
-          />
-        ))}
+        {/* Server-driven carousels: Upcoming + one per interest bucket. */}
+        {feedQuery.isPending ? (
+          <View style={{ paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#BF5700" />
+          </View>
+        ) : (
+          sections.map((section) => (
+            <CarouselSection
+              key={section.key}
+              section={section}
+              savedIds={savedIds}
+              onToggleSave={handleToggleSave}
+              // "See all" only makes sense for bucket sections (Upcoming has no
+              // dedicated endpoint).
+              onViewAll={
+                section.bucketId
+                  ? () =>
+                      router.push({
+                        pathname: '/view-all' as any,
+                        params: { title: section.label, bucketId: section.bucketId },
+                      })
+                  : undefined
+              }
+            />
+          ))
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-// Each carousel is its own component so it has its own useQuery hook.
-function DynamicCarousel({
-  carousel,
-  token,
-  savedIds,
-  onToggleSave,
-}: {
-  carousel: CarouselDef;
-  token: string | null;
-  savedIds: Set<number>;
-  onToggleSave: (eventId: number) => void;
-}) {
-  const router = useRouter();
-  const query = useQuery(eventListQueryOptions(carousel.key, carousel.search, token));
-
-  return (
-    <CarouselSection
-      title={carousel.title}
-      data={query.data?.events ?? []}
-      loading={query.isPending}
-      savedIds={savedIds}
-      onToggleSave={onToggleSave}
-      onViewAll={() =>
-        router.push({
-          pathname: '/view-all' as any,
-          params: { title: carousel.title, search: carousel.search },
-        })
-      }
-    />
   );
 }
