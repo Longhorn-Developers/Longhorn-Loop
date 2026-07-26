@@ -233,7 +233,29 @@ const KEYWORD_SUPPLEMENTS: Array<{ keyword: string; bucketId: string; tag: strin
 // Build keyword index at module load time
 // ---------------------------------------------------------------------------
 
-type KeywordEntry = { keyword: string; bucketId: string; tag: string };
+type KeywordEntry = { keyword: string; bucketId: string; tag: string; pattern: RegExp };
+
+/**
+ * Build a word-boundary matcher for a keyword. Prevents short keywords from
+ * matching inside unrelated words (e.g. "pop" in "popsicles", "ai" in "email"),
+ * which was spraying tags across unrelated events. Escapes regex metachars and
+ * allows internal whitespace runs to match any whitespace.
+ */
+function keywordPattern(keyword: string): RegExp {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  // \b works at alnum boundaries; keywords are lowercased alnum + spaces so
+  // this reliably anchors to whole words / phrases.
+  return new RegExp(`\\b${escaped}\\b`, 'i');
+}
+
+/**
+ * Valid (bucketId, tag) pairs from the shared taxonomy. A supplement entry
+ * whose pair isn't here is dropped at build time, so a taxonomy rename can
+ * never let the classifier write a phantom event_tags row.
+ */
+const VALID_BUCKET_TAGS: ReadonlySet<string> = new Set(
+  TAXONOMY_BUCKETS.flatMap((b) => b.tags.map((t) => `${b.id}|${t}`)),
+);
 
 /**
  * Valid (bucketId, tag) pairs from the shared taxonomy. A supplement entry
@@ -253,7 +275,7 @@ function buildKeywordIndex(): KeywordEntry[] {
     const k = `${keyword}|${bucketId}|${tag}`;
     if (!seen.has(k)) {
       seen.add(k);
-      entries.push({ keyword, bucketId, tag });
+      entries.push({ keyword, bucketId, tag, pattern: keywordPattern(keyword) });
     }
   };
 
@@ -277,11 +299,16 @@ function buildKeywordIndex(): KeywordEntry[] {
       // Use the full tag name (lowercased) as a keyword
       add(tag.toLowerCase(), bucket.id, tag);
 
-      // Also split on non-alpha chars and use meaningful words individually
+      // Also split on non-alpha chars and use meaningful words individually.
+      // Skip generic words (STOPWORDS) that appear in tag names but don't
+      // signal the tag's actual topic — e.g. "international" in "International
+      // Cuisine" firing on "international students", "hour" in "Happy Hour"
+      // firing on "Summer Soda Hour". The full tag name / phrase supplements
+      // still match; we only drop the ambiguous single-word derivations.
       const words = tag
         .toLowerCase()
         .split(/[\s&,/()]+/)
-        .filter((w) => w.length >= 4);
+        .filter((w) => w.length >= 4 && !STOPWORDS.has(w));
       for (const word of words) {
         add(word, bucket.id, tag);
       }
@@ -290,6 +317,28 @@ function buildKeywordIndex(): KeywordEntry[] {
 
   return entries;
 }
+
+// Generic words that occur inside tag names but carry no topical signal on
+// their own. Excluded from single-word auto-derivation (multi-word supplement
+// phrases that contain them, e.g. "happy hour", are unaffected).
+const STOPWORDS: ReadonlySet<string> = new Set([
+  'events', // in ~a dozen tag names ("Interfaith Events", "LGBTQ+ Events") vs "Special Events Office"
+  'event', // same, singular
+  'international', // "International Cuisine" vs "international students"
+  'hour', // "Happy Hour" vs "Soda Hour", "office hours"
+  'play', // "Role-Playing" vs "play while you hang out"
+  'board', // "Board Games" vs "advisory board", "board meeting"
+  'global', // fires on org names like "Texas Global"
+  'general', // "general meeting", "general body"
+  'meet', // "meet some friends" — too broad
+  'live', // "live" as verb/adverb vs music
+  'social', // over-broad; the 'social' supplement handles the real signal
+  'personal', // "Personal Development" vs "personal items"
+  'development', // "Personal Development" vs "software development", "career development"
+  'group', // "Study Groups" vs any "group"
+  'club', // "Book Clubs" vs any student "club"
+  'academic', // fires on any university event
+]);
 
 const KEYWORD_INDEX: KeywordEntry[] = buildKeywordIndex();
 
@@ -307,7 +356,7 @@ export function classifyEvent(title: string, description: string | null): Classi
   const results = new Map<string, ClassifierMatch>(); // key = `${bucketId}|${tag}`
 
   for (const entry of KEYWORD_INDEX) {
-    if (haystack.includes(entry.keyword)) {
+    if (entry.pattern.test(haystack)) {
       const key = `${entry.bucketId}|${entry.tag}`;
       if (!results.has(key)) {
         results.set(key, { bucketId: entry.bucketId, tag: entry.tag });
