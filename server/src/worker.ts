@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.worker';
 import { eventRoutes } from './routes/events.worker';
+import { feedRoutes } from './routes/feed.worker';
 import { notificationRoutes } from './routes/notifications.worker';
 import { savedRoutes } from './routes/saved.worker';
 import { userRoutes } from './routes/users.worker';
@@ -39,6 +40,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.route('/auth', authRoutes);
 app.route('/users', userRoutes);
 app.route('/events', eventRoutes);
+app.route('/feed', feedRoutes);
 app.route('/notifications', notificationRoutes);
 app.route('/saved', savedRoutes);
 

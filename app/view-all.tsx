@@ -1,7 +1,7 @@
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
+import { events as eventsKeys, feed as feedKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
@@ -13,14 +13,25 @@ type SavedListResponse = { events: ApiEvent[] };
 
 export default function ViewAllScreen() {
   const router = useRouter();
-  const { title, search } = useLocalSearchParams<{ title: string; search: string }>();
+  // Home carousels pass `bucketId` (ranked feed). A legacy `search` param is
+  // still honored for any caller building a raw /events query.
+  const { title, bucketId, search } = useLocalSearchParams<{
+    title: string;
+    bucketId?: string;
+    search?: string;
+  }>();
   const { data } = useOnboarding();
   const token = data.token || null;
   const queryClient = useQueryClient();
 
   const eventsQuery = useQuery({
-    queryKey: eventsKeys.list({ filter: `view-all-${search}` }),
-    queryFn: () => api.get<EventsListResponse>(`/events?${search}&limit=50`, { token }),
+    queryKey: bucketId
+      ? feedKeys.bucket(bucketId)
+      : eventsKeys.list({ filter: `view-all-${search}` }),
+    queryFn: () =>
+      bucketId
+        ? api.get<EventsListResponse>(`/feed/bucket/${bucketId}?limit=50`, { token })
+        : api.get<EventsListResponse>(`/events?${search}&limit=50`, { token }),
     staleTime: 30_000,
   });
 
