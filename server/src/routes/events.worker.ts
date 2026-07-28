@@ -1159,7 +1159,7 @@ eventRoutes.post('/scrape/:name', async (c) => {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const result = await scraper(c.env.DB, body as Record<string, unknown>);
+  const result = await scraper(c.env, body as Record<string, unknown>);
 
   return c.json(result);
 });

@@ -203,7 +203,7 @@ export async function fetchAllEvents(): Promise<WpEvent[]> {
 }
 
 export async function scrapeCockrell(
-  db: D1Database,
+  env: Env,
   options: { dryRun?: boolean } = {},
 ): Promise<ScraperResult> {
   const dryRun = options.dryRun ?? false;
@@ -264,7 +264,7 @@ export async function scrapeCockrell(
   }
 
   if (!dryRun && normalized.length > 0) {
-    const result = await ingestEvents(db, normalized);
+    const result = await ingestEvents(env, normalized);
     eventsUpserted = result.inserted + result.updated;
     errors.push(...result.errors);
   }
@@ -279,5 +279,5 @@ export async function scrapeCockrell(
 
 export async function run(env: Env): Promise<void> {
   console.log('[cockrell] Scraper started');
-  await scrapeCockrell(env.DB);
+  await scrapeCockrell(env);
 }

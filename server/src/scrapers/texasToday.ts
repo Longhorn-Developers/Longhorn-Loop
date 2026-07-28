@@ -241,7 +241,7 @@ export async function run(env: Env): Promise<void> {
 
   console.log(`[texasToday] Parsed ${events.length} event instances`);
 
-  const { inserted, updated, errors } = await ingestEvents(env.DB, events);
+  const { inserted, updated, errors } = await ingestEvents(env, events);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
   console.log(
