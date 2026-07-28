@@ -257,15 +257,6 @@ const VALID_BUCKET_TAGS: ReadonlySet<string> = new Set(
   TAXONOMY_BUCKETS.flatMap((b) => b.tags.map((t) => `${b.id}|${t}`)),
 );
 
-/**
- * Valid (bucketId, tag) pairs from the shared taxonomy. A supplement entry
- * whose pair isn't here is dropped at build time, so a taxonomy rename can
- * never let the classifier write a phantom event_tags row.
- */
-const VALID_BUCKET_TAGS: ReadonlySet<string> = new Set(
-  TAXONOMY_BUCKETS.flatMap((b) => b.tags.map((t) => `${b.id}|${t}`)),
-);
-
 /** Deduplicated master list: supplements first, then auto-derived from tag names */
 function buildKeywordIndex(): KeywordEntry[] {
   const entries: KeywordEntry[] = [];
