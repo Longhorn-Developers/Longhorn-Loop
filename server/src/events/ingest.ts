@@ -174,10 +174,7 @@ async function replaceCategoriesAndBenefits(
 
 // Per-event errors are isolated so one bad row doesn't sink the batch.
 // Takes the whole env (not just db) so tagging can reach bindings beyond D1.
-export async function ingestEvents(
-  env: Env,
-  events: NormalizedEvent[],
-): Promise<IngestResult> {
+export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise<IngestResult> {
   const db = env.DB;
   const result: IngestResult = { inserted: 0, updated: 0, errors: [] };
 
