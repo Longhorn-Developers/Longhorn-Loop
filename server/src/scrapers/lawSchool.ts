@@ -248,7 +248,7 @@ export function parseFeed(icsText: string, now = Date.now()): NormalizedEvent[] 
 }
 
 export async function scrapeLawSchool(
-  db: D1Database,
+  env: Env,
   options: { maxEvents?: number; dryRun?: boolean } = {},
 ): Promise<ScraperResult> {
   const dryRun = options.dryRun ?? false;
@@ -298,7 +298,7 @@ export async function scrapeLawSchool(
       console.log(`[DRY RUN] "${event.title}" (${event.sourceEventId}) — ${event.startDatetime}`);
     }
   } else if (capped.length > 0) {
-    const result = await ingestEvents(db, capped);
+    const result = await ingestEvents(env, capped);
     eventsUpserted = result.inserted + result.updated;
     errors.push(...result.errors);
   }
@@ -313,5 +313,5 @@ export async function scrapeLawSchool(
 
 export async function run(env: Env): Promise<void> {
   console.log('[lawSchool] Scraper started');
-  await scrapeLawSchool(env.DB);
+  await scrapeLawSchool(env);
 }

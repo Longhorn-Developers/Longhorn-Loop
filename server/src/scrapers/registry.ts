@@ -5,7 +5,7 @@
 //   name:    short id used for logs, metrics, AND the manual trigger route slug
 //   run:     the (env) => Promise<void> cron entrypoint
 //   manual:  (optional) scrape function exposed via POST /events/scrape/:name
-//            Accepts the DB + a freeform options bag from the request body.
+//            Accepts env + a freeform options bag from the request body.
 // NOTE: Manual is used for testing and shold not be called in production
 
 import type { Env } from '../worker';
@@ -22,7 +22,7 @@ export interface ScraperEntry {
   name: string;
   run: (env: Env) => Promise<void>;
   /** If provided, the scraper is available via POST /events/scrape/:name */
-  manual?: (db: D1Database, options: Record<string, unknown>) => Promise<unknown>;
+  manual?: (env: Env, options: Record<string, unknown>) => Promise<unknown>;
 }
 
 export const SCRAPERS: ScraperEntry[] = [
