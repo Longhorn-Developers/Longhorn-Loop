@@ -15,6 +15,7 @@ import { run as runCns } from './cns';
 import { run as runHornsLink, scrapeHornsLink } from './hornslink';
 import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
+import { run as runPharmacy } from './pharmacy';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
 
@@ -34,6 +35,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'cns', run: runCns },
+  { name: 'pharmacy', run: runPharmacy },
 ];
 
 /** Lookup a scraper by route slug. */
