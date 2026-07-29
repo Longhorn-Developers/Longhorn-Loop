@@ -14,6 +14,7 @@ import { run as runFineArts, scrapeFineArts } from './finearts';
 import { run as runCns } from './cns';
 import { run as runHornsLink, scrapeHornsLink } from './hornslink';
 import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
+import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
@@ -31,6 +32,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'mccombs', run: runMccombs, manual: scrapeMccombs },
   { name: 'texasGlobal', run: runTexasGlobal, manual: scrapeTexasGlobal },
   { name: 'lawSchool', run: runLawSchool, manual: scrapeLawSchool },
+  { name: 'cola', run: runLiberalArts, manual: scrapeLiberalArts },
   { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'cns', run: runCns },
