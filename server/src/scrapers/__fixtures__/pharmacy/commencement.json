@@ -1,0 +1,49 @@
+{
+  "event": {
+    "id": 49454950427592,
+    "title": "College of Pharmacy Undergraduate, Graduate, & Doctoral Commencement",
+    "description": "<p>The College of Pharmacy holds commencement ceremonies each May to honor our graduates. Attendance at the graduation ceremony is optional.&nbsp; The commencement speaker will be Dr. Cheryl Beal Anderson.</p>",
+    "location": "",
+    "location_name": "Bass Concert Hall, Performing Arts Center (PAC)",
+    "room_number": null,
+    "address": "2350 Robert Dedman Drive, Austin, TX 78712",
+    "url": null,
+    "localist_url": "https://calendar.utexas.edu/event/college-of-pharmacy-undergraduate-commencement",
+    "photo_url": "https://localist-images.azureedge.net/photos/49454961151031/huge/e796b4e1be7d2525ead7c720042f260e7bb9c2fc.jpg",
+    "photo_width": 275,
+    "photo_height": 183,
+    "photo_alt": null,
+    "photo_content_type": "image/jpeg",
+    "departments": [
+      {
+        "id": 47748554254291,
+        "name": "College of Pharmacy"
+      }
+    ],
+    "filters": {
+      "event_target_audience": [
+        { "name": "Students", "id": 24848 },
+        { "name": "Faculty", "id": 24850 },
+        { "name": "Families", "id": 24852 }
+      ],
+      "event_types": [{ "name": "Academics", "id": 24828 }]
+    },
+    "tags": ["ceremonies"],
+    "keywords": [],
+    "geo": {
+      "latitude": "30.285816",
+      "longitude": "-97.73098"
+    },
+    "event_instances": [
+      {
+        "event_instance": {
+          "id": 49454950428617,
+          "event_id": 49454950427592,
+          "start": "2025-05-09T08:00:00-05:00",
+          "end": "2025-05-09T10:00:00-05:00",
+          "all_day": false
+        }
+      }
+    ]
+  }
+}
