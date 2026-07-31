@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "page": {
+      "current-page": 1,
+      "per-page": 15,
+      "total": 2,
+      "last-page": 2
+    }
+  },
+  "links": {
+    "first": "https://webeditor.la.utexas.edu/api/v2/events?filter%5Bdivision%5D=public-affairs&page%5Bnumber%5D=1",
+    "next": "https://webeditor.la.utexas.edu/api/v2/events?filter%5Bdivision%5D=public-affairs&page%5Bnumber%5D=2",
+    "last": "https://webeditor.la.utexas.edu/api/v2/events?filter%5Bdivision%5D=public-affairs&page%5Bnumber%5D=2"
+  },
+  "data": [
+    {
+      "type": "events",
+      "id": "61021",
+      "attributes": {
+        "title": "Opening Lecture with Professor Devin Stauffer,&nbsp;&quot;Reading the Great Books in the Age of AI&quot;",
+        "summary": null,
+        "body_content": "<p>&nbsp;</p><p>This lecture will be followed by a Pizza and Pool party at the Outdoor Rec Pool at Gregory Gym.&nbsp;</p>",
+        "location": "Avaya Auditorium POB 2.302",
+        "date": "Thursday August 27, 2026",
+        "weekday": "Thu",
+        "day": "27",
+        "month": "Aug",
+        "year": "2026",
+        "begin_time": "5:00 PM",
+        "end_time": "9:00 PM",
+        "publish_date": "2026-05-26",
+        "sponsor": "Thomas Jefferson Center for the Study of Core Texts and Ideas",
+        "image": null,
+        "image_caption": "Professor Devin Stauffer at a lectern",
+        "image_path": "event_images/6/61021/opening_lecture.jpg",
+        "full_image_path": "https://minio.la.utexas.edu/colaweb-prod/event_images/6/61021/opening_lecture.jpg",
+        "slug": "opening-lecture-with-professor-devin-stauffer-nbsp-reading-the-great-books-in-the-age-of-ai-2"
+      }
+    },
+    {
+      "type": "events",
+      "id": "61023",
+      "attributes": {
+        "title": "Talk:&nbsp;Alexandra Clark",
+        "summary": null,
+        "body_content": null,
+        "location": null,
+        "date": "Friday August 28, 2026",
+        "weekday": "Fri",
+        "day": "28",
+        "month": "Aug",
+        "year": "2026",
+        "begin_time": "12:00 PM",
+        "end_time": "1:00 PM",
+        "publish_date": null,
+        "sponsor": null,
+        "image": null,
+        "image_caption": null,
+        "image_path": null,
+        "full_image_path": "https://minio.la.utexas.edu/colaweb-prod/",
+        "slug": "opa-talk-nbsp-alexandra-clark"
+      }
+    }
+  ]
+}
