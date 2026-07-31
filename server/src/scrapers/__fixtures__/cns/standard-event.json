@@ -1,0 +1,56 @@
+{
+  "event": {
+    "id": 52878283067327,
+    "title": "Texas Area Planetary Sciences Conference",
+    "description": "<p>Supported by the Heising-Simons Foundation, the Texas Area Planetary Science (TAPS) conference brings together students, scientists, and researchers.</p>\r\n",
+    "location": "Commons Conference Center",
+    "room": "",
+    "address": "2901 Read Granberry Trail Austin, TX 78758 ",
+    "url": "https://cvent.utexas.edu/event/taps-2026/home",
+    "localist_url": "https://calendar.utexas.edu/event/texas-area-planetary-sciences-conference",
+    "photo_url": "https://localist-images.azureedge.net/photos/52878283172806/huge/95a931360422d4c5a1062fa299a7315ef9e06e69.jpg",
+    "photo_width": 1200,
+    "photo_height": 628,
+    "photo_alt": null,
+    "photo_content_type": "image/jpeg",
+    "departments": [
+      {
+        "id": 47748555362368,
+        "name": "College of Natural Sciences",
+        "url": "",
+        "localist_url": "",
+        "hashtag": ""
+      },
+      {
+        "id": 47756007780567,
+        "name": "Department of Earth and Planetary Sciences",
+        "url": "",
+        "localist_url": "",
+        "hashtag": ""
+      },
+      {
+        "id": 47748533699612,
+        "name": "Jackson School of Geosciences",
+        "url": "",
+        "localist_url": "",
+        "hashtag": ""
+      }
+    ],
+    "filters": {
+      "event_types": [{ "name": "Science & Technology", "id": 24835 }]
+    },
+    "tags": ["planetary science"],
+    "keywords": [],
+    "event_instances": [
+      {
+        "event_instance": {
+          "id": 52878283067328,
+          "event_id": 52878283067327,
+          "start": "2026-08-20T08:00:00-05:00",
+          "end": null,
+          "all_day": false
+        }
+      }
+    ]
+  }
+}

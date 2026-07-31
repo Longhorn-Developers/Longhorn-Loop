@@ -138,7 +138,7 @@ function toNormalizedEvent(raw: HornsLinkEvent): NormalizedEvent {
 // Main scraper
 
 export async function scrapeHornsLink(
-  db: D1Database,
+  env: Env,
   options?: { maxPages?: number; dryRun?: boolean; timeBudgetMs?: number },
 ): Promise<ScraperResult> {
   const startTime = Date.now();
@@ -202,7 +202,7 @@ export async function scrapeHornsLink(
         }
       } else {
         const normalized = inWindow.map(toNormalizedEvent);
-        const ingested = await ingestEvents(db, normalized);
+        const ingested = await ingestEvents(env, normalized);
         result.eventsInserted += ingested.inserted;
         result.eventsUpdated += ingested.updated;
         result.errors.push(...ingested.errors);
@@ -231,7 +231,7 @@ export async function scrapeHornsLink(
 // Cron entrypoint. Larger page budget than the manual scrape route.
 export async function run(env: Env): Promise<void> {
   console.log('[HornsLink] Cron scrape started');
-  const result = await scrapeHornsLink(env.DB, { maxPages: CRON_MAX_PAGES });
+  const result = await scrapeHornsLink(env, { maxPages: CRON_MAX_PAGES });
   if (result.errors.length > 0) {
     console.error(
       `[HornsLink] Cron run had ${result.errors.length} event-level error(s):`,

@@ -2,8 +2,8 @@
 import { Hono } from 'hono';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
-import { scrapeHornsLink } from '../scrapers/hornslink';
-import { scrapeMccombs } from '../scrapers/mccombs';
+import { getAuthUser, getUserId } from '../lib/utils';
+import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
 
 export const eventRoutes = new Hono<{ Bindings: Env }>();
@@ -76,40 +76,6 @@ type ImageFields = {
   imageMimeType: string | null;
   imageAltText: string | null;
 };
-
-// JWT verification (mirrors the pattern used in saved.worker.ts).
-async function getAuthUser(
-  authHeader: string | undefined,
-  secret: string,
-): Promise<{ email: string } | null> {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split('.');
-    const encoder = new TextEncoder();
-    const signingInput = `${headerB64}.${payloadB64}`;
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    );
-    const sigBytes = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(signingInput));
-    if (!valid) return null;
-    const payload = JSON.parse(atob(payloadB64));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return { email: payload.email };
-  } catch {
-    return null;
-  }
-}
-
-async function getUserId(db: D1Database, email: string): Promise<number | null> {
-  const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-  return row ? (row.id as number) : null;
-}
 
 async function getUserByEmail(db: D1Database, email: string): Promise<AuthDbUser | null> {
   const row = await db
@@ -864,6 +830,7 @@ eventRoutes.get('/', async (c) => {
   const benefit = c.req.query('benefit');
   const theme = c.req.query('theme');
   const orgId = c.req.query('orgId');
+  const source = c.req.query('source');
 
   // If the caller is signed in, also hide events they've already reported.
   // Anonymous callers only get the global threshold filter.
@@ -890,6 +857,11 @@ eventRoutes.get('/', async (c) => {
   if (orgId) {
     query += ` AND e.host_organization_id = ?`;
     params.push(parseInt(orgId));
+  }
+
+  if (source) {
+    query += ` AND e.source = ?`;
+    params.push(source);
   }
 
   if (category) {
@@ -995,6 +967,14 @@ eventRoutes.get('/:id', async (c) => {
     .bind(id)
     .all();
 
+  // Classifier-assigned tags (Phase 2). Distinct tag names, shown as chips in
+  // the app in place of the raw scraped categories.
+  const tagRows = await c.env.DB.prepare(
+    'SELECT DISTINCT tag FROM event_tags WHERE event_id = ? ORDER BY tag',
+  )
+    .bind(id)
+    .all();
+
   const isRsvped = userId
     ? !!(await c.env.DB.prepare('SELECT 1 FROM event_rsvps WHERE user_id = ? AND event_id = ?')
         .bind(userId, id)
@@ -1008,6 +988,7 @@ eventRoutes.get('/:id', async (c) => {
       name: c.category_name,
     })),
     benefits: benefits.results.map((b: any) => b.benefit_name),
+    tags: tagRows.results.map((t: any) => t.tag as string),
     is_rsvped: isRsvped,
   });
 });
@@ -1030,9 +1011,19 @@ eventRoutes.post('/:id/rsvp', async (c) => {
     .first();
   if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
 
-  await c.env.DB.prepare(`INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`)
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Bump the denormalized counter only when this RSVP is new (deduped per
+  // user), so re-POSTing the same RSVP doesn't inflate rsvp_count.
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
@@ -1050,9 +1041,53 @@ eventRoutes.delete('/:id/rsvp', async (c) => {
     return c.json({ error: 'INVALID_EVENT_ID' }, 400);
   }
 
-  await c.env.DB.prepare(`DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`)
+  const deleted = await c.env.DB.prepare(
+    `DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Only decrement when a row was actually removed, so a repeat DELETE can't
+  // drive rsvp_count negative.
+  if (deleted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count - 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
+
+  return c.json({ ok: true });
+});
+
+// POST /events/:id/view -- auth-gated, idempotent view signal. Deduped per
+// user (one row per user/event), so view_count tracks distinct viewers.
+eventRoutes.post('/:id/view', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_views (user_id, event_id) VALUES (?, ?)`,
+  )
+    .bind(userId, eventId)
+    .run();
+
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET view_count = view_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
@@ -1113,24 +1148,18 @@ eventRoutes.post('/:id/report', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /events/scrape -- manually trigger a scrape (for testing)
-eventRoutes.post('/scrape', async (c) => {
+// POST /events/scrape/:name -- manually trigger any registered scraper (for testing)
+eventRoutes.post('/scrape/:name', async (c) => {
+  const scraperName = c.req.param('name');
+  const scraper = getManualScraper(scraperName);
+
+  if (!scraper) {
+    const available = SCRAPERS.filter((s) => s.manual).map((s) => s.name);
+    return c.json({ error: 'UNKNOWN_SCRAPER', available }, 404);
+  }
+
   const body = await c.req.json().catch(() => ({}));
-  const maxPages = (body as any).maxPages ?? 3;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeHornsLink(c.env.DB, { maxPages, dryRun });
-
-  return c.json(result);
-});
-
-// POST /events/scrape/mccombs -- manually trigger the McCombs scrape (for testing)
-eventRoutes.post('/scrape/mccombs', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const maxEvents = (body as any).maxEvents ?? 500;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeMccombs(c.env.DB, { maxEvents, dryRun });
+  const result = await scraper(c.env, body as Record<string, unknown>);
 
   return c.json(result);
 });

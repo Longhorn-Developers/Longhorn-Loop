@@ -3,7 +3,7 @@ import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
-import { events as eventsKeys, explore as exploreKeys } from '@/app/lib/queryKeys';
+import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -146,7 +146,7 @@ export default function OptionalExtras() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: eventsKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: exploreKeys.all }),
+        queryClient.invalidateQueries({ queryKey: feedKeys.all }),
       ]);
       reset();
       router.replace('/(tabs)/home?justPostedEvent=1');

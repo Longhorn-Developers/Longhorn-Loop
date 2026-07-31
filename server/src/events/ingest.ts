@@ -1,6 +1,7 @@
 // Writes NormalizedEvent[] into D1. Only place that knows the schema.
 
 import type { IngestResult, NormalizedEvent } from './types';
+import type { Env } from '../worker';
 import { classifyEvent, writeEventTags } from '../lib/classifier';
 
 // LOOP-150 retention window. Purge job uses expires_at.
@@ -172,10 +173,9 @@ async function replaceCategoriesAndBenefits(
 }
 
 // Per-event errors are isolated so one bad row doesn't sink the batch.
-export async function ingestEvents(
-  db: D1Database,
-  events: NormalizedEvent[],
-): Promise<IngestResult> {
+// Takes the whole env (not just db) so tagging can reach bindings beyond D1.
+export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise<IngestResult> {
+  const db = env.DB;
   const result: IngestResult = { inserted: 0, updated: 0, errors: [] };
 
   for (const event of events) {

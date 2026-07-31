@@ -27,8 +27,13 @@ export interface ApiEvent {
   theme: string | null;
   visibility: string;
   rsvp_total: number;
+  save_count: number;
+  rsvp_count: number;
+  view_count: number;
   org_profile_picture: string | null;
   categories: { id: string; name: string }[];
+  // Classifier-assigned taxonomy tags (Phase 2). Rendered as chips.
+  tags: string[];
   benefits: string[];
   expires_at: string | null;
   is_featured: number;

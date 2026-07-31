@@ -1,43 +1,9 @@
 // User routes for Cloudflare Worker + D1
 import { Hono } from 'hono';
+import { getAuthUser } from '../lib/utils';
 import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
-
-// Middleware to extract user from JWT
-async function getAuthUser(
-  authHeader: string | undefined,
-  secret: string,
-): Promise<{ email: string } | null> {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-
-  const token = authHeader.split(' ')[1];
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split('.');
-    const encoder = new TextEncoder();
-    const signingInput = `${headerB64}.${payloadB64}`;
-
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    );
-
-    const sigBytes = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(signingInput));
-
-    if (!valid) return null;
-
-    const payload = JSON.parse(atob(payloadB64));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
-
-    return { email: payload.email };
-  } catch {
-    return null;
-  }
-}
 
 // POST /users/me/agreements
 userRoutes.post('/me/agreements', async (c) => {

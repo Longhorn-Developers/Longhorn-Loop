@@ -16,6 +16,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
+import { recordView } from '@/app/lib/signals';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -275,6 +276,13 @@ export default function EventDetailScreen() {
     }
   }, [event?.is_rsvped]);
 
+  // Record a view once the event resolves. Deduped per user server-side
+  useEffect(() => {
+    if (event?.id) {
+      recordView(event.id, token);
+    }
+  }, [event?.id, token]);
+
   // Map the query state to the existing loading / error / event UI.
   const loading = eventQuery.isPending;
   const error = eventQuery.isError
@@ -348,10 +356,9 @@ export default function EventDetailScreen() {
   }
 
   const hasRsvpLink = !!event.rsvp_url;
-  const chips = [
-    ...(event.benefits ?? []),
-    ...(event.categories?.map((c) => c.name).filter(Boolean) ?? []),
-  ];
+  // Chips are our own benefits + classifier-assigned taxonomy tags — not the
+  // raw scraped categories (which surfaced generic labels like "Social").
+  const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>

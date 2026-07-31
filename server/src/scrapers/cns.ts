@@ -1,6 +1,14 @@
-// Texas Today scraper: calendar.utexas.edu (Localist JSON API).
+// College of Natural Sciences scraper: calendar.utexas.edu (Localist JSON
+// API), scoped to the CNS department via group_id.
+//
+// Same underlying platform as Texas Today (texasToday.ts) — Localist lets
+// us filter its /api/2/events feed to a single department's events with
+// ?group_id=. CNS-tagged events are far sparser than the campus-wide feed,
+// so we look 365 days ahead instead of 30 to still find a reasonable
+// number of them.
+//
 // Dedup key: instance_id, not event_id, so recurring events get one row
-// per occurrence.
+// per occurrence (same reasoning as Texas Today).
 
 import { ingestEvents } from '../events/ingest';
 import { classifyAspectRatio, stripHtml } from '../events/normalize';
@@ -10,11 +18,15 @@ import type { Env } from '../worker';
 
 const BASE_URL = 'https://calendar.utexas.edu';
 const API_BASE = `${BASE_URL}/api/2/events`;
+// College of Natural Sciences group id, confirmed against
+// https://calendar.utexas.edu/department/college-of-natural-sciences
+const GROUP_ID = 47748555362368;
 const PER_PAGE = 100;
-const DAYS_AHEAD = 30;
-export const SOURCE = 'texas_today';
+const DAYS_AHEAD = 365;
+export const SOURCE = 'cns';
+const DEFAULT_ORG_NAME = 'College of Natural Sciences';
 
-// Localist API types
+// Localist API types (same shape as Texas Today's feed)
 
 interface LocalistEventInstance {
   event_instance: {
@@ -102,14 +114,15 @@ export function parseEventInstance(
   const inst = instance.event_instance;
 
   if (!inst.start) {
-    console.warn(`[texasToday] Event ${e.id} instance ${inst.id} missing start time — skipping`);
+    console.warn(`[cns] Event ${e.id} instance ${inst.id} missing start time — skipping`);
     return null;
   }
 
-  // First department is what the event submitter chose in the Localist UI.
-  // Usually the school or office that owns the event (e.g. "McCombs School
-  // of Business"). We only take the first; extras are rare on this feed.
-  const dept = e.departments?.[0] ?? null;
+  // Prefer the CNS department entry itself when present (the event may be
+  // co-tagged with a more specific sub-department first); otherwise fall
+  // back to whichever department Localist lists first.
+  const dept =
+    e.departments?.find((d) => d.name === DEFAULT_ORG_NAME) ?? e.departments?.[0] ?? null;
 
   // Categories combine free-form tags with the event_type filter labels.
   const seen = new Set<string>();
@@ -140,7 +153,6 @@ export function parseEventInstance(
     startDatetime: inst.start,
     endDatetime: inst.end ?? null,
     // Fall back to the street address when Localist has no named venue.
-    // Research studies and off-campus events often lack e.location.
     locationShort: buildLocationShort(e.location || e.address),
     locationFull: buildLocationFull(e.location, e.address),
     latitude: null,
@@ -148,7 +160,7 @@ export function parseEventInstance(
     organization: {
       // Departments have no numeric id, so ingest skips the org row.
       sourceOrgId: null,
-      name: dept?.name ?? 'The University of Texas at Austin',
+      name: dept?.name ?? DEFAULT_ORG_NAME,
       profilePicture: null,
     },
     eventUrl: e.localist_url || e.url,
@@ -172,7 +184,7 @@ export function parseEventInstance(
 export function parseEvent(raw: LocalistRawEvent, now = Date.now()): NormalizedEvent[] {
   const instances = raw.event?.event_instances ?? [];
   if (instances.length === 0) {
-    console.warn(`[texasToday] Event ${raw.event?.id} has no instances — skipping`);
+    console.warn(`[cns] Event ${raw.event?.id} has no instances — skipping`);
     return [];
   }
 
@@ -186,7 +198,7 @@ export function parseEvent(raw: LocalistRawEvent, now = Date.now()): NormalizedE
       if (parsed) results.push(parsed);
     } catch (err) {
       console.error(
-        `[texasToday] Failed to parse instance ${inst.event_instance.id} of event ${raw.event?.id}: ${err}`,
+        `[cns] Failed to parse instance ${inst.event_instance.id} of event ${raw.event?.id}: ${err}`,
       );
     }
   }
@@ -194,7 +206,7 @@ export function parseEvent(raw: LocalistRawEvent, now = Date.now()): NormalizedE
 }
 
 async function fetchPage(page: number): Promise<LocalistApiResponse> {
-  const url = `${API_BASE}?days=${DAYS_AHEAD}&per_page=${PER_PAGE}&page=${page}`;
+  const url = `${API_BASE}?group_id=${GROUP_ID}&days=${DAYS_AHEAD}&per_page=${PER_PAGE}&page=${page}`;
   const res = await fetchWithRetry(url);
   return res.json() as Promise<LocalistApiResponse>;
 }
@@ -206,7 +218,7 @@ export async function fetchAllEvents(): Promise<NormalizedEvent[]> {
   const now = Date.now();
 
   do {
-    console.log(`[texasToday] Fetching page ${page}/${totalPages}...`);
+    console.log(`[cns] Fetching page ${page}/${totalPages}...`);
     const data = await fetchPage(page);
 
     // Localist quirk: page.total is total number of pages, not events.
@@ -216,7 +228,7 @@ export async function fetchAllEvents(): Promise<NormalizedEvent[]> {
       try {
         parsed.push(...parseEvent(rawEvent, now));
       } catch (err) {
-        console.error(`[texasToday] Unhandled parse error for event ${rawEvent.event?.id}: ${err}`);
+        console.error(`[cns] Unhandled parse error for event ${rawEvent.event?.id}: ${err}`);
       }
     }
 
@@ -228,23 +240,23 @@ export async function fetchAllEvents(): Promise<NormalizedEvent[]> {
 
 // Cron entrypoint.
 export async function run(env: Env): Promise<void> {
-  console.log('[texasToday] Scraper started');
+  console.log('[cns] Scraper started');
   const t0 = Date.now();
 
   let events: NormalizedEvent[];
   try {
     events = await fetchAllEvents();
   } catch (err) {
-    console.error(`[texasToday] Fatal fetch error — aborting run: ${err}`);
+    console.error(`[cns] Fatal fetch error — aborting run: ${err}`);
     return;
   }
 
-  console.log(`[texasToday] Parsed ${events.length} event instances`);
+  console.log(`[cns] Parsed ${events.length} event instances`);
 
   const { inserted, updated, errors } = await ingestEvents(env, events);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
   console.log(
-    `[texasToday] Finished in ${elapsed}s — ${inserted} inserted, ${updated} updated, ${errors.length} errors`,
+    `[cns] Finished in ${elapsed}s — ${inserted} inserted, ${updated} updated, ${errors.length} errors`,
   );
 }
