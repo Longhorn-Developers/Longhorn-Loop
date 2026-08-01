@@ -67,6 +67,10 @@ export default function RootLayout() {
           <Stack.Screen name="profile/edit" />
           <Stack.Screen name="profile/past" />
 
+          {/* Org Management console */}
+          <Stack.Screen name="org/[id]/index" />
+          <Stack.Screen name="org/[id]/notifications" />
+
           {/* Event detail + nested screens */}
           <Stack.Screen name="event/[id]/index" />
           <Stack.Screen name="event/[id]/report" />

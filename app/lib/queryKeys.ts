@@ -31,6 +31,19 @@ export const user = {
   pastEvents: () => [...user.all, 'past-events'] as const,
 };
 
+// Org Management console (/orgs/*). `mine` backs the Manage Organizations
+// list on Settings; the rest are per-org console tabs.
+export const org = {
+  all: ['org'] as const,
+  mine: () => [...org.all, 'mine'] as const,
+  detail: (id: number | string) => [...org.all, 'detail', String(id)] as const,
+  members: (id: number | string) => [...org.all, 'members', String(id)] as const,
+  analytics: (id: number | string, eventFilter = 'all') =>
+    [...org.all, 'analytics', String(id), eventFilter] as const,
+  notificationSettings: (id: number | string) =>
+    [...org.all, 'notification-settings', String(id)] as const,
+};
+
 // Phase 3 personalized feed endpoints (/feed/*).
 export const feed = {
   all: ['feed'] as const,

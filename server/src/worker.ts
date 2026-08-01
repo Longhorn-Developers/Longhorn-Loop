@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.worker';
 import { eventRoutes } from './routes/events.worker';
 import { feedRoutes } from './routes/feed.worker';
 import { notificationRoutes } from './routes/notifications.worker';
+import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
 import { userRoutes } from './routes/users.worker';
 import { SCRAPERS } from './scrapers/registry';
@@ -43,6 +44,7 @@ app.route('/events', eventRoutes);
 app.route('/feed', feedRoutes);
 app.route('/notifications', notificationRoutes);
 app.route('/saved', savedRoutes);
+app.route('/orgs', orgRoutes);
 
 // Cron schedules, configured in wrangler.toml under [triggers]. The
 // scheduled() handler below dispatches on event.cron since the two jobs
