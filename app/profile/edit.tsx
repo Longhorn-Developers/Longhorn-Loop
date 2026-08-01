@@ -74,7 +74,7 @@ export default function EditProfileScreen() {
   const token = onboarding.token || null;
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: userKeys.me(),
     queryFn: () => api.get<MeResponse>('/users/me', { token }),
     enabled: !!token,
@@ -224,6 +224,29 @@ export default function EditProfileScreen() {
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator color="#BD5500" />
+          </View>
+        ) : isError ? (
+          // Without this the form renders blank with Save disabled (nothing
+          // differs from the profile that never loaded), which reads as a
+          // broken screen rather than a failed request.
+          <View className="flex-1 items-center justify-center px-[30px]">
+            <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
+              Couldn’t load your profile
+            </Text>
+            <Text className="font-['Roboto-Flex'] mt-[6px] text-center text-[12px] text-lhlSecondaryTextGrey">
+              Editing is disabled until it loads, so you can’t overwrite your details with a blank
+              form.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              onPress={() => refetch()}
+              className="mt-[18px] rounded-full bg-lhlBurntOrange px-[22px] py-[9px]"
+            >
+              <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-white">
+                Try again
+              </Text>
+            </Pressable>
           </View>
         ) : (
           <ScrollView

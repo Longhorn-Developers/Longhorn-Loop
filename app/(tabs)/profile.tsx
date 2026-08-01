@@ -10,7 +10,7 @@
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
-import { api } from '@/app/lib/api';
+import { ApiError, api } from '@/app/lib/api';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import { useQuery } from '@tanstack/react-query';
@@ -39,7 +39,7 @@ export default function ProfileScreen() {
 
   const openLink = useOpenLinkGuard();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: userKeys.me(),
     queryFn: () => api.get<MeResponse>('/users/me', { token }),
     enabled: !!token,
@@ -54,6 +54,42 @@ export default function ProfileScreen() {
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to see your profile.
         </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // A failed fetch must not render as an empty-looking profile. Without this
+  // the screen degrades into "Your profile" with no name, bio, socials or
+  // interests — indistinguishable from a genuinely empty account, which sends
+  // you looking for a bug in the wrong place.
+  if (isError) {
+    const status = error instanceof ApiError ? error.status : null;
+    return (
+      <SafeAreaView
+        className="flex-1 items-center justify-center px-[30px]"
+        style={{ backgroundColor: BG }}
+      >
+        <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
+          Couldn’t load your profile
+        </Text>
+        <Text className="font-['Roboto-Flex'] mt-[6px] text-center text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
+          {status === 401
+            ? 'Your session expired. Sign in again.'
+            : status === 404
+              ? 'We couldn’t find your account.'
+              : `Something went wrong${status ? ` (HTTP ${status})` : ''}.`}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Try again"
+          disabled={isRefetching}
+          onPress={() => refetch()}
+          className="mt-[18px] rounded-full bg-lhlBurntOrange px-[22px] py-[9px]"
+        >
+          <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-white">
+            {isRefetching ? 'Retrying…' : 'Try again'}
+          </Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
