@@ -24,6 +24,23 @@ export const userRoutes = new Hono<{ Bindings: Env }>();
 const MAX_BIO = 150;
 
 /**
+ * users.unique_classification is written by the onboarding upsert as a JSON
+ * string (e.g. '["International"]'). Return it as an array so clients don't
+ * each have to parse it, and tolerate a bare string or NULL rather than
+ * throwing on data that predates the JSON encoding.
+ */
+function parseUniqueClassification(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String);
+    return [String(parsed)];
+  } catch {
+    return [value];
+  }
+}
+
+/**
  * The "N followers · N following" line on the profile header.
  *
  * `following` deliberately counts BOTH users and orgs. To someone reading
@@ -197,6 +214,10 @@ userRoutes.get('/me', async (c) => {
   return c.json({
     user: {
       ...dbUser,
+      // Stored as a JSON string by the onboarding upsert. Parse it here so
+      // every consumer doesn't have to — and so a legacy plain-string value
+      // still comes back as an array rather than exploding.
+      unique_classification: parseUniqueClassification(dbUser.unique_classification),
       majors: majors.results.map((r) => r.major),
       tags: tags.results.map((r) => r.tag),
       socials: socials.results,
@@ -220,10 +241,16 @@ userRoutes.patch('/me/profile', async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== 'object') return c.json({ error: 'INVALID_BODY' }, 400);
 
-  const { first_name, last_name, avatar, year_classification, bio, majors, tags } = body as Record<
-    string,
-    unknown
-  >;
+  const {
+    first_name,
+    last_name,
+    avatar,
+    year_classification,
+    unique_classification,
+    bio,
+    majors,
+    tags,
+  } = body as Record<string, unknown>;
 
   // Figma shows a red asterisk on the name field when it's empty or too long.
   // Enforce the same rule here so a crafted request can't bypass it.
@@ -268,6 +295,14 @@ userRoutes.patch('/me/profile', async (c) => {
   if (bio !== undefined) {
     sets.push('bio = ?');
     binds.push(bio === null ? null : (bio as string).trim());
+  }
+  if (unique_classification !== undefined) {
+    if (!Array.isArray(unique_classification)) {
+      return c.json({ error: 'INVALID_UNIQUE_CLASSIFICATION' }, 400);
+    }
+    // Stored JSON-encoded, matching the onboarding upsert's format.
+    sets.push('unique_classification = ?');
+    binds.push(JSON.stringify(unique_classification.map(String)));
   }
 
   if (sets.length > 0) {

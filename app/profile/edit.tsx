@@ -58,6 +58,8 @@ const BG = '#F9F8F5';
 const BORDER = 'rgba(0,0,0,0.20)';
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
+/** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
+const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
 /** The frame's counter reads "44 / 150". */
 const MAX_BIO = 150;
 const MAX_NAME = 50;
@@ -68,6 +70,7 @@ interface MeResponse {
     first_name: string;
     last_name: string;
     year_classification: string | null;
+    unique_classification: string[];
     bio: string | null;
     avatar: number | null;
     majors: string[];
@@ -110,6 +113,7 @@ export default function EditProfileScreen() {
   const [year, setYear] = useState('');
   const [bio, setBio] = useState('');
   const [majors, setMajors] = useState<string[]>([]);
+  const [uniqueClass, setUniqueClass] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [isEditingInterests, setIsEditingInterests] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
@@ -133,6 +137,7 @@ export default function EditProfileScreen() {
     setYear(loaded.year_classification ?? '');
     setBio(loaded.bio ?? '');
     setMajors(loaded.majors ?? []);
+    setUniqueClass(loaded.unique_classification ?? []);
     setTags(loaded.tags ?? []);
   }, [loaded]);
 
@@ -155,9 +160,10 @@ export default function EditProfileScreen() {
       year !== (loaded.year_classification ?? '') ||
       bio.trim() !== (loaded.bio ?? '') ||
       !sameSet(majors, loaded.majors ?? []) ||
+      !sameSet(uniqueClass, loaded.unique_classification ?? []) ||
       !sameSet(tags, loaded.tags ?? [])
     );
-  }, [loaded, firstName, lastName, year, bio, majors, tags]);
+  }, [loaded, firstName, lastName, year, bio, majors, uniqueClass, tags]);
 
   // --- Mutations -----------------------------------------------------------
   const saveProfile = useMutation({
@@ -170,6 +176,7 @@ export default function EditProfileScreen() {
           year_classification: year || null,
           bio: bio.trim() || null,
           majors,
+          unique_classification: uniqueClass,
           tags,
         },
       }),
@@ -465,6 +472,44 @@ export default function EditProfileScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected }}
                       onPress={() => setYear(isSelected ? '' : option)}
+                      className={`rounded-full border px-[14px] py-[7px] ${
+                        isSelected
+                          ? 'border-lhlBurntOrange bg-lhlBurntOrange'
+                          : 'border-lhlMutedBorder bg-white'
+                      }`}
+                    >
+                      <Text
+                        className={`font-['Roboto-Flex'] text-[12px] font-medium ${
+                          isSelected ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                        }`}
+                      >
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Unique Classification — onboarding collects this and nothing
+                could change it afterwards, so it was write-once. */}
+            <View className="mt-[18px]">
+              <FieldLabel>Unique Classification</FieldLabel>
+              <View className="flex-row flex-wrap gap-[8px]">
+                {UNIQUE_CLASS_OPTIONS.map((option) => {
+                  const isSelected = uniqueClass.includes(option);
+                  return (
+                    <Pressable
+                      key={option}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      onPress={() =>
+                        setUniqueClass((prev) =>
+                          prev.includes(option)
+                            ? prev.filter((v) => v !== option)
+                            : [...prev, option],
+                        )
+                      }
                       className={`rounded-full border px-[14px] py-[7px] ${
                         isSelected
                           ? 'border-lhlBurntOrange bg-lhlBurntOrange'

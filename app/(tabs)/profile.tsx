@@ -15,6 +15,7 @@
 // nothing here is written to take a target user id.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
+import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
@@ -32,7 +33,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BG = '#F9F8F5';
@@ -43,7 +44,10 @@ interface MeResponse {
     first_name: string;
     last_name: string;
     year_classification: string | null;
+    unique_classification: string[];
     bio: string | null;
+    avatar: number | null;
+    majors: string[];
     tags: string[];
     socials: LinkedSocial[];
     follower_count: number;
@@ -108,6 +112,7 @@ export default function ProfileScreen() {
 
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
+  const avatarSource = getAvatarSource(profile?.avatar);
   const counts = eventsQuery.data?.counts;
   const activeTab = TABS.find((t) => t.key === tab)!;
 
@@ -202,7 +207,11 @@ export default function ProfileScreen() {
 
           {/* --- Header --- */}
           <View className="items-center px-[20px]">
-            <View className="h-[92px] w-[92px] rounded-full bg-lhlPlaceholderGrey" />
+            <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
+              {avatarSource ? (
+                <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
+              ) : null}
+            </View>
 
             <Text
               numberOfLines={1}
@@ -258,12 +267,43 @@ export default function ProfileScreen() {
             ) : null}
           </View>
 
-          {/* --- Details and Interests --- */}
+          {/* --- Details and Interests ---
+              "Details" is everything onboarding collected that had nowhere to
+              surface: majors, classification, unique classification. Without
+              this the app asks for them at signup and then never shows them
+              back, which reads as the answers having been thrown away. */}
           <View className="mt-[20px] px-[20px]">
             <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
               Details and Interests
             </Text>
+
             <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
+              {/* Details read as filled chips so they're distinguishable from
+                  the outlined interest chips at a glance. */}
+              {profile?.year_classification ? (
+                <View className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
+                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
+                    {profile.year_classification}
+                  </Text>
+                </View>
+              ) : null}
+
+              {(profile?.unique_classification ?? []).map((label) => (
+                <View key={label} className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
+                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
+                    {label}
+                  </Text>
+                </View>
+              ))}
+
+              {(profile?.majors ?? []).map((major) => (
+                <View key={major} className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
+                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
+                    {major}
+                  </Text>
+                </View>
+              ))}
+
               {(profile?.tags ?? []).map((tag) => (
                 <View
                   key={tag}
