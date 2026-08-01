@@ -6,7 +6,8 @@
 //   centred avatar, name, "N followers · N following"
 //   Edit Profile pill + linked-social icon row
 //   bio
-//   Details and Interests — tag chips + "+" into Edit Profile
+//   metadata rows — icon + values, one per category (academic, background)
+//   Interests — tag chips + "+" into Edit Profile
 //   My Events — Going / Saved / Posted segmented control with counts,
 //               search field, category chips, date sort, two-column grid
 //
@@ -17,6 +18,8 @@
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
+import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
+import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
@@ -32,7 +35,7 @@ import {
 } from '@/shared/profileEventFilters';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -114,19 +117,6 @@ export default function ProfileScreen() {
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
   const avatarSource = getAvatarSource(profile?.avatar);
 
-  /**
-   * "Sophomore · Aerospace Engineering" under the name.
-   *
-   * Majors beyond the second collapse into "+N" rather than wrapping — three
-   * long majors would push the followers line off the header, and the full
-   * list is still visible on Edit Profile.
-   */
-  const academicLine = useMemo(() => {
-    const majors = profile?.majors ?? [];
-    const shown = majors.slice(0, 2).join(' · ');
-    const extra = majors.length > 2 ? ` +${majors.length - 2}` : '';
-    return [profile?.year_classification, shown ? shown + extra : null].filter(Boolean).join(' · ');
-  }, [profile?.year_classification, profile?.majors]);
   const counts = eventsQuery.data?.counts;
   const activeTab = TABS.find((t) => t.key === tab)!;
 
@@ -234,18 +224,6 @@ export default function ProfileScreen() {
               {fullName || 'Your profile'}
             </Text>
 
-            {/* Academic identity as a subtitle rather than grey chips — it's
-                who someone is, not a tag, and it reads far better directly
-                under the name. Omitted entirely when we know neither. */}
-            {academicLine ? (
-              <Text
-                numberOfLines={1}
-                className="font-['Roboto-Flex'] mt-[2px] text-[13px] text-lhlSecondaryTextGrey"
-              >
-                {academicLine}
-              </Text>
-            ) : null}
-
             <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
               <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
               followers ·{' '}
@@ -293,26 +271,32 @@ export default function ProfileScreen() {
             ) : null}
           </View>
 
-          {/* --- Details and Interests ---
-              Year and majors moved up into the header subtitle, where they
-              read as identity rather than as tags. What's left is the genuinely
-              tag-like: unique classification, then interests. */}
-          <View className="mt-[20px] px-[20px]">
+          {/* --- Metadata ---
+              One muted icon+value row per category, the pattern X and LinkedIn
+              use under a bio. Replaces a "Details and Interests" heading over a
+              row of grey chips: the icon carries the category so no label is
+              needed, and it scales to however many values exist. Left-aligned
+              because multi-item rows centre badly. */}
+          <View className="mt-[14px] px-[20px]">
+            <ProfileMetaRow
+              icon={<GraduationCapIcon />}
+              label="Academic"
+              values={[profile?.year_classification, ...(profile?.majors ?? [])]}
+            />
+            <ProfileMetaRow
+              icon={<GlobeIcon />}
+              label="Background"
+              values={profile?.unique_classification ?? []}
+            />
+          </View>
+
+          {/* --- Interests --- */}
+          <View className="mt-[18px] px-[20px]">
             <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-              Details and Interests
+              Interests
             </Text>
 
             <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
-              {/* Filled, so a badge-like detail stays distinguishable from the
-                  outlined interest chips at a glance. */}
-              {(profile?.unique_classification ?? []).map((label) => (
-                <View key={label} className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
-                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
-                    {label}
-                  </Text>
-                </View>
-              ))}
-
               {(profile?.tags ?? []).map((tag) => (
                 <View
                   key={tag}
