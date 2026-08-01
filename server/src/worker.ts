@@ -30,7 +30,11 @@ app.use(
   '*',
   cors({
     origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    // PATCH must be listed or the browser's preflight blocks every partial
+    // update — Edit Profile save, the avatar, the Settings toggles, org role
+    // swaps and org notification settings are all PATCH, and all failed with
+    // an opaque "Failed to fetch" on web until this was added.
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
