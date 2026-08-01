@@ -32,7 +32,7 @@ import {
 } from '@/shared/profileEventFilters';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -113,6 +113,20 @@ export default function ProfileScreen() {
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
   const avatarSource = getAvatarSource(profile?.avatar);
+
+  /**
+   * "Sophomore · Aerospace Engineering" under the name.
+   *
+   * Majors beyond the second collapse into "+N" rather than wrapping — three
+   * long majors would push the followers line off the header, and the full
+   * list is still visible on Edit Profile.
+   */
+  const academicLine = useMemo(() => {
+    const majors = profile?.majors ?? [];
+    const shown = majors.slice(0, 2).join(' · ');
+    const extra = majors.length > 2 ? ` +${majors.length - 2}` : '';
+    return [profile?.year_classification, shown ? shown + extra : null].filter(Boolean).join(' · ');
+  }, [profile?.year_classification, profile?.majors]);
   const counts = eventsQuery.data?.counts;
   const activeTab = TABS.find((t) => t.key === tab)!;
 
@@ -220,6 +234,18 @@ export default function ProfileScreen() {
               {fullName || 'Your profile'}
             </Text>
 
+            {/* Academic identity as a subtitle rather than grey chips — it's
+                who someone is, not a tag, and it reads far better directly
+                under the name. Omitted entirely when we know neither. */}
+            {academicLine ? (
+              <Text
+                numberOfLines={1}
+                className="font-['Roboto-Flex'] mt-[2px] text-[13px] text-lhlSecondaryTextGrey"
+              >
+                {academicLine}
+              </Text>
+            ) : null}
+
             <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
               <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
               followers ·{' '}
@@ -268,38 +294,21 @@ export default function ProfileScreen() {
           </View>
 
           {/* --- Details and Interests ---
-              "Details" is everything onboarding collected that had nowhere to
-              surface: majors, classification, unique classification. Without
-              this the app asks for them at signup and then never shows them
-              back, which reads as the answers having been thrown away. */}
+              Year and majors moved up into the header subtitle, where they
+              read as identity rather than as tags. What's left is the genuinely
+              tag-like: unique classification, then interests. */}
           <View className="mt-[20px] px-[20px]">
             <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
               Details and Interests
             </Text>
 
             <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
-              {/* Details read as filled chips so they're distinguishable from
-                  the outlined interest chips at a glance. */}
-              {profile?.year_classification ? (
-                <View className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
-                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
-                    {profile.year_classification}
-                  </Text>
-                </View>
-              ) : null}
-
+              {/* Filled, so a badge-like detail stays distinguishable from the
+                  outlined interest chips at a glance. */}
               {(profile?.unique_classification ?? []).map((label) => (
                 <View key={label} className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
                   <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
                     {label}
-                  </Text>
-                </View>
-              ))}
-
-              {(profile?.majors ?? []).map((major) => (
-                <View key={major} className="rounded-full bg-lhlSurfaceGrey px-[12px] py-[5px]">
-                  <Text className="font-['Roboto-Flex'] text-[11px] font-medium text-lhlSecondaryTextGrey">
-                    {major}
                   </Text>
                 </View>
               ))}
