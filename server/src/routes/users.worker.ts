@@ -9,6 +9,7 @@ import {
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
+import { MAX_INTERESTS } from '../../../shared/taxonomy';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_TABS,
@@ -166,7 +167,11 @@ userRoutes.post('/me/profile', async (c) => {
     }
   }
 
-  // Replace tags
+  // Replace tags. Onboarding is capped too, so a user can't arrive at the
+  // profile already over the limit and be unable to save.
+  if (Array.isArray(tags) && tags.length > MAX_INTERESTS) {
+    return c.json({ error: 'TOO_MANY_INTERESTS', max: MAX_INTERESTS }, 400);
+  }
   await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
   if (tags && Array.isArray(tags)) {
     for (const tag of tags) {
@@ -317,6 +322,12 @@ userRoutes.patch('/me/profile', async (c) => {
   // a bio can't wipe either of them.
   if (tags !== undefined) {
     if (!Array.isArray(tags)) return c.json({ error: 'INVALID_TAGS' }, 400);
+    // Cap enforced on write only. Rows saved before the cap existed still read
+    // back fine — the user is asked to trim the next time they save rather
+    // than being locked out of their own profile.
+    if (tags.length > MAX_INTERESTS) {
+      return c.json({ error: 'TOO_MANY_INTERESTS', max: MAX_INTERESTS }, 400);
+    }
     await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
     for (const tag of tags) {
       await c.env.DB.prepare(

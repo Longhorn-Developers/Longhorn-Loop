@@ -26,11 +26,13 @@ import AddSocialUrlModal from '@/app/components/modals/AddSocialUrlModal';
 import ChooseApplicationModal from '@/app/components/modals/ChooseApplicationModal';
 import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingModal';
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
+import PillDropdownField from '@/app/components/inputs/PillDropdownField';
 import SearchablePillDropdownField from '@/app/components/inputs/SearchablePillDropdownField';
 import AvatarPickerModal, { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
-import { ALL_INTEREST_TAGS } from '@/app/lib/interestCategories';
+import { ALL_INTEREST_TAGS, INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
+import { MAX_INTERESTS } from '@/shared/taxonomy';
 import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
@@ -116,6 +118,8 @@ export default function EditProfileScreen() {
   const [uniqueClass, setUniqueClass] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [isEditingInterests, setIsEditingInterests] = useState(false);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [interestCapHit, setInterestCapHit] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
 
   // --- Modal state ---------------------------------------------------------
@@ -144,6 +148,7 @@ export default function EditProfileScreen() {
   const socials = loaded?.socials ?? [];
   const connected = socials.map((s) => s.platform);
   const avatarSource = getAvatarSource(loaded?.avatar);
+  const isOverInterestCap = tags.length > MAX_INTERESTS;
 
   const isNameValid =
     firstName.trim().length > 0 &&
@@ -214,6 +219,12 @@ export default function EditProfileScreen() {
       setShowNameError(true);
       return;
     }
+    // Legacy rows can hold more than the cap; the server rejects the write, so
+    // stop here and point at the section rather than surfacing a 400.
+    if (isOverInterestCap) {
+      setIsEditingInterests(true);
+      return;
+    }
     await saveProfile.mutateAsync();
     router.back();
   };
@@ -235,8 +246,18 @@ export default function EditProfileScreen() {
     }
   };
 
-  const toggleTag = (tag: string) => {
-    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  /**
+   * Cap enforcement lives here rather than inside the pill components, which
+   * both just append on select. Removing is always allowed — otherwise
+   * someone already at (or over) the cap could never change their mind.
+   */
+  const applyTagSelection = (next: string[]) => {
+    if (next.length <= tags.length || next.length <= MAX_INTERESTS) {
+      setTags(next);
+      setInterestCapHit(false);
+      return;
+    }
+    setInterestCapHit(true);
   };
 
   if (!token) {
@@ -529,10 +550,23 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            {/* Interests — not in the frame; see the header comment. */}
+            {/* Interests — not in the frame; see the header comment.
+                Presented exactly as onboarding does it (search + one
+                accordion per category) rather than 100 flat chips: the user
+                picked their interests this way at signup, and a different
+                layout here is friction for no gain. */}
             <View className="mt-[22px]">
               <View className="flex-row items-center justify-between">
-                <FieldLabel>Interests</FieldLabel>
+                <View className="flex-row items-baseline gap-[6px]">
+                  <FieldLabel>Interests</FieldLabel>
+                  <Text
+                    className={`font-['Roboto-Flex'] mb-[6px] text-[11px] ${
+                      isOverInterestCap ? 'text-lhlDestructiveRed' : 'text-lhlSecondaryTextGrey'
+                    }`}
+                  >
+                    {tags.length} / {MAX_INTERESTS}
+                  </Text>
+                </View>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setIsEditingInterests((v) => !v)}
@@ -543,48 +577,79 @@ export default function EditProfileScreen() {
                 </Pressable>
               </View>
 
-              <View className="flex-row flex-wrap gap-[8px]">
-                {(isEditingInterests ? ALL_INTEREST_TAGS : tags).map((tag) => {
-                  const isSelected = tags.includes(tag);
-                  return (
-                    <Pressable
+              {interestCapHit && !isOverInterestCap ? (
+                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlSecondaryTextGrey">
+                  That&apos;s {MAX_INTERESTS} — remove one to swap it out.
+                </Text>
+              ) : null}
+
+              {isOverInterestCap ? (
+                // Reachable by anyone who onboarded before the cap existed.
+                // Reads never reject, so they keep their interests until they
+                // next save — at which point they have to trim.
+                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlDestructiveRed">
+                  Pick your top {MAX_INTERESTS} — remove {tags.length - MAX_INTERESTS} to save.
+                </Text>
+              ) : null}
+
+              {isEditingInterests ? (
+                <>
+                  <SearchablePillDropdownField
+                    leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+                    placeholder="Search for interests, events, activities..."
+                    options={ALL_INTEREST_TAGS}
+                    selectedValues={tags}
+                    onSelect={applyTagSelection}
+                    borderRadius={6}
+                  />
+
+                  <View className="mt-[14px] gap-[12px]">
+                    {INTEREST_CATEGORIES.map((category) => {
+                      const Icon = category.icon;
+                      const selectedInCategory = tags.filter((tag) => category.tags.includes(tag));
+
+                      return (
+                        <PillDropdownField
+                          key={category.id}
+                          titleText={category.label}
+                          leftIcon={<Icon width={16} height={16} />}
+                          options={category.tags}
+                          selectedValues={selectedInCategory}
+                          onSelect={(updated) => {
+                            // The component reports only its own category, so
+                            // merge it back over the tags from every other one.
+                            const others = tags.filter((tag) => !category.tags.includes(tag));
+                            applyTagSelection([...others, ...updated]);
+                          }}
+                          isOpen={openCategory === category.id}
+                          onToggle={() =>
+                            setOpenCategory((cur) => (cur === category.id ? null : category.id))
+                          }
+                          borderRadius={6}
+                        />
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <View className="flex-row flex-wrap gap-[8px]">
+                  {tags.map((tag) => (
+                    <View
                       key={tag}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      disabled={!isEditingInterests}
-                      onPress={() => toggleTag(tag)}
-                      className={`flex-row items-center rounded-full border px-[12px] py-[6px] ${
-                        isSelected
-                          ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                          : 'border-lhlMutedBorder bg-white'
-                      }`}
+                      className="rounded-full border border-lhlBurntOrange bg-lhlBurntOrange px-[12px] py-[6px]"
                     >
-                      <Text
-                        className={`font-['Roboto-Flex'] text-[12px] font-medium ${
-                          isSelected ? 'text-white' : 'text-lhlSecondaryTextGrey'
-                        }`}
-                      >
+                      <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-white">
                         {tag}
                       </Text>
-                      {isEditingInterests ? (
-                        <Text
-                          className={`font-['Roboto-Flex'] ml-[6px] text-[12px] ${
-                            isSelected ? 'text-white' : 'text-lhlSecondaryTextGrey'
-                          }`}
-                        >
-                          {isSelected ? '✓' : '+'}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-
-                {!isEditingInterests && tags.length === 0 ? (
-                  <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
-                    No interests selected yet.
-                  </Text>
-                ) : null}
-              </View>
+                    </View>
+                  ))}
+                  {tags.length === 0 ? (
+                    <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
+                      No interests selected yet.
+                    </Text>
+                  ) : null}
+                </View>
+              )}
             </View>
           </ScrollView>
         )}

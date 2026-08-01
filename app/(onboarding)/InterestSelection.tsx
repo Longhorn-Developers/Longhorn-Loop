@@ -1,9 +1,10 @@
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { INTEREST_CATEGORIES, ALL_INTEREST_TAGS } from '@/app/lib/interestCategories';
+import { MAX_INTERESTS } from '@/shared/taxonomy';
 import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import InlineAlert from '../components/alerts/InlineAlert';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 import PillDropdownField from '../components/inputs/PillDropdownField';
@@ -19,6 +20,19 @@ export default function CategorySelectorScreen() {
   const [inlineError, setInlineError] = useState('');
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [capHit, setCapHit] = useState(false);
+
+  // Same cap Edit Profile enforces. Without it users pick 20 tags here and
+  // then can't save their profile later, because the Worker rejects the write.
+  // Removing is always allowed so nobody gets stuck at the limit.
+  const applyTagSelection = (next: string[]) => {
+    if (next.length <= selectedTags.length || next.length <= MAX_INTERESTS) {
+      setSelectedTags(next);
+      setCapHit(false);
+      return;
+    }
+    setCapHit(true);
+  };
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const handleToggleDropdown = (id: string) => {
@@ -62,13 +76,24 @@ export default function CategorySelectorScreen() {
         </View>
       )}
 
-      <View className="mt-[16px]">
+      <View className="mt-[16px] flex-row items-center justify-between">
+        <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
+          {capHit
+            ? `That's ${MAX_INTERESTS} — remove one to swap it out.`
+            : 'Pick up to ' + MAX_INTERESTS}
+        </Text>
+        <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlSecondaryTextGrey">
+          {selectedTags.length} / {MAX_INTERESTS}
+        </Text>
+      </View>
+
+      <View className="mt-[10px]">
         <SearchablePillDropdownField
           leftIcon={<SearchIcon width={15} height={15} fill="#a3a3a3" />}
           placeholder="Search for interests, events, activities..."
           options={ALL_INTEREST_TAGS}
           selectedValues={selectedTags}
-          onSelect={setSelectedTags}
+          onSelect={applyTagSelection}
         />
       </View>
 
@@ -82,7 +107,7 @@ export default function CategorySelectorScreen() {
 
           const handleCategorySelect = (updatedCategoryTags: string[]) => {
             const cleanGlobalTags = selectedTags.filter((tag) => !category.tags.includes(tag));
-            setSelectedTags([...cleanGlobalTags, ...updatedCategoryTags]);
+            applyTagSelection([...cleanGlobalTags, ...updatedCategoryTags]);
           };
 
           return (
