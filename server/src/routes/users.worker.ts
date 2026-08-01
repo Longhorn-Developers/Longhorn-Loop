@@ -348,3 +348,97 @@ userRoutes.delete('/me/socials/:platform', async (c) => {
   // taps on the x badge can't produce an error toast.
   return c.json({ removed: true });
 });
+
+// ---------------------------------------------------------------------------
+// Past events (LOOP-200)
+// ---------------------------------------------------------------------------
+
+/**
+ * An event counts as "past" once it has ended, OR once the cleanup job
+ * (LOOP-150) has archived it.
+ *
+ * end_datetime is nullable on scraped events, so fall back to start_datetime
+ * rather than treating a NULL end as "never ends" — otherwise a scraped event
+ * with no end time would never appear in history.
+ */
+const PAST_EVENT_CONDITION = `(e.is_archived = 1 OR COALESCE(e.end_datetime, e.start_datetime) < datetime('now'))`;
+
+/**
+ * The three relationships that make an event part of a user's history. Each
+ * carries the timestamp we sort by, so "newest-ended first" is expressible in
+ * one shared query shape.
+ *
+ * Deliberately scoped to the user's OWN relationship: an event nobody touched
+ * is still free for the cleanup job to purge, and must never surface here.
+ */
+const PAST_GROUPS = {
+  created: {
+    join: '',
+    where: 'e.created_by_user_id = ?',
+  },
+  attended: {
+    join: 'JOIN event_rsvps r ON r.event_id = e.id AND r.user_id = ?',
+    where: '1 = 1',
+  },
+  saved: {
+    join: 'JOIN saved_events s ON s.event_id = e.id AND s.user_id = ?',
+    where: '1 = 1',
+  },
+} as const;
+
+type PastGroup = keyof typeof PAST_GROUPS;
+
+const PAST_GROUP_NAMES = Object.keys(PAST_GROUPS) as PastGroup[];
+
+async function fetchPastEvents(db: D1Database, userId: number, group: PastGroup, limit: number) {
+  const { join, where } = PAST_GROUPS[group];
+
+  const { results } = await db
+    .prepare(
+      `SELECT e.*, o.profile_picture as org_profile_picture
+       FROM events e
+       ${join}
+       LEFT JOIN organizations o ON e.host_organization_id = o.id
+       WHERE ${where}
+         AND ${PAST_EVENT_CONDITION}
+       ORDER BY COALESCE(e.end_datetime, e.start_datetime) DESC
+       LIMIT ?`,
+    )
+    .bind(userId, limit)
+    .all();
+
+  return results;
+}
+
+// GET /users/me/past-events -- the Past view on the profile (LOOP-200).
+//
+// Without ?group=, returns all three collections in one round trip so the
+// screen can render its tab bar with counts before the user picks a tab.
+// With ?group=created|attended|saved, returns just that one.
+//
+// Query params: group, limit (default 50, max 100).
+userRoutes.get('/me/past-events', async (c) => {
+  const user = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!user) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, user.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const rawLimit = parseInt(c.req.query('limit') ?? '50', 10);
+  const limit = Number.isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 100);
+
+  const requested = c.req.query('group');
+  if (requested) {
+    if (!PAST_GROUP_NAMES.includes(requested as PastGroup)) {
+      return c.json({ error: 'INVALID_GROUP', valid: PAST_GROUP_NAMES }, 400);
+    }
+    const events = await fetchPastEvents(c.env.DB, userId, requested as PastGroup, limit);
+    return c.json({ group: requested, events });
+  }
+
+  const [created, attended, saved] = await Promise.all(
+    PAST_GROUP_NAMES.map((group) => fetchPastEvents(c.env.DB, userId, group, limit)),
+  );
+
+  return c.json({ created, attended, saved });
+});

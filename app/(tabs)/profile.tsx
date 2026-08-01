@@ -124,6 +124,25 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
+          {/* Past events (LOOP-200). Sits above Interests so history is one
+              tap from the header, per the Profile frame. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Past events"
+            onPress={() => router.push('/profile/past')}
+            className="mt-[20px] flex-row items-center justify-between rounded-[12px] border border-lhlMutedBorder bg-white px-[14px] py-[12px]"
+          >
+            <View>
+              <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
+                Past Events
+              </Text>
+              <Text className="font-['Roboto-Flex'] mt-[2px] text-[11px] text-lhlSecondaryTextGrey">
+                Events you created, attended or saved
+              </Text>
+            </View>
+            <Text className="font-['Roboto-Flex'] text-[18px] text-lhlSecondaryTextGrey">›</Text>
+          </Pressable>
+
           {profile?.tags && profile.tags.length > 0 ? (
             <View className="mt-[20px]">
               <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">

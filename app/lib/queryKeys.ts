@@ -28,6 +28,7 @@ export const user = {
   all: ['user'] as const,
   me: () => [...user.all, 'me'] as const,
   socials: () => [...user.all, 'socials'] as const,
+  pastEvents: () => [...user.all, 'past-events'] as const,
 };
 
 // Phase 3 personalized feed endpoints (/feed/*).
