@@ -5,7 +5,9 @@ import { authRoutes } from './routes/auth.worker';
 import { eventRoutes } from './routes/events.worker';
 import { feedRoutes } from './routes/feed.worker';
 import { notificationRoutes } from './routes/notifications.worker';
+import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
+import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
 import { SCRAPERS } from './scrapers/registry';
 
@@ -28,7 +30,11 @@ app.use(
   '*',
   cors({
     origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    // PATCH must be listed or the browser's preflight blocks every partial
+    // update — Edit Profile save, the avatar, the Settings toggles, org role
+    // swaps and org notification settings are all PATCH, and all failed with
+    // an opaque "Failed to fetch" on web until this was added.
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
@@ -43,6 +49,8 @@ app.route('/events', eventRoutes);
 app.route('/feed', feedRoutes);
 app.route('/notifications', notificationRoutes);
 app.route('/saved', savedRoutes);
+app.route('/orgs', orgRoutes);
+app.route('/settings', settingsRoutes);
 
 // Cron schedules, configured in wrangler.toml under [triggers]. The
 // scheduled() handler below dispatches on event.cron since the two jobs

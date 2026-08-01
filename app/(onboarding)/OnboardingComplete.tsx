@@ -1,10 +1,14 @@
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function OnboardingComplete() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { data } = useOnboarding();
 
@@ -148,62 +152,63 @@ export default function OnboardingComplete() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 36,
-    gap: 20,
-  },
-  checkCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#1f2937',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  checkmark: {
-    fontSize: 48,
-    color: '#1f2937',
-    lineHeight: 56,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-    lineHeight: 28,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  buttonWrapper: {
-    width: '100%',
-    marginTop: 16,
-  },
-  button: {
-    backgroundColor: '#BF5700',
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-    letterSpacing: 1,
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.surface,
+    },
+    content: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 36,
+      gap: 20,
+    },
+    checkCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      borderWidth: 3,
+      borderColor: c.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    checkmark: {
+      fontSize: 48,
+      color: c.ink,
+      lineHeight: 56,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: c.ink,
+      textAlign: 'center',
+      lineHeight: 28,
+    },
+    subtitle: {
+      fontSize: 15,
+      color: c.inkSecondary,
+      textAlign: 'center',
+    },
+    buttonWrapper: {
+      width: '100%',
+      marginTop: 16,
+    },
+    button: {
+      backgroundColor: c.brand,
+      borderRadius: 12,
+      paddingVertical: 18,
+      alignItems: 'center',
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 15,
+      letterSpacing: 1,
+    },
+  });

@@ -1,6 +1,7 @@
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import { type ViewStyle } from 'react-native';
 import React from 'react';
@@ -71,6 +72,7 @@ interface EventCardProps {
 }
 
 export default function EventCard({ item, isSaved, onToggleSave, style }: EventCardProps) {
+  const colors = useThemeColors();
   const router = useRouter();
   const hasImage = !!item.image_url;
   const hasBenefits = item.benefits && item.benefits.length > 0;
@@ -83,13 +85,13 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
     <Pressable
       onPress={handlePress}
       style={[{ width: 180 }, style]}
-      className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey"
+      className="mr-4 rounded-2xl overflow-hidden bg-lhlSurface border border-lhlMutedBorder"
     >
       <View
         style={{
           height: 160,
           width: '100%',
-          backgroundColor: '#D9D9D9',
+          backgroundColor: colors.placeholder,
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -125,7 +127,7 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
               position: 'absolute',
               bottom: 8,
               left: 8,
-              backgroundColor: '#BF5700',
+              backgroundColor: colors.brand,
               borderRadius: 12,
               paddingHorizontal: 8,
               paddingVertical: 3,
@@ -147,7 +149,7 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
             position: 'absolute',
             top: 10,
             right: 10,
-            backgroundColor: 'white',
+            backgroundColor: colors.surface,
             borderRadius: 999,
             width: 34,
             height: 34,
@@ -159,13 +161,13 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
             elevation: 3,
           }}
         >
-          <BookmarkIcon width={10} height={14} color={isSaved ? '#BF5700' : '#020B12'} />
+          <BookmarkGlyph saved={isSaved} width={10} height={14} />
         </TouchableOpacity>
       </View>
 
       <View style={{ padding: 12 }}>
         <Text
-          style={{ fontSize: 14, fontWeight: '700', color: '#020B12', marginBottom: 2 }}
+          style={{ fontSize: 14, fontWeight: '700', color: colors.ink, marginBottom: 2 }}
           numberOfLines={1}
         >
           {item.title}
@@ -178,19 +180,19 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
               style={{ width: 14, height: 14, borderRadius: 7, marginRight: 4 }}
             />
           )}
-          <Text style={{ fontSize: 12, color: '#020B12', flex: 1 }} numberOfLines={1}>
+          <Text style={{ fontSize: 12, color: colors.ink, flex: 1 }} numberOfLines={1}>
             {item.host_organization_name}
           </Text>
           <VerifiedIcon width={16} height={16} style={{ marginLeft: 4, flexShrink: 0 }} />
         </View>
 
-        <Text style={{ fontSize: 12, color: '#9A9A9A', marginBottom: 4 }}>
+        <Text style={{ fontSize: 12, color: colors.inkMuted, marginBottom: 4 }}>
           {formatEventDate(item.start_datetime)}
         </Text>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <LocationIcon width={14} height={14} />
-          <Text style={{ fontSize: 12, color: '#9A9A9A' }} numberOfLines={1}>
+          <LocationIcon width={14} height={14} color={colors.ink} />
+          <Text style={{ fontSize: 12, color: colors.inkMuted }} numberOfLines={1}>
             {item.location_short || 'TBD'}
           </Text>
         </View>

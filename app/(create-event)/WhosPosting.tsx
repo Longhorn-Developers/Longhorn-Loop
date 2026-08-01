@@ -4,8 +4,10 @@ import PosterOrgIcon from '@/assets/images/poster-org.svg';
 import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { CreateEventPoster } from '@/app/context/CreateEventContext';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors, withAlpha } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SvgProps } from 'react-native-svg';
 
@@ -13,15 +15,6 @@ type PosterOption = CreateEventPoster & {
   Icon: React.FC<SvgProps>;
   iconSize: { width: number; height: number };
 };
-
-const BURNT_ORANGE = '#9D4A06';
-const BORDER = '#D9D9D9';
-const CARD_BG = '#FFFFFF';
-const CARD_BG_SELECTED = '#FFF5E5';
-const AVATAR_BG = '#E9E6E2';
-const AVATAR_BG_SELECTED = '#EEA26480';
-const BG = '#F9F8F5';
-const TEXT_SECONDARY = '#485656';
 
 // NOTE: hard-coded placeholder posters. Swap for real data once the
 // profile endpoint is wired up. Expected source:
@@ -58,6 +51,8 @@ const POSTERS: PosterOption[] = [
 
 export default function WhosPosting() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { data, update } = useCreateEvent();
   const selectedId = data.poster?.id ?? null;
 
@@ -117,7 +112,7 @@ export default function WhosPosting() {
                   <Icon
                     width={iconSize.width}
                     height={iconSize.height}
-                    color={isSelected ? BURNT_ORANGE : '#000000'}
+                    color={isSelected ? colors.accent : colors.ink}
                   />
                 </View>
                 <View style={styles.posterText}>
@@ -132,7 +127,7 @@ export default function WhosPosting() {
                     )}
                   </Text>
                 </View>
-                {isSelected && <CheckIcon width={19} height={14} color={BURNT_ORANGE} />}
+                {isSelected && <CheckIcon width={19} height={14} color={colors.accent} />}
               </TouchableOpacity>
             );
           })}
@@ -153,132 +148,133 @@ export default function WhosPosting() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backArrow: {
-    fontSize: 22,
-    color: '#000000',
-  },
-  headerTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: '#000000',
-    letterSpacing: -0.5,
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  stepBlock: {
-    marginBottom: 18,
-  },
-  stepLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: '500',
-    color: '#000000',
-  },
-  progressTrack: {
-    height: 10,
-    backgroundColor: '#E5E1DA',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: BURNT_ORANGE,
-    borderRadius: 999,
-  },
-  instruction: {
-    fontSize: 14,
-    color: '#000000',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  posterList: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  posterCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD_BG,
-  },
-  posterCardSelected: {
-    borderColor: BURNT_ORANGE,
-    backgroundColor: CARD_BG_SELECTED,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: AVATAR_BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarSelected: {
-    backgroundColor: AVATAR_BG_SELECTED,
-  },
-  posterText: {
-    flex: 1,
-    gap: 2,
-  },
-  posterName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  posterRole: {
-    fontSize: 12,
-    color: '#000000',
-  },
-  posterRoleBold: {
-    fontWeight: '700',
-  },
-  continueButton: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#00000033',
-    backgroundColor: CARD_BG,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  continueButtonEnabled: {
-    backgroundColor: BURNT_ORANGE,
-    borderColor: BURNT_ORANGE,
-  },
-  continueText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#020B12',
-  },
-  continueTextEnabled: {
-    color: '#FFFFFF',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    scroll: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 40,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 24,
+    },
+    backArrow: {
+      fontSize: 22,
+      color: c.ink,
+    },
+    headerTitle: {
+      fontSize: 19,
+      fontWeight: '600',
+      color: c.ink,
+      letterSpacing: -0.5,
+    },
+    headerSpacer: {
+      width: 22,
+    },
+    stepBlock: {
+      marginBottom: 18,
+    },
+    stepLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.inkSecondary,
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    stepTitle: {
+      fontSize: 24,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    progressTrack: {
+      height: 10,
+      backgroundColor: c.placeholder,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginBottom: 20,
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: c.brand,
+      borderRadius: 999,
+    },
+    instruction: {
+      fontSize: 14,
+      color: c.ink,
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    posterList: {
+      gap: 12,
+      marginBottom: 24,
+    },
+    posterCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      padding: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    posterCardSelected: {
+      borderColor: c.brand,
+      backgroundColor: c.brandSoft,
+    },
+    avatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: c.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarSelected: {
+      backgroundColor: withAlpha(c.brand, 0.35),
+    },
+    posterText: {
+      flex: 1,
+      gap: 2,
+    },
+    posterName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+    },
+    posterRole: {
+      fontSize: 12,
+      color: c.ink,
+    },
+    posterRoleBold: {
+      fontWeight: '700',
+    },
+    continueButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    continueButtonEnabled: {
+      backgroundColor: c.brand,
+      borderColor: c.brand,
+    },
+    continueText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+    },
+    continueTextEnabled: {
+      color: '#FFFFFF',
+    },
+  });

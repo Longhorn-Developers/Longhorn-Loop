@@ -14,9 +14,11 @@ import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
 import { events as eventsKeys } from '@/app/lib/queryKeys';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -29,14 +31,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const BG = '#F9F8F5';
-const TEXT_PRIMARY = '#020B12';
-const TEXT_MUTED = '#485656';
-const BORDER = 'rgba(0,0,0,0.20)';
-const BURNT_ORANGE = '#BF5700';
-const ERROR_RED = '#B30404';
-const ERROR_BG = '#FCE4E4';
-
 type ReasonCode = 'violent_harmful' | 'misinformation' | 'troll_spam' | 'other';
 
 const REASONS: { code: ReasonCode; label: string }[] = [
@@ -47,6 +41,8 @@ const REASONS: { code: ReasonCode; label: string }[] = [
 ];
 
 export default function ReportEventScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
@@ -103,7 +99,7 @@ export default function ReportEventScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -111,7 +107,7 @@ export default function ReportEventScreen() {
         {/* Back */}
         <View style={{ paddingHorizontal: 24, paddingTop: 8 }}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={16}>
-            <ArrowLeftIcon width={24} height={24} />
+            <ArrowLeftIcon width={24} height={24} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
@@ -144,7 +140,7 @@ export default function ReportEventScreen() {
                   <Text
                     style={[
                       styles.reasonLabel,
-                      checked && { color: BURNT_ORANGE, fontWeight: '600' },
+                      checked && { color: colors.accent, fontWeight: '600' as const },
                     ]}
                   >
                     {r.label}
@@ -165,7 +161,7 @@ export default function ReportEventScreen() {
                 setShowError(false);
               }}
               placeholder="Description (required)"
-              placeholderTextColor={TEXT_MUTED}
+              placeholderTextColor={colors.inkSecondary}
               multiline
               textAlignVertical="top"
               style={styles.textarea}
@@ -198,24 +194,24 @@ export default function ReportEventScreen() {
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   title: {
     fontSize: 24,
     fontWeight: '700' as const,
-    color: '#000',
+    color: c.ink,
     marginTop: 24,
   },
   errorBanner: {
     marginTop: 16,
-    backgroundColor: ERROR_BG,
-    borderColor: ERROR_RED,
+    backgroundColor: c.destructiveSoft,
+    borderColor: c.destructive,
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   errorText: {
-    color: ERROR_RED,
+    color: c.destructive,
     fontSize: 14,
     fontWeight: '500' as const,
   },
@@ -229,14 +225,14 @@ const styles = {
     height: 18,
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: '#fff',
+    borderColor: c.border,
+    backgroundColor: c.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   checkboxChecked: {
-    backgroundColor: BURNT_ORANGE,
-    borderColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
+    borderColor: c.brand,
   },
   checkboxMark: {
     color: '#fff',
@@ -247,27 +243,27 @@ const styles = {
   reasonLabel: {
     flex: 1,
     fontSize: 16,
-    color: TEXT_PRIMARY,
+    color: c.ink,
   },
   textareaWrapper: {
     marginTop: 16,
     height: 182,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderRadius: 8,
-    borderColor: BORDER,
+    borderColor: c.border,
     borderWidth: 1,
     padding: 12,
   },
   textarea: {
     flex: 1,
     fontSize: 16,
-    color: TEXT_PRIMARY,
+    color: c.ink,
   },
   submitWrapper: {
     paddingHorizontal: 20,
     paddingBottom: 24,
     paddingTop: 8,
-    backgroundColor: BG,
+    backgroundColor: c.background,
   },
   submitButton: {
     borderRadius: 8,
@@ -276,22 +272,22 @@ const styles = {
     paddingVertical: 14,
   },
   submitButtonDisabled: {
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderWidth: 2,
-    borderColor: BORDER,
+    borderColor: c.border,
   },
   submitButtonActive: {
-    backgroundColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
   },
   submitText: {
     fontSize: 20,
     fontWeight: '500' as const,
   },
   submitTextDisabled: {
-    color: TEXT_MUTED,
+    color: c.inkSecondary,
   },
   submitTextActive: {
     color: '#fff',
     fontWeight: '600' as const,
   },
-};
+});

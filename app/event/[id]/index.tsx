@@ -3,7 +3,7 @@
 // pending backend support.
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import CalendarIcon from '@/assets/images/calendar.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
@@ -17,11 +17,13 @@ import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
 import { recordView } from '@/app/lib/signals';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -33,16 +35,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BURNT_ORANGE = '#BF5700';
-const GOING_BLUE = '#2591D4';
-const BADGE_BROWN = '#9D4A06';
-const BG_OFFWHITE = '#F7F4EF';
-const TEXT_PRIMARY = '#020B12';
-const TEXT_MUTED = '#7A7A7A';
-const BORDER_GREY = '#E5E5E5';
-const CHIP_BG = '#F1F1F1';
-const REPORT_RED = '#E11D48';
 
 // Container aspect ratio for the poster. Defaults to portrait since most
 // flyers are vertical.
@@ -108,11 +100,14 @@ function formatShortTime(isoString: string): string {
 }
 
 function MetaRow({ event }: { event: ApiEvent }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={styles.metaIconBadge}>
-          <CalendarIcon width={16} height={16} />
+          <CalendarIcon width={16} height={16} color={colors.inkSecondary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.metaPrimary}>{formatShortDate(event.start_datetime)}</Text>
@@ -136,7 +131,8 @@ function MetaRow({ event }: { event: ApiEvent }) {
 
 // TODO: replace mock data with a real attendees endpoint once backend supports RSVPs.
 function AttendeesRow() {
-  const mockAvatars = ['#F06292', '#81C784', '#FFB74D'];
+  const colors = useThemeColors();
+  const mockAvatars = ['#F06292', '#81C784', '#FFB74D']; // theme-exempt: placeholder avatar fills, stand-in for real user images
   const mockCount = 142;
 
   return (
@@ -159,19 +155,20 @@ function AttendeesRow() {
                 borderRadius: 14,
                 backgroundColor: color,
                 borderWidth: 2,
-                borderColor: '#fff',
+                borderColor: colors.surface,
                 marginLeft: i === 0 ? 0 : -8,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
+              {/* theme-exempt: initial sits on the placeholder avatar fill above */}
               <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
                 {String.fromCharCode(65 + i)}
               </Text>
             </View>
           ))}
         </View>
-        <Text style={{ marginLeft: 10, fontSize: 14, color: TEXT_PRIMARY }}>
+        <Text style={{ marginLeft: 10, fontSize: 14, color: colors.ink }}>
           {mockCount} students
         </Text>
       </View>
@@ -183,7 +180,7 @@ function AttendeesRow() {
           width: 36,
           height: 36,
           borderRadius: 8,
-          backgroundColor: BADGE_BROWN,
+          backgroundColor: colors.brand,
           alignItems: 'center',
           justifyContent: 'center',
           opacity: 0.9,
@@ -198,6 +195,8 @@ function AttendeesRow() {
 type SavedListResponse = { events: ApiEvent[] };
 
 export default function EventDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
@@ -330,9 +329,9 @@ export default function EventDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={BURNT_ORANGE} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -340,14 +339,14 @@ export default function EventDetailScreen() {
 
   if (error || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="px-5 pt-4">
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={{ fontSize: 16, color: BURNT_ORANGE }}>‹ Back</Text>
+            <Text style={{ fontSize: 16, color: colors.accent }}>‹ Back</Text>
           </TouchableOpacity>
         </View>
         <View className="flex-1 items-center justify-center px-8">
-          <Text style={{ fontSize: 16, color: TEXT_PRIMARY, textAlign: 'center' }}>
+          <Text style={{ fontSize: 16, color: colors.ink, textAlign: 'center' }}>
             {error || 'Event not found.'}
           </Text>
         </View>
@@ -361,22 +360,26 @@ export default function EventDetailScreen() {
   const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Soft two-layer gradient behind the poster. */}
-        <SafeAreaView edges={['top']} style={{ backgroundColor: BG_OFFWHITE }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
           <View style={{ position: 'relative' }}>
             <LinearGradient
+              // theme-exempt: warm under-layer, only ever seen through the 15% window
+              // in the layer above; it reads as a soft haze in either theme.
               colors={['rgba(146,141,135,1)', 'rgba(248,239,229,1)']}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
             <LinearGradient
-              colors={['rgba(249,248,245,1)', 'rgba(146,141,135,0.15)', 'rgba(249,248,245,1)']}
+              // The opaque ends are the page background; the middle stop is a
+              // translucent grey that works over either theme.
+              colors={[colors.background, 'rgba(146,141,135,0.15)', colors.background]}
               locations={[0, 0.5144, 1]}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
@@ -392,7 +395,7 @@ export default function EventDetailScreen() {
               }}
             >
               <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <ArrowLeftIcon width={20} height={20} />
+                <ArrowLeftIcon width={20} height={20} color={colors.ink} />
               </TouchableOpacity>
 
               <View
@@ -413,10 +416,10 @@ export default function EventDetailScreen() {
                       flex: 1,
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#D9D9D9',
+                      backgroundColor: colors.placeholder,
                     }}
                   >
-                    <Text style={{ color: TEXT_MUTED, fontSize: 14 }}>No image</Text>
+                    <Text style={{ color: colors.inkSecondary, fontSize: 14 }}>No image</Text>
                   </View>
                 )}
               </View>
@@ -460,7 +463,7 @@ export default function EventDetailScreen() {
                     width: 32,
                     height: 32,
                     borderRadius: 16,
-                    backgroundColor: BURNT_ORANGE,
+                    backgroundColor: colors.brand,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -470,13 +473,13 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               )}
-              <Text style={{ fontSize: 14, color: TEXT_PRIMARY, flex: 1 }} numberOfLines={1}>
+              <Text style={{ fontSize: 14, color: colors.ink, flex: 1 }} numberOfLines={1}>
                 {event.host_organization_name}
               </Text>
             </View>
           </View>
 
-          <View style={{ height: 1, backgroundColor: BORDER_GREY, marginVertical: 12 }} />
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
           <Text style={styles.sectionHeader}>Attendees</Text>
           <AttendeesRow />
@@ -486,7 +489,7 @@ export default function EventDetailScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <FlagIcon width={12} height={14} />
-            <Text style={{ color: REPORT_RED, fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: colors.destructive, fontSize: 14, fontWeight: '600' }}>
               Report this event
             </Text>
           </TouchableOpacity>
@@ -496,15 +499,16 @@ export default function EventDetailScreen() {
       <SafeAreaView edges={['bottom']} style={styles.actionBarWrapper}>
         <View style={styles.actionBar}>
           <TouchableOpacity onPress={handleToggleSave} style={styles.bookmarkButton}>
-            <BookmarkIcon width={14} height={18} color={isSaved ? BURNT_ORANGE : TEXT_PRIMARY} />
+            <BookmarkGlyph saved={isSaved} width={14} height={18} idleColor={colors.ink} />
           </TouchableOpacity>
 
           <Pressable
             onPress={handleRsvpPress}
-            style={[styles.rsvpButton, { backgroundColor: isRsvped ? GOING_BLUE : BURNT_ORANGE }]}
+            style={[styles.rsvpButton, { backgroundColor: isRsvped ? colors.info : colors.brand }]}
           >
             <Text style={styles.rsvpButtonText}>{isRsvped ? "I'm Going" : 'RSVP'}</Text>
             {isRsvped ? (
+              // theme-exempt: tick sits on the filled "Going" button, white in both themes
               <Text style={{ color: '#fff', fontSize: 16, marginLeft: 6 }}>✓</Text>
             ) : hasRsvpLink ? (
               <View style={{ marginLeft: 8 }}>
@@ -564,12 +568,12 @@ export default function EventDetailScreen() {
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   backButton: {
     position: 'absolute' as const,
     top: 12,
     left: 16,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderRadius: 999,
     width: 40,
     height: 40,
@@ -597,14 +601,14 @@ const styles = {
   title: {
     fontSize: 22,
     fontWeight: '700' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     marginBottom: 16,
   },
   metaIconBadge: {
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: BADGE_BROWN,
+    backgroundColor: c.brand,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -612,35 +616,35 @@ const styles = {
     fontFamily: 'RobotoFlex_600SemiBold',
     fontSize: 14,
     fontWeight: '600' as const,
-    color: '#000',
+    color: c.ink,
   },
   metaSecondary: {
     fontFamily: 'RobotoFlex_400Regular',
     fontSize: 14,
     fontWeight: '400' as const,
-    color: '#000',
+    color: c.ink,
     marginTop: 2,
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: '700' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     marginBottom: 8,
   },
   bodyText: {
     fontSize: 14,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     lineHeight: 21,
   },
   chip: {
-    backgroundColor: CHIP_BG,
+    backgroundColor: c.surfaceMuted,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
   chipText: {
     fontSize: 13,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     fontWeight: '500' as const,
   },
   actionBarWrapper: {
@@ -648,9 +652,9 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderTopWidth: 1,
-    borderTopColor: BORDER_GREY,
+    borderTopColor: c.border,
   },
   actionBar: {
     flexDirection: 'row' as const,
@@ -664,8 +668,8 @@ const styles = {
     height: 48,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: BORDER_GREY,
-    backgroundColor: '#fff',
+    borderColor: c.border,
+    backgroundColor: c.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -673,14 +677,15 @@ const styles = {
     flex: 1,
     height: 48,
     borderRadius: 8,
-    backgroundColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   rsvpButtonText: {
+    // theme-exempt: label on the filled RSVP button (brand or info), white in both themes
     color: '#fff',
     fontSize: 16,
     fontWeight: '700' as const,
   },
-};
+});

@@ -22,6 +22,20 @@ export type TaxonomyBucket = {
   tags: string[];
 };
 
+/**
+ * Most interests a user may select.
+ *
+ * The taxonomy has 100 tags; without a cap the profile's interest row becomes
+ * an unreadable wall and the feed signal degrades into "everything". Enforced
+ * at every write point — onboarding, Edit Profile, and the Worker — so the
+ * three can't disagree.
+ *
+ * Rows written before this cap existed may hold more; reads never reject, only
+ * writes do, so an existing user is asked to trim rather than locked out of
+ * their profile.
+ */
+export const MAX_INTERESTS = 5;
+
 export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
   {
     id: 'music',

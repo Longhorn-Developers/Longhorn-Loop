@@ -15,8 +15,36 @@ CREATE TABLE IF NOT EXISTS users (
   notifications_enabled INTEGER NOT NULL DEFAULT 0,
   terms_accepted_at TEXT,
   onboarding_completed INTEGER NOT NULL DEFAULT 0,
+  -- Short profile bio, edited on Edit Profile (LOOP-181). NULL = unset.
+  bio TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Linked socials -- up to MAX_LINKED_SOCIALS (3) per user (LOOP-181).
+-- One row per (user, platform); the 3-max cap is enforced in the route
+-- handler because SQLite can't express it as a constraint.
+CREATE TABLE IF NOT EXISTS user_socials (
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform   TEXT    NOT NULL,  -- see shared/socialPlatforms.ts
+  url        TEXT    NOT NULL,  -- normalized absolute https URL
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, platform)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_socials_user ON user_socials(user_id);
+
+-- User-to-user follows (Profile Main frame). Drives the "N followers -
+-- N following" line on the profile header. Distinct from org_followers
+-- (user->org) and org_follows (org->org).
+CREATE TABLE IF NOT EXISTS user_follows (
+  follower_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  followed_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (follower_user_id, followed_user_id),
+  CHECK (follower_user_id <> followed_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_follows_followed ON user_follows(followed_user_id);
 
 -- User majors -- supports multiple majors per user
 CREATE TABLE IF NOT EXISTS user_majors (
@@ -52,6 +80,12 @@ CREATE TABLE IF NOT EXISTS organizations (
   slug TEXT,
   profile_picture TEXT,
   verified INTEGER NOT NULL DEFAULT 0,
+  -- President on file, checked against a claimant's entered email (LOOP-185).
+  -- NULL = nobody on record, which the route treats as a mismatch.
+  president_email TEXT,
+  -- unverified | pending_review | rejected. Distinct from `verified`,
+  -- which only a human approval flips.
+  verification_status TEXT NOT NULL DEFAULT 'unverified',
   source TEXT NOT NULL DEFAULT 'hornslink',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -107,6 +141,125 @@ CREATE TABLE IF NOT EXISTS events (
 -- Cleanup job (LOOP-150) and past-events view (LOOP-200) both filter on these
 CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
 CREATE INDEX IF NOT EXISTS idx_events_created_by_user_id ON events(created_by_user_id);
+
+-- User settings -- preferences, notification toggles, delivery channels
+-- (LOOP-184). Created lazily; absent row means "all defaults".
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+
+  -- Preferences
+  dark_mode INTEGER NOT NULL DEFAULT 0,
+
+  -- Notifications: from-activity toggles
+  event_reminders     INTEGER NOT NULL DEFAULT 1,
+  new_events          INTEGER NOT NULL DEFAULT 1,
+  weekly_digest       INTEGER NOT NULL DEFAULT 0,
+  rsvp_confirmations  INTEGER NOT NULL DEFAULT 1,
+
+  -- How long before an event a reminder fires. Stored in minutes rather than
+  -- a label so the reminder cron can do arithmetic without parsing strings;
+  -- the UI maps these to "1 hour before" / "1 day before" etc.
+  reminder_lead_minutes INTEGER NOT NULL DEFAULT 1440,
+
+  -- Delivery channels
+  channel_push   INTEGER NOT NULL DEFAULT 1,
+  channel_email  INTEGER NOT NULL DEFAULT 0,
+  channel_in_app INTEGER NOT NULL DEFAULT 1,
+
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Feedback submissions from the Settings feedback form ("Let us know your
+-- thoughts") and Report a Bug.
+--
+-- user_id is nullable and ON DELETE SET NULL: deleting an account must not
+-- delete the feedback, or a bug report vanishes the moment the reporter
+-- leaves -- exactly when the team still needs it.
+CREATE TABLE IF NOT EXISTS feedback (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  kind       TEXT    NOT NULL DEFAULT 'feedback'
+             CHECK(kind IN ('feedback', 'bug', 'support')),
+  message    TEXT    NOT NULL,
+  -- Free-form client context (app version, platform) for triage.
+  context    TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+
+-- Org membership. Two roles, matching the badges in the Figma Members tab:
+--   admin  -- can change roles, remove editors, and invite
+--   editor -- can post/manage events, cannot manage people
+CREATE TABLE IF NOT EXISTS org_members (
+  org_id     INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role       TEXT    NOT NULL CHECK(role IN ('admin', 'editor')),
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (org_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_org_members_org  ON org_members(org_id);
+
+-- Pending editor invites (the Invite Editor modal, LOOP-182).
+--
+-- Keyed by email rather than user_id on purpose: the Figma flow searches by UT
+-- email and the invitee may not have an account yet. The row is created at
+-- invite time and consumed when they accept, at which point an org_members row
+-- is written.
+--
+-- UNIQUE(org_id, email) means re-inviting the same person updates the existing
+-- invite instead of accumulating duplicates.
+CREATE TABLE IF NOT EXISTS org_invites (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id     INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email      TEXT    NOT NULL,
+  role       TEXT    NOT NULL DEFAULT 'editor' CHECK(role IN ('admin', 'editor')),
+  invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  status     TEXT    NOT NULL DEFAULT 'pending'
+             CHECK(status IN ('pending', 'accepted', 'revoked', 'expired')),
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT    NOT NULL DEFAULT (datetime('now', '+14 days')),
+  UNIQUE(org_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_invites_email ON org_invites(email);
+
+-- Users following an org. Drives the "36 followers" count in the console
+-- header and, later, follow-based feed signals.
+CREATE TABLE IF NOT EXISTS org_followers (
+  org_id     INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (org_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_followers_org ON org_followers(org_id);
+
+-- Orgs following other orgs. Separate from org_followers because the header
+-- shows both numbers ("36 followers - 44 following") and they are genuinely
+-- different relationships; collapsing them into one polymorphic table would
+-- make every query carry a discriminator for no benefit.
+CREATE TABLE IF NOT EXISTS org_follows (
+  org_id          INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  followed_org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (org_id, followed_org_id),
+  -- An org following itself would inflate its own numbers.
+  CHECK (org_id <> followed_org_id)
+);
+
+-- Per-org notification toggles (Figma Frame 470). One row per org; defaults
+-- match the design's on-by-default state.
+CREATE TABLE IF NOT EXISTS org_notification_settings (
+  org_id            INTEGER PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  new_rsvps         INTEGER NOT NULL DEFAULT 1,
+  new_followers     INTEGER NOT NULL DEFAULT 1,
+  event_reports     INTEGER NOT NULL DEFAULT 1,
+  org_team_invites  INTEGER NOT NULL DEFAULT 1,
+  updated_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 
 -- Event categories -- many-to-many
 CREATE TABLE IF NOT EXISTS event_categories (

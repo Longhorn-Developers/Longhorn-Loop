@@ -1,4 +1,5 @@
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useThemeColors } from '@/app/lib/themeColors';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -21,6 +22,7 @@ const avatars: Avatar[] = [
 ];
 
 export default function AvatarSelector() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { update } = useOnboarding();
   const [selected, setSelected] = useState<number | null>(null);
@@ -72,7 +74,7 @@ export default function AvatarSelector() {
                   borderRadius: 60,
                   overflow: 'hidden',
                   borderWidth: isSelected ? 3 : 0,
-                  borderColor: '#BF5700',
+                  borderColor: colors.brand,
                 }}
               >
                 <Image
@@ -90,6 +92,8 @@ export default function AvatarSelector() {
                       left: 0,
                       right: 0,
                       bottom: 0,
+                      // theme-exempt: 25% dim over the avatar art, not a page scrim — a
+                      // full scrim would hide the image the user is choosing.
                       backgroundColor: 'rgba(0,0,0,0.25)',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -100,12 +104,16 @@ export default function AvatarSelector() {
                         width: 36,
                         height: 36,
                         borderRadius: 18,
+                        // theme-exempt: check puck sits on the avatar artwork, which is the
+                        // same image in both themes; it has to stay light for the tick to read.
                         backgroundColor: 'rgba(255,255,255,0.9)',
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ fontSize: 20, color: '#BF5700', fontWeight: '700' }}>✓</Text>
+                      <Text style={{ fontSize: 20, color: colors.accent, fontWeight: '700' }}>
+                        ✓
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -117,7 +125,7 @@ export default function AvatarSelector() {
                   marginTop: 8,
                   fontSize: 14,
                   fontWeight: '600',
-                  color: '#020B12',
+                  color: colors.ink,
                   textAlign: 'center',
                 }}
               >

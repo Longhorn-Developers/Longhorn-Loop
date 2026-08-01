@@ -6,10 +6,19 @@ import TabHomeInactiveIcon from '@/assets/images/tab-home-inactive.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
 import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
 import TabProfileIcon from '@/assets/images/tab-profile.svg';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { Tabs, useRouter } from 'expo-router';
 
+// The tab bar sits above every screen, so leaving it white was the most
+// visible thing dark mode missed. The icons are SVGs that used to carry their
+// own greys and oranges; they now paint with `currentColor` and take the tint
+// from here, which is why a single `color` prop is enough to flip all eight.
 export default function TabsLayout() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const active = colors.accent;
+  const inactive = colors.inkMuted;
+
   return (
     <Tabs
       screenOptions={{
@@ -18,8 +27,11 @@ export default function TabsLayout() {
         tabBarActiveTintColor: 'transparent',
         tabBarInactiveTintColor: 'transparent',
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E5E5E5',
+          // Surface, not background: the bar is raised off the page in both
+          // themes, and in dark that separation is the only thing giving it
+          // an edge beyond the hairline.
+          backgroundColor: colors.surface,
+          borderTopColor: colors.divider,
           height: 72,
           paddingTop: 0,
           paddingBottom: 0,
@@ -38,9 +50,9 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <TabHomeIcon width={42} height={39} />
+              <TabHomeIcon width={42} height={39} color={active} />
             ) : (
-              <TabHomeInactiveIcon width={42} height={39} />
+              <TabHomeInactiveIcon width={42} height={39} color={inactive} />
             ),
         }}
       />
@@ -50,9 +62,9 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <TabExploreActiveIcon width={42} height={38} />
+              <TabExploreActiveIcon width={42} height={38} color={active} />
             ) : (
-              <TabExploreIcon width={42} height={38} />
+              <TabExploreIcon width={42} height={38} color={inactive} />
             ),
         }}
       />
@@ -62,9 +74,9 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <TabCreateActiveIcon width={42} height={38} />
+              <TabCreateActiveIcon width={42} height={38} color={active} />
             ) : (
-              <TabCreateIcon width={42} height={38} />
+              <TabCreateIcon width={42} height={38} color={inactive} />
             ),
         }}
         listeners={{
@@ -80,9 +92,9 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) =>
             focused ? (
-              <TabProfileActiveIcon width={42} height={38} />
+              <TabProfileActiveIcon width={42} height={38} color={active} />
             ) : (
-              <TabProfileIcon width={42} height={38} />
+              <TabProfileIcon width={42} height={38} color={inactive} />
             ),
         }}
       />

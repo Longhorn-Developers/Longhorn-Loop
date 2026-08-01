@@ -2,18 +2,16 @@ import ChipCloseIcon from '@/assets/images/chip-close.svg';
 import ChipPlusIcon from '@/assets/images/chip-plus.svg';
 import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const BURNT_ORANGE = '#9D4A06';
-const CARD_BG = '#FFFFFF';
-const CHIP_BORDER = '#E8E3DC';
-const BG = '#F9F8F5';
-const TEXT_SECONDARY = '#485656';
-
 export default function InterestTags() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { data, update } = useCreateEvent();
 
   // Tags come from the category matching the discovery bucket picked in
@@ -95,7 +93,7 @@ export default function InterestTags() {
                 {isSelected ? (
                   <ChipCloseIcon width={7} height={7} color="#FFFFFF" />
                 ) : (
-                  <ChipPlusIcon width={8} height={8} color="#020B12" />
+                  <ChipPlusIcon width={8} height={8} color={colors.ink} />
                 )}
                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{tag}</Text>
               </TouchableOpacity>
@@ -118,139 +116,140 @@ export default function InterestTags() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backArrow: {
-    fontSize: 22,
-    color: '#000000',
-  },
-  headerTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: '#000000',
-    letterSpacing: -0.5,
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  stepBlock: {
-    marginBottom: 18,
-  },
-  stepLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: '500',
-    color: '#000000',
-  },
-  progressTrack: {
-    height: 10,
-    backgroundColor: '#E5E1DA',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: BURNT_ORANGE,
-    borderRadius: 999,
-  },
-  instructionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 20,
-  },
-  instruction: {
-    flex: 1,
-    fontSize: 14,
-    color: '#000000',
-    lineHeight: 20,
-  },
-  counterPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: CHIP_BORDER,
-    backgroundColor: CARD_BG,
-  },
-  counterText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#020B12',
-  },
-  chipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 32,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: CHIP_BORDER,
-    backgroundColor: CARD_BG,
-  },
-  chipSelected: {
-    borderColor: BURNT_ORANGE,
-    backgroundColor: BURNT_ORANGE,
-  },
-  chipDisabled: {
-    opacity: 0.4,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#020B12',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-  },
-  continueButton: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#00000033',
-    backgroundColor: CARD_BG,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  continueButtonEnabled: {
-    backgroundColor: BURNT_ORANGE,
-    borderColor: BURNT_ORANGE,
-  },
-  continueText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#020B12',
-  },
-  continueTextEnabled: {
-    color: '#FFFFFF',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    scroll: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 40,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 24,
+    },
+    backArrow: {
+      fontSize: 22,
+      color: c.ink,
+    },
+    headerTitle: {
+      fontSize: 19,
+      fontWeight: '600',
+      color: c.ink,
+      letterSpacing: -0.5,
+    },
+    headerSpacer: {
+      width: 22,
+    },
+    stepBlock: {
+      marginBottom: 18,
+    },
+    stepLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.inkSecondary,
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    stepTitle: {
+      fontSize: 24,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    progressTrack: {
+      height: 10,
+      backgroundColor: c.placeholder,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginBottom: 20,
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: c.brand,
+      borderRadius: 999,
+    },
+    instructionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 20,
+    },
+    instruction: {
+      flex: 1,
+      fontSize: 14,
+      color: c.ink,
+      lineHeight: 20,
+    },
+    counterPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    counterText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    chipWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 32,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    chipSelected: {
+      borderColor: c.brand,
+      backgroundColor: c.brand,
+    },
+    chipDisabled: {
+      opacity: 0.4,
+    },
+    chipText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    chipTextSelected: {
+      color: '#FFFFFF',
+    },
+    continueButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    continueButtonEnabled: {
+      backgroundColor: c.brand,
+      borderColor: c.brand,
+    },
+    continueText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+    },
+    continueTextEnabled: {
+      color: '#FFFFFF',
+    },
+  });

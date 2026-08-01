@@ -10,7 +10,9 @@
 //   - Secondary button on top (outlined / safe option)
 //   - Primary button on bottom (filled; red when destructive)
 
-import React from 'react';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
+import React, { useMemo } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 interface ConfirmModalProps {
@@ -25,14 +27,6 @@ interface ConfirmModalProps {
   primaryDestructive?: boolean;
 }
 
-const BURNT_ORANGE = '#BF5700';
-const DESTRUCTIVE_RED = '#B30404';
-const TEXT_PRIMARY = '#000000';
-const TEXT_SECONDARY = '#485656';
-const CARD_BG = '#F9F8F5';
-const BORDER_GREY = '#C7C7C7';
-const ON_BRAND_WHITE = '#FFFFFF';
-
 export default function ConfirmModal({
   visible,
   title,
@@ -44,7 +38,10 @@ export default function ConfirmModal({
   onSecondary,
   primaryDestructive = false,
 }: ConfirmModalProps) {
-  const primaryBg = primaryDestructive ? DESTRUCTIVE_RED : BURNT_ORANGE;
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const primaryBg = primaryDestructive ? colors.destructive : colors.brand;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onSecondary}>
@@ -71,17 +68,19 @@ export default function ConfirmModal({
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: c.scrim,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingHorizontal: 24,
   },
   card: {
     width: '100%' as const,
-    backgroundColor: CARD_BG,
+    // `surface`, not `background`: the sheet is raised off the page and needs
+    // to separate from it, which same-as-page would not do in dark.
+    backgroundColor: c.surface,
     borderRadius: 18,
     paddingHorizontal: 24,
     paddingTop: 28,
@@ -90,19 +89,19 @@ const styles = {
   title: {
     fontSize: 28,
     fontWeight: '800' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     marginBottom: 18,
   },
   body: {
     fontSize: 17,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     lineHeight: 24,
     marginBottom: 18,
   },
   emphasis: {
     fontSize: 17,
     fontWeight: '700' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     lineHeight: 24,
     marginBottom: 26,
   },
@@ -110,13 +109,13 @@ const styles = {
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center' as const,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: BORDER_GREY,
+    borderColor: c.border,
     marginBottom: 12,
   },
   secondaryText: {
-    color: TEXT_SECONDARY,
+    color: c.inkSecondary,
     fontSize: 17,
     fontWeight: '700' as const,
   },
@@ -126,8 +125,8 @@ const styles = {
     alignItems: 'center' as const,
   },
   primaryText: {
-    color: ON_BRAND_WHITE,
+    color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700' as const,
   },
-};
+});

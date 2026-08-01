@@ -1,3 +1,4 @@
+import { useThemeColors } from '@/app/lib/themeColors';
 import { IconProps } from 'phosphor-react-native';
 import React from 'react';
 import { ActivityIndicator, Pressable, PressableProps, Text, View } from 'react-native';
@@ -21,13 +22,17 @@ export default function PrimaryButton({
   disabled,
   ...props
 }: PrimaryButtonProps) {
+  const colors = useThemeColors();
+
   const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
-  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-white';
+  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-lhlSurface';
 
   const textColorClass = isFilled ? 'text-white' : 'text-lhlSecondaryTextGrey';
 
-  const iconColorClass = isFilled ? 'white' : 'hsla(180, 9%, 31%, 1)'; // lhlSecondaryTextGrey
+  // White on a filled brand button in both themes; otherwise the same token
+  // the label uses, so the icon and the text can never disagree.
+  const iconColorClass = isFilled ? '#FFFFFF' : colors.inkSecondary;
 
   const displayedText = isLoading ? loadingLabel || label : label;
 

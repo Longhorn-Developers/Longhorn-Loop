@@ -4,11 +4,13 @@ import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -21,13 +23,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const BURNT_ORANGE = '#9D4A06';
-const CARD_BG = '#FFFFFF';
-const FILL = '#E8E3DC';
-const INPUT_BORDER = '#00000033';
-const BG = '#F9F8F5';
-const TEXT_SECONDARY = '#485656';
 
 type CreateEventResponse = { event: unknown };
 
@@ -129,6 +124,8 @@ function getCreateEventErrorMessage(error: unknown): string {
 
 export default function OptionalExtras() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { data, update, reset } = useCreateEvent();
   const { data: onboarding } = useOnboarding();
   const queryClient = useQueryClient();
@@ -253,7 +250,7 @@ export default function OptionalExtras() {
                 />
               ) : (
                 <View style={styles.uploadPrompt}>
-                  <ImagePlusIcon width={22} height={22} color="#020B12" />
+                  <ImagePlusIcon width={22} height={22} color={colors.ink} />
                   <Text style={styles.uploadText}>Tap to Upload</Text>
                 </View>
               )}
@@ -266,7 +263,7 @@ export default function OptionalExtras() {
               value={data.locationFull}
               onChangeText={(text) => update({ locationFull: text })}
               placeholder="GDC 2.216, Zoom link, etc..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.inkMuted}
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
@@ -279,7 +276,7 @@ export default function OptionalExtras() {
               value={data.rsvpUrl}
               onChangeText={(text) => update({ rsvpUrl: text })}
               placeholder="https://www..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.inkMuted}
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
@@ -317,149 +314,150 @@ export default function OptionalExtras() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backArrow: {
-    fontSize: 22,
-    color: '#000000',
-  },
-  headerTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: '#000000',
-    letterSpacing: -0.5,
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  stepBlock: {
-    marginBottom: 18,
-  },
-  stepLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: '500',
-    color: '#000000',
-  },
-  progressTrack: {
-    height: 10,
-    backgroundColor: '#E5E1DA',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  progressFill: {
-    height: '100%',
-    width: '100%',
-    backgroundColor: BURNT_ORANGE,
-    borderRadius: 999,
-  },
-  instruction: {
-    fontSize: 14,
-    color: '#000000',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  field: {
-    marginBottom: 20,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#020B12',
-    marginBottom: 8,
-  },
-  uploadTile: {
-    height: 160,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-    borderStyle: 'dashed',
-    backgroundColor: FILL,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  uploadTileFilled: {
-    borderStyle: 'solid',
-    backgroundColor: CARD_BG,
-  },
-  uploadPrompt: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  uploadText: {
-    fontSize: 14,
-    color: '#020B12',
-  },
-  uploadImage: {
-    width: '100%',
-    height: '100%',
-  },
-  input: {
-    backgroundColor: CARD_BG,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#020B12',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButtonDisabled: {
-    opacity: 0.65,
-  },
-  previewButton: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-  },
-  postButton: {
-    backgroundColor: BURNT_ORANGE,
-  },
-  previewText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#020B12',
-  },
-  postText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    flex: {
+      flex: 1,
+    },
+    scroll: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 40,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 24,
+    },
+    backArrow: {
+      fontSize: 22,
+      color: c.ink,
+    },
+    headerTitle: {
+      fontSize: 19,
+      fontWeight: '600',
+      color: c.ink,
+      letterSpacing: -0.5,
+    },
+    headerSpacer: {
+      width: 22,
+    },
+    stepBlock: {
+      marginBottom: 18,
+    },
+    stepLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.inkSecondary,
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    stepTitle: {
+      fontSize: 24,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    progressTrack: {
+      height: 10,
+      backgroundColor: c.placeholder,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginBottom: 20,
+    },
+    progressFill: {
+      height: '100%',
+      width: '100%',
+      backgroundColor: c.brand,
+      borderRadius: 999,
+    },
+    instruction: {
+      fontSize: 14,
+      color: c.ink,
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    field: {
+      marginBottom: 20,
+    },
+    fieldLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+      marginBottom: 8,
+    },
+    uploadTile: {
+      height: 160,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderStyle: 'dashed',
+      backgroundColor: c.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    uploadTileFilled: {
+      borderStyle: 'solid',
+      backgroundColor: c.surface,
+    },
+    uploadPrompt: {
+      alignItems: 'center',
+      gap: 8,
+    },
+    uploadText: {
+      fontSize: 14,
+      color: c.ink,
+    },
+    uploadImage: {
+      width: '100%',
+      height: '100%',
+    },
+    input: {
+      backgroundColor: c.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 14,
+      color: c.ink,
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 12,
+    },
+    actionButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    actionButtonDisabled: {
+      opacity: 0.65,
+    },
+    previewButton: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    postButton: {
+      backgroundColor: c.brand,
+    },
+    previewText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.ink,
+    },
+    postText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+  });
