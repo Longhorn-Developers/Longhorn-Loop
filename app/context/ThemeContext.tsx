@@ -23,6 +23,24 @@ const ThemeContext = createContext<ThemeContextValue>({
   setDarkMode: () => {},
 });
 
+/**
+ * Apply the scheme to NativeWind, but never let it take the app down.
+ *
+ * colorScheme.set() throws when tailwind.config.js has darkMode 'media'
+ * (NativeWind's default) — and because this runs from a provider effect at the
+ * root, an uncaught throw crashes the whole app on launch. `darkMode: 'class'`
+ * is set in tailwind.config.js so this should not fire, but a cosmetic
+ * preference must not be able to brick startup if that config is ever changed
+ * back or a NativeWind upgrade shifts the rules.
+ */
+function applyColorScheme(dark: boolean): void {
+  try {
+    colorScheme.set(dark ? 'dark' : 'light');
+  } catch (err) {
+    console.warn('[theme] could not apply color scheme; check darkMode in tailwind.config.js', err);
+  }
+}
+
 export function ThemeProvider({
   children,
   initialDark = false,
@@ -36,13 +54,13 @@ export function ThemeProvider({
     setIsDark(value);
     // NativeWind keeps its own module-level scheme; keep them in lockstep so
     // `dark:` classes and this context can never disagree.
-    colorScheme.set(value ? 'dark' : 'light');
+    applyColorScheme(value);
   }, []);
 
   // Apply whatever the server said on first render (and if it changes after a
   // late-arriving settings fetch).
   useEffect(() => {
-    colorScheme.set(initialDark ? 'dark' : 'light');
+    applyColorScheme(initialDark);
     setIsDark(initialDark);
   }, [initialDark]);
 

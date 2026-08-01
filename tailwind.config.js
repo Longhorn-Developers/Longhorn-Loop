@@ -3,6 +3,11 @@ module.exports = {
   // NOTE: Update this to include the paths to all files that contain Nativewind classes.
   content: ['./app/**/*.{js,jsx,ts,tsx}', './components/**/*.{js,jsx,ts,tsx}'],
   presets: [require('nativewind/preset')],
+  // Required for the Dark Mode toggle in Settings (LOOP-184). NativeWind
+  // defaults to 'media', which follows the OS and makes colorScheme.set()
+  // throw "Cannot manually set color scheme, as dark mode is type 'media'".
+  // 'class' hands control to the app so the user's saved preference wins.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
