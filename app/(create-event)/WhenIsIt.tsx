@@ -1,9 +1,11 @@
 import CalendarIcon from '@/assets/images/calendar-input.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DateMode } from '@/app/context/CreateEventContext';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -15,13 +17,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const BURNT_ORANGE = '#9D4A06';
-const CARD_BG = '#FFFFFF';
-const INPUT_BORDER = '#00000033';
-const BG = '#F9F8F5';
-const TEXT_SECONDARY = '#485656';
-const TEXT_MUTED = '#9CA3AF';
 
 // Which slot the current picker is editing, and whether it's the date or
 // time portion. Both share the same ISO field on context; we just modify
@@ -70,6 +65,8 @@ function withTime(existingIso: string | null, picked: Date): string {
 
 export default function WhenIsIt() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { data, update } = useCreateEvent();
   const [picker, setPicker] = useState<PickerTarget>(null);
 
@@ -254,6 +251,9 @@ function ModeButton({
   active: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -276,6 +276,8 @@ function DateTimeRow({
   onPickDate: () => void;
   onPickTime: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const dateLabel = formatDate(iso);
   const timeLabel = formatTime(iso);
 
@@ -291,7 +293,7 @@ function DateTimeRow({
           <Text style={[styles.pickerValue, !dateLabel && styles.pickerValueMuted]}>
             {dateLabel || 'mm/dd/yyyy'}
           </Text>
-          <CalendarIcon width={14} height={15} color="#020B12" />
+          <CalendarIcon width={14} height={15} color={colors.ink} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onPickTime}
@@ -307,171 +309,172 @@ function DateTimeRow({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backArrow: {
-    fontSize: 22,
-    color: '#000000',
-  },
-  headerTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    color: '#000000',
-    letterSpacing: -0.5,
-  },
-  headerSpacer: {
-    width: 22,
-  },
-  stepBlock: {
-    marginBottom: 18,
-  },
-  stepLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: '500',
-    color: '#000000',
-  },
-  progressTrack: {
-    height: 10,
-    backgroundColor: '#E5E1DA',
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: BURNT_ORANGE,
-    borderRadius: 999,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  modeButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: BURNT_ORANGE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: CARD_BG,
-  },
-  modeButtonActive: {
-    backgroundColor: BURNT_ORANGE,
-  },
-  modeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TEXT_SECONDARY,
-  },
-  modeTextActive: {
-    color: '#FFFFFF',
-  },
-  field: {
-    marginBottom: 20,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#020B12',
-    marginBottom: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  pickerInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: CARD_BG,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  dateInput: {
-    flex: 3,
-  },
-  timeInput: {
-    flex: 2,
-    justifyContent: 'center',
-  },
-  pickerValue: {
-    fontSize: 14,
-    color: '#020B12',
-  },
-  pickerValueMuted: {
-    color: TEXT_MUTED,
-  },
-  continueButton: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-    backgroundColor: CARD_BG,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  continueButtonEnabled: {
-    backgroundColor: BURNT_ORANGE,
-    borderColor: BURNT_ORANGE,
-  },
-  continueText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#020B12',
-  },
-  continueTextEnabled: {
-    color: '#FFFFFF',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 12,
-  },
-  doneButton: {
-    backgroundColor: BURNT_ORANGE,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  doneText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-});
+const makeStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    scroll: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 40,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 24,
+    },
+    backArrow: {
+      fontSize: 22,
+      color: c.ink,
+    },
+    headerTitle: {
+      fontSize: 19,
+      fontWeight: '600',
+      color: c.ink,
+      letterSpacing: -0.5,
+    },
+    headerSpacer: {
+      width: 22,
+    },
+    stepBlock: {
+      marginBottom: 18,
+    },
+    stepLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: c.inkSecondary,
+      letterSpacing: 1,
+      marginBottom: 6,
+    },
+    stepTitle: {
+      fontSize: 24,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    progressTrack: {
+      height: 10,
+      backgroundColor: c.placeholder,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginBottom: 24,
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: c.brand,
+      borderRadius: 999,
+    },
+    modeRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 24,
+    },
+    modeButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.surface,
+    },
+    modeButtonActive: {
+      backgroundColor: c.brand,
+    },
+    modeText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.inkSecondary,
+    },
+    modeTextActive: {
+      color: '#FFFFFF',
+    },
+    field: {
+      marginBottom: 20,
+    },
+    fieldLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+      marginBottom: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    pickerInput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: c.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
+    dateInput: {
+      flex: 3,
+    },
+    timeInput: {
+      flex: 2,
+      justifyContent: 'center',
+    },
+    pickerValue: {
+      fontSize: 14,
+      color: c.ink,
+    },
+    pickerValueMuted: {
+      color: c.inkMuted,
+    },
+    continueButton: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 12,
+    },
+    continueButtonEnabled: {
+      backgroundColor: c.brand,
+      borderColor: c.brand,
+    },
+    continueText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: c.ink,
+    },
+    continueTextEnabled: {
+      color: '#FFFFFF',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: c.scrim,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+    },
+    modalCard: {
+      width: '100%',
+      backgroundColor: c.surface,
+      borderRadius: 12,
+      padding: 12,
+    },
+    doneButton: {
+      backgroundColor: c.brand,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginTop: 8,
+    },
+    doneText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+  });

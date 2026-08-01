@@ -61,7 +61,9 @@ export default function PillDropdownField({
       {/* Optional Top Label */}
       {label && (
         <Pressable onPress={onToggle} className="mb-[6px]">
-          <Text className="font-['Roboto-Flex'] font-semibold text-[16px] text-black">{label}</Text>
+          <Text className="font-['Roboto-Flex'] font-semibold text-[16px] text-lhlInk">
+            {label}
+          </Text>
         </Pressable>
       )}
 
@@ -74,7 +76,7 @@ export default function PillDropdownField({
           flex-row items-center
           border
           p-[9px] h-[38px] gap-[10px]
-          bg-white
+          bg-lhlSurface
         `}
         style={headerStyle}
       >
@@ -84,7 +86,7 @@ export default function PillDropdownField({
         {/* Title Text */}
         <Text
           numberOfLines={1}
-          className="font-['Roboto-Flex'] text-[12px] font-semibold text-black"
+          className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlInk"
         >
           {titleText}
         </Text>
@@ -108,7 +110,7 @@ export default function PillDropdownField({
 
       {/* Dropdown Options Area */}
       {isOpen && (
-        <View className={`border-x border-b bg-white p-[10px]`} style={dropdownStyle}>
+        <View className={`border-x border-b bg-lhlSurface p-[10px]`} style={dropdownStyle}>
           <View className="flex-row flex-wrap gap-2">
             {options.map((option) => {
               const isSelected = selectedValues.includes(option);
@@ -127,7 +129,7 @@ export default function PillDropdownField({
               );
             })}
             {options.length === 0 && (
-              <Text className="font-['Roboto-Flex'] text-[13px] text-neutral-400 italic px-1">
+              <Text className="font-['Roboto-Flex'] text-[13px] text-lhlMutedText italic px-1">
                 No options available
               </Text>
             )}

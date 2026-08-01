@@ -22,6 +22,39 @@ export const notifications = {
   list: () => [...notifications.all, 'list'] as const,
 };
 
+// Current user's profile (/users/me). Linked socials and the past-events
+// collections hang off the same root so one invalidate refreshes the profile.
+export const user = {
+  all: ['user'] as const,
+  me: () => [...user.all, 'me'] as const,
+  socials: () => [...user.all, 'socials'] as const,
+  pastEvents: () => [...user.all, 'past-events'] as const,
+  // My Events grid. The params object is part of the key so switching tab,
+  // search, filter or sort is a distinct cache entry; myEventsAll() is the
+  // prefix to invalidate after a save/RSVP changes any of them.
+  myEventsAll: () => [...user.all, 'my-events'] as const,
+  myEvents: (params: Record<string, string>) => [...user.myEventsAll(), params] as const,
+};
+
+// User settings (/settings). One row per user; `mine` is the whole thing.
+export const settings = {
+  all: ['settings'] as const,
+  mine: () => [...settings.all, 'mine'] as const,
+};
+
+// Org Management console (/orgs/*). `mine` backs the Manage Organizations
+// list on Settings; the rest are per-org console tabs.
+export const org = {
+  all: ['org'] as const,
+  mine: () => [...org.all, 'mine'] as const,
+  detail: (id: number | string) => [...org.all, 'detail', String(id)] as const,
+  members: (id: number | string) => [...org.all, 'members', String(id)] as const,
+  analytics: (id: number | string, eventFilter = 'all') =>
+    [...org.all, 'analytics', String(id), eventFilter] as const,
+  notificationSettings: (id: number | string) =>
+    [...org.all, 'notification-settings', String(id)] as const,
+};
+
 // Phase 3 personalized feed endpoints (/feed/*).
 export const feed = {
   all: ['feed'] as const,

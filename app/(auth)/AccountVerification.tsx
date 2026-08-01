@@ -238,7 +238,7 @@ export default function AccountVerification() {
       <Pressable className="mt-4" onPress={handleResend}>
         <Text className="font-['Roboto-Flex'] text-base text-center">
           {"Didn't receive the code? "}
-          <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">
+          <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">
             {resending ? 'Sending...' : 'Resend Code'}
           </Text>
         </Text>

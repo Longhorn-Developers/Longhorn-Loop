@@ -1,5 +1,6 @@
 import LhlPillCross from '@/assets/icons/LhlPillCross';
 import LhlPillPlus from '@/assets/icons/LhlPillPlus';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, Text } from 'react-native';
 
@@ -26,6 +27,7 @@ export default function PillButton({
   padding = 12,
   iconSize = 8,
 }: PillButtonProps) {
+  const colors = useThemeColors();
   const rotationAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -42,18 +44,18 @@ export default function PillButton({
     outputRange: ['0deg', '45deg'],
   });
 
-  let backgroundColor = 'hsla(45, 25%, 97%, 1)';
-  let borderColor = 'hsla(35, 21%, 89%, 1)';
+  let backgroundColor = colors.background;
+  let borderColor = colors.border;
   let borderWidth = 1;
-  let textColor = '#404040';
-  let iconColor = '#000000';
+  let textColor = colors.inkSecondary;
+  let iconColor = colors.ink;
 
   if (!selectable) {
-    backgroundColor = 'hsla(35, 21%, 89%, 1)';
+    backgroundColor = colors.surfaceMuted;
     borderWidth = 0;
   } else if (isSelected) {
-    backgroundColor = 'hsla(27, 100%, 37%, 1)';
-    borderColor = 'hsla(27, 93%, 32%, 1)';
+    backgroundColor = colors.brand;
+    borderColor = colors.brand;
     textColor = '#FFFFFF';
     iconColor = '#FFFFFF';
   }

@@ -64,7 +64,9 @@ export default function TextInputField({
       {/* LABEL */}
       {label && (
         <Pressable onPress={focusInput}>
-          <Text className="font-['Roboto-Flex'] font-semibold text-[16px]">{label}</Text>
+          <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
+            {label}
+          </Text>
         </Pressable>
       )}
 
@@ -77,7 +79,7 @@ export default function TextInputField({
           border
           px-[9px] h-[33px] gap-2
           ${borderColorClass}
-          bg-white
+          bg-lhlSurface
         `}
         style={{
           borderRadius: borderRadius,
@@ -94,7 +96,7 @@ export default function TextInputField({
           className={`
             flex-1 font-['Roboto-Flex'] text-[14px]
             focus:ring-0 focus:outline-none
-            placeholder:text-black
+            placeholder:text-lhlMutedText
           `}
           underlineColorAndroid="transparent"
           onFocus={handleFocus}
