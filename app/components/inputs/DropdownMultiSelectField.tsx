@@ -69,7 +69,7 @@ export default function DropdownMultiSelectField({
           border
           px-[9px] h-[33px] gap-2
           ${borderColorClass}
-          bg-white
+          bg-lhlSurface
         `}
         style={
           {
@@ -96,7 +96,7 @@ export default function DropdownMultiSelectField({
 
       {isOpen && (
         <View
-          className="mt-1 border border-lhlBorderColor bg-white overflow-hidden"
+          className="mt-1 border border-lhlBorderColor bg-lhlSurface overflow-hidden"
           style={{ borderRadius: borderRadius }}
         >
           {options.map((option, index) => {

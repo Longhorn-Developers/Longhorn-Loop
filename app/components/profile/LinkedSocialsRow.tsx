@@ -57,7 +57,7 @@ export default function LinkedSocialsRow({
                 accessibilityLabel={`${meta.label} link`}
                 disabled={disabled || !onPreview}
                 onPress={() => onPreview?.(social)}
-                className="h-[42px] w-[42px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
+                className="h-[42px] w-[42px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
               >
                 <Icon size={22} />
               </Pressable>

@@ -17,8 +17,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type SettingKey = 'new_rsvps' | 'new_followers' | 'event_reports' | 'org_team_invites';
 
@@ -38,6 +37,7 @@ interface OrgHeaderResponse {
 }
 
 export default function OrgNotificationSettingsScreen() {
+  const colors = useThemeColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const orgId = Number(id);
   const router = useRouter();
@@ -77,7 +77,7 @@ export default function OrgNotificationSettingsScreen() {
   const values = settings.data?.settings;
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <View className="flex-row items-center px-[20px] py-[12px]">
         <Pressable
           accessibilityRole="button"
@@ -92,11 +92,14 @@ export default function OrgNotificationSettingsScreen() {
       </View>
 
       {settings.isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#BD5500" />
+        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-[20px]" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView
+          className="flex-1 px-[20px] bg-lhlBackgroundColor"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           {!canEdit ? (
             <Text className="font-['Roboto-Flex'] mb-[12px] text-[12px] text-lhlSecondaryTextGrey">
               Only admins can change these.
@@ -112,9 +115,9 @@ export default function OrgNotificationSettingsScreen() {
           {ROWS.map((row) => (
             <View
               key={row.key}
-              className="mb-[10px] flex-row items-center justify-between rounded-[10px] border border-lhlMutedBorder bg-white px-[14px] py-[12px]"
+              className="mb-[10px] flex-row items-center justify-between rounded-[10px] border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[12px]"
             >
-              <View className="flex-1 pr-[12px]">
+              <View className="flex-1 pr-[12px] bg-lhlBackgroundColor">
                 <Text className="font-['Roboto-Flex'] text-[14px] font-medium text-lhlInk">
                   {row.label}
                 </Text>
@@ -129,7 +132,8 @@ export default function OrgNotificationSettingsScreen() {
                   setError(null);
                   update.mutate({ [row.key]: next });
                 }}
-                trackColor={{ false: '#B4B2B2', true: '#BD5500' }}
+                trackColor={{ false: colors.border, true: colors.brand }}
+                thumbColor={colors.surface}
               />
             </View>
           ))}

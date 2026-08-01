@@ -38,16 +38,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
-const BORDER = 'rgba(0,0,0,0.20)';
-const ERROR_RED = '#B30404';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type Step = 'email' | 'code' | 'success';
 
 const CODE_LENGTH = 4;
 
 export default function OrgRegisterScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ org?: string; name?: string }>();
@@ -148,8 +146,8 @@ export default function OrgRegisterScreen() {
   // --- Success (build step 1) ---------------------------------------------
   if (step === 'success') {
     return (
-      <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
-        <View className="flex-1 items-center justify-center px-[36px]">
+      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+        <View className="flex-1 items-center justify-center px-[36px] bg-lhlBackgroundColor">
           <View className="h-[72px] w-[72px] items-center justify-center rounded-full bg-lhlSurfaceGrey">
             <Text className="text-[30px] text-lhlBurntOrange">✓</Text>
           </View>
@@ -183,9 +181,9 @@ export default function OrgRegisterScreen() {
   const canSubmit = isEmailStep ? isEmailValid : isCodeValid;
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <KeyboardAvoidingView
-        className="flex-1"
+        className="flex-1 bg-lhlBackgroundColor"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View className="flex-row items-center px-[20px] py-[12px]">
@@ -210,7 +208,7 @@ export default function OrgRegisterScreen() {
         </View>
 
         <ScrollView
-          className="flex-1 px-[20px]"
+          className="flex-1 px-[20px] bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -233,10 +231,10 @@ export default function OrgRegisterScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
-                className="font-['Roboto-Flex'] mt-[14px] rounded-[8px] border bg-white px-[12px] py-[12px] text-[14px] text-lhlInk"
+                className="font-['Roboto-Flex'] mt-[14px] rounded-[8px] border bg-lhlSurface px-[12px] py-[12px] text-[14px] text-lhlInk"
                 // Build step 3: red border on mismatch, and the form stays
                 // editable so the user can correct and resubmit.
-                style={{ borderColor: error ? ERROR_RED : BORDER }}
+                style={{ borderColor: error ? colors.destructive : colors.border }}
               />
 
               {error ? (
@@ -281,7 +279,7 @@ export default function OrgRegisterScreen() {
             className={`mt-[26px] h-[50px] items-center justify-center rounded-[10px] border ${
               canSubmit
                 ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                : 'border-lhlMutedBorder bg-white opacity-60'
+                : 'border-lhlMutedBorder bg-lhlSurface opacity-60'
             }`}
           >
             {isSubmitting ? (

@@ -8,7 +8,7 @@ export default function FrontPage() {
   const { update } = useOnboarding();
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-lhlSurface">
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         className="px-8"

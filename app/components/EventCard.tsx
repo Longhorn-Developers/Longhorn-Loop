@@ -83,7 +83,7 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
     <Pressable
       onPress={handlePress}
       style={[{ width: 180 }, style]}
-      className="mr-4 rounded-2xl overflow-hidden bg-white border border-lhlGrey"
+      className="mr-4 rounded-2xl overflow-hidden bg-lhlSurface border border-lhlGrey"
     >
       <View
         style={{

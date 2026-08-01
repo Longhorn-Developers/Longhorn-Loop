@@ -29,7 +29,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
       onPress={() => router.push(`/event/${event.id}`)}
       // Half the row minus the gap. Set here rather than by the parent so the
       // card is self-contained wherever the grid is reused.
-      className="mb-[16px] w-[48%] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-white"
+      className="mb-[16px] w-[48%] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-lhlSurface"
     >
       <View className="h-[150px] w-full bg-lhlPlaceholderGrey">
         {event.image_url ? (
@@ -60,7 +60,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
               e.stopPropagation();
               onToggleSave(event.id);
             }}
-            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-white/90"
+            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
             <BookmarkIcon width={13} height={13} color={isSaved ? '#BD5500' : '#485656'} />
           </Pressable>

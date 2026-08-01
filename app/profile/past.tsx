@@ -19,8 +19,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type PastGroup = 'created' | 'attended' | 'saved';
 
@@ -45,7 +44,7 @@ function PastEventCard({ event, onPress }: { event: ApiEvent; onPress: () => voi
       accessibilityLabel={`${event.title}, ended ${formatEventDate(ended)}`}
       onPress={onPress}
       // Muted treatment marks the whole card as past without hiding content.
-      className="mb-[12px] flex-row items-center gap-[12px] rounded-[12px] border border-lhlMutedBorder bg-white p-[10px]"
+      className="mb-[12px] flex-row items-center gap-[12px] rounded-[12px] border border-lhlMutedBorder bg-lhlSurface p-[10px]"
     >
       <View className="h-[64px] w-[64px] overflow-hidden rounded-[10px] bg-lhlPlaceholderGrey">
         {event.image_url ? (
@@ -56,7 +55,7 @@ function PastEventCard({ event, onPress }: { event: ApiEvent; onPress: () => voi
         ) : null}
       </View>
 
-      <View className="flex-1">
+      <View className="flex-1 bg-lhlBackgroundColor">
         <View className="flex-row items-center gap-[6px]">
           <View className="rounded-full bg-lhlSurfaceGrey px-[8px] py-[2px]">
             <Text className="font-['Roboto-Flex'] text-[10px] font-semibold uppercase text-lhlSecondaryTextGrey">
@@ -89,6 +88,7 @@ function PastEventCard({ event, onPress }: { event: ApiEvent; onPress: () => voi
 }
 
 export default function PastEventsScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
@@ -108,7 +108,7 @@ export default function PastEventsScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center" style={{ backgroundColor: BG }}>
+      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to see your past events.
         </Text>
@@ -117,7 +117,7 @@ export default function PastEventsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <View className="flex-row items-center px-[20px] py-[12px]">
         <Pressable
           accessibilityRole="button"
@@ -145,7 +145,7 @@ export default function PastEventsScreen() {
               className={`flex-1 items-center rounded-full border py-[8px] ${
                 isActive
                   ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                  : 'border-lhlMutedBorder bg-white'
+                  : 'border-lhlMutedBorder bg-lhlSurface'
               }`}
             >
               <Text
@@ -162,12 +162,12 @@ export default function PastEventsScreen() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#BD5500" />
+        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
         <ScrollView
-          className="mt-[16px] flex-1 px-[20px]"
+          className="mt-[16px] flex-1 px-[20px] bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
         >
           {events.length === 0 ? (

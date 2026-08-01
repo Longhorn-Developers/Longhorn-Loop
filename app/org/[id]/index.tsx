@@ -28,8 +28,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type Tab = 'events' | 'members' | 'analytics';
 
@@ -76,7 +75,7 @@ interface AnalyticsResponse {
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <View className="flex-1 items-center rounded-[10px] border border-lhlMutedBorder bg-white py-[10px]">
+    <View className="flex-1 items-center rounded-[10px] border border-lhlMutedBorder bg-lhlSurface py-[10px]">
       <Text className="font-['Roboto-Flex'] text-[18px] font-semibold text-lhlInk">
         {value.toLocaleString()}
       </Text>
@@ -105,6 +104,7 @@ function RoleBadge({ role }: { role: 'admin' | 'editor' }) {
 }
 
 export default function OrgConsoleScreen() {
+  const colors = useThemeColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const orgId = Number(id);
   const router = useRouter();
@@ -185,7 +185,7 @@ export default function OrgConsoleScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center" style={{ backgroundColor: BG }}>
+      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to manage your organization.
         </Text>
@@ -196,10 +196,7 @@ export default function OrgConsoleScreen() {
   if (header.isError) {
     const message = describeError(header.error, 'Could not load this organization.');
     return (
-      <SafeAreaView
-        className="flex-1 items-center justify-center px-[30px]"
-        style={{ backgroundColor: BG }}
-      >
+      <SafeAreaView className="flex-1 items-center justify-center px-[30px] bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-center text-[14px] text-lhlSecondaryTextGrey">
           {message === 'NOT_A_MEMBER' ? 'You’re not a member of this organization.' : message}
         </Text>
@@ -211,7 +208,7 @@ export default function OrgConsoleScreen() {
   const stats = header.data?.stats;
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <View className="flex-row items-center px-[20px] py-[12px]">
         <Pressable
           accessibilityRole="button"
@@ -226,15 +223,18 @@ export default function OrgConsoleScreen() {
       </View>
 
       {header.isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#BD5500" />
+        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-[20px]" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView
+          className="flex-1 px-[20px] bg-lhlBackgroundColor"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           {/* --- Console header --- */}
           <View className="flex-row items-center">
             <View className="h-[60px] w-[60px] rounded-full bg-lhlPlaceholderGrey" />
-            <View className="ml-[12px] flex-1">
+            <View className="ml-[12px] flex-1 bg-lhlBackgroundColor">
               <View className="flex-row items-center gap-[6px]">
                 <Text
                   numberOfLines={1}
@@ -276,7 +276,7 @@ export default function OrgConsoleScreen() {
                   className={`flex-1 items-center rounded-full border py-[8px] ${
                     isActive
                       ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                      : 'border-lhlMutedBorder bg-white'
+                      : 'border-lhlMutedBorder bg-lhlSurface'
                   }`}
                 >
                   <Text
@@ -331,16 +331,16 @@ export default function OrgConsoleScreen() {
               </View>
 
               {members.isLoading ? (
-                <ActivityIndicator className="mt-[20px]" color="#BD5500" />
+                <ActivityIndicator className="mt-[20px]" color={colors.brand} />
               ) : (
                 <View className="mt-[12px]">
                   {members.data?.members.map((m) => (
                     <View
                       key={m.id}
-                      className="mb-[10px] flex-row items-center rounded-[10px] border border-lhlMutedBorder bg-white px-[12px] py-[10px]"
+                      className="mb-[10px] flex-row items-center rounded-[10px] border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[10px]"
                     >
                       <View className="h-[36px] w-[36px] rounded-full bg-lhlPlaceholderGrey" />
-                      <View className="ml-[10px] flex-1">
+                      <View className="ml-[10px] flex-1 bg-lhlBackgroundColor">
                         <Text
                           numberOfLines={1}
                           className="font-['Roboto-Flex'] text-[13px] font-semibold text-lhlInk"
@@ -423,7 +423,7 @@ export default function OrgConsoleScreen() {
                       setActionError(null);
                       setConfirmLeave(true);
                     }}
-                    className="mt-[20px] items-center rounded-[10px] border border-lhlDestructiveRed bg-white py-[12px]"
+                    className="mt-[20px] items-center rounded-[10px] border border-lhlDestructiveRed bg-lhlSurface py-[12px]"
                   >
                     <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-lhlDestructiveRed">
                       Leave Organization
@@ -453,7 +453,7 @@ export default function OrgConsoleScreen() {
                   className={`rounded-full border px-[12px] py-[6px] ${
                     eventFilter === 'all'
                       ? 'border-lhlInk bg-lhlInk'
-                      : 'border-lhlMutedBorder bg-white'
+                      : 'border-lhlMutedBorder bg-lhlSurface'
                   }`}
                 >
                   <Text
@@ -471,7 +471,7 @@ export default function OrgConsoleScreen() {
                     className={`rounded-full border px-[12px] py-[6px] ${
                       eventFilter === e.id
                         ? 'border-lhlInk bg-lhlInk'
-                        : 'border-lhlMutedBorder bg-white'
+                        : 'border-lhlMutedBorder bg-lhlSurface'
                     }`}
                   >
                     <Text
@@ -487,10 +487,10 @@ export default function OrgConsoleScreen() {
               </ScrollView>
 
               {analytics.isLoading ? (
-                <ActivityIndicator className="mt-[20px]" color="#BD5500" />
+                <ActivityIndicator className="mt-[20px]" color={colors.brand} />
               ) : (
                 <>
-                  <View className="mt-[16px] rounded-[12px] border border-lhlMutedBorder bg-white p-[12px]">
+                  <View className="mt-[16px] rounded-[12px] border border-lhlMutedBorder bg-lhlSurface p-[12px]">
                     <EngagementChart data={weekly} />
                   </View>
 
@@ -503,7 +503,7 @@ export default function OrgConsoleScreen() {
                       analytics.data?.events.map((e) => (
                         <View
                           key={e.id}
-                          className="mb-[10px] rounded-[10px] border border-lhlMutedBorder bg-white px-[12px] py-[10px]"
+                          className="mb-[10px] rounded-[10px] border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[10px]"
                         >
                           <Text
                             numberOfLines={1}

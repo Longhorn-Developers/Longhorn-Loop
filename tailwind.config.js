@@ -10,18 +10,37 @@ module.exports = {
   darkMode: 'class',
   theme: {
     extend: {
+      // Every colour resolves through a CSS variable defined in
+      // app/globals.css (:root for light, .dark for dark). Because the
+      // existing token NAMES are preserved, the ~290 class usages already in
+      // the codebase gain dark mode without any of those files changing.
+      //
+      // <alpha-value> keeps opacity modifiers working (bg-lhlSurface/50).
       colors: {
-        lhlBorderColor: 'hsla(0,0%,7%,1)',
-        lhlBurntOrange: 'hsla(27, 100%, 37%, 1)',
-        lhlSecondaryTextGrey: 'hsla(180, 9%, 31%, 1)',
-        lhlBackgroundColor: 'hsla(45, 25%, 97%, 1)',
-        // Added for the Profile modals (LOOP-182), mapped from the Figma
-        // "LHJ" styles on the Modals frame.
-        lhlInk: 'hsla(240, 10%, 4%, 1)', // #09090B - modal titles, filled dark buttons
-        lhlMutedBorder: 'hsla(0, 1%, 70%, 1)', // #B4B2B2 - outline button border
-        lhlSurfaceGrey: 'hsla(30, 31%, 96%, 1)', // #F8F5F2 - inset field / card fill
-        lhlPlaceholderGrey: 'hsla(0, 0%, 85%, 1)', // #D9D9D9 - avatar placeholders
-        lhlDestructiveRed: 'hsla(0, 93%, 36%, 1)', // #B30404 - inline errors, Delete
+        // Page background.
+        lhlBackgroundColor: 'rgb(var(--lhl-background) / <alpha-value>)',
+        // Cards / inputs / anything raised off the page. Prefer this over
+        // bg-white, which cannot theme.
+        lhlSurface: 'rgb(var(--lhl-surface) / <alpha-value>)',
+        // Inset fills: search fields, disabled tiles.
+        lhlSurfaceGrey: 'rgb(var(--lhl-surface-muted) / <alpha-value>)',
+
+        lhlInk: 'rgb(var(--lhl-ink) / <alpha-value>)',
+        lhlSecondaryTextGrey: 'rgb(var(--lhl-ink-secondary) / <alpha-value>)',
+
+        lhlMutedBorder: 'rgb(var(--lhl-border) / <alpha-value>)',
+        // Legacy alias — was a near-black hairline, now the themed border.
+        lhlBorderColor: 'rgb(var(--lhl-border) / <alpha-value>)',
+        lhlPlaceholderGrey: 'rgb(var(--lhl-placeholder) / <alpha-value>)',
+
+        // Filled buttons; white text sits on this in both themes.
+        lhlBurntOrange: 'rgb(var(--lhl-brand) / <alpha-value>)',
+        // Accent TEXT — links, "Edit"/"Done". Differs from the button colour
+        // because it has to clear 4.5:1 against the page in both themes.
+        lhlAccent: 'rgb(var(--lhl-accent) / <alpha-value>)',
+
+        lhlDestructiveRed: 'rgb(var(--lhl-destructive) / <alpha-value>)',
+        lhlScrim: 'rgb(var(--lhl-scrim) / <alpha-value>)',
       },
       fontFamily: {
         roboto: ['Roboto-Flex'],

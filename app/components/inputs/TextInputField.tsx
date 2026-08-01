@@ -77,7 +77,7 @@ export default function TextInputField({
           border
           px-[9px] h-[33px] gap-2
           ${borderColorClass}
-          bg-white
+          bg-lhlSurface
         `}
         style={{
           borderRadius: borderRadius,

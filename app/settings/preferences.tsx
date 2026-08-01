@@ -27,8 +27,7 @@ import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type ToggleKey =
   | 'dark_mode'
@@ -101,6 +100,7 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 ];
 
 export default function SettingsPreferencesScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding, reset } = useOnboarding();
   const token = onboarding.token || null;
@@ -183,7 +183,7 @@ export default function SettingsPreferencesScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center" style={{ backgroundColor: BG }}>
+      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to change your settings.
         </Text>
@@ -192,7 +192,7 @@ export default function SettingsPreferencesScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <View className="flex-row items-center px-[20px] py-[12px]">
         <Pressable
           accessibilityRole="button"
@@ -201,7 +201,7 @@ export default function SettingsPreferencesScreen() {
         >
           <ArrowLeftIcon width={22} height={22} />
         </Pressable>
-        <View className="ml-[12px] flex-1">
+        <View className="ml-[12px] flex-1 bg-lhlBackgroundColor">
           <Text className="font-['Roboto-Flex'] text-[20px] font-semibold text-lhlInk">
             Settings
           </Text>
@@ -225,12 +225,12 @@ export default function SettingsPreferencesScreen() {
       </View>
 
       {query.isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#BD5500" />
+        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
         <ScrollView
-          className="mt-[14px] flex-1 px-[20px]"
+          className="mt-[14px] flex-1 px-[20px] bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -254,7 +254,7 @@ export default function SettingsPreferencesScreen() {
             return (
               <View
                 key={section.title}
-                className="mb-[12px] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-white"
+                className="mb-[12px] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-lhlSurface"
               >
                 <Pressable
                   accessibilityRole="button"
@@ -283,7 +283,7 @@ export default function SettingsPreferencesScreen() {
                               index > 0 ? 'border-t border-lhlSurfaceGrey' : ''
                             }`}
                           >
-                            <View className="flex-1 pr-[12px]">
+                            <View className="flex-1 pr-[12px] bg-lhlBackgroundColor">
                               <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
                                 {row.label}
                               </Text>
@@ -300,7 +300,8 @@ export default function SettingsPreferencesScreen() {
                                 setError(null);
                                 update.mutate({ [row.key]: next });
                               }}
-                              trackColor={{ false: '#B4B2B2', true: '#BD5500' }}
+                              trackColor={{ false: colors.border, true: colors.brand }}
+                              thumbColor={colors.surface}
                             />
                           </View>
                         );
@@ -387,7 +388,7 @@ export default function SettingsPreferencesScreen() {
                 className={`mb-[6px] items-center rounded-full border py-[7px] ${
                   isSelected
                     ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                    : 'border-lhlMutedBorder bg-white'
+                    : 'border-lhlMutedBorder bg-lhlSurface'
                 }`}
               >
                 <Text

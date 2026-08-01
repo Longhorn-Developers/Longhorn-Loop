@@ -10,6 +10,10 @@
 // added before the app actually looks dark. That's mechanical but broad, and
 // it belongs in its own change rather than buried in a Settings ticket.
 
+import { useOnboarding } from '@/app/context/OnboardingContext';
+import { api } from '@/app/lib/api';
+import { settings as settingsKeys } from '@/app/lib/queryKeys';
+import { useQuery } from '@tanstack/react-query';
 import { colorScheme } from 'nativewind';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -41,14 +45,10 @@ function applyColorScheme(dark: boolean): void {
   }
 }
 
-export function ThemeProvider({
-  children,
-  initialDark = false,
-}: {
-  children: React.ReactNode;
-  initialDark?: boolean;
-}) {
-  const [isDark, setIsDark] = useState(initialDark);
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [isDark, setIsDark] = useState(false);
+  const { data: onboarding } = useOnboarding();
+  const token = onboarding.token || null;
 
   const setDarkMode = useCallback((value: boolean) => {
     setIsDark(value);
@@ -57,12 +57,36 @@ export function ThemeProvider({
     applyColorScheme(value);
   }, []);
 
-  // Apply whatever the server said on first render (and if it changes after a
-  // late-arriving settings fetch).
+  // Restore the saved preference on launch.
+  //
+  // Without this the toggle only lasted until the app restarted: the value was
+  // persisted server-side but nothing ever read it back. ThemeProvider sits
+  // inside both QueryClientProvider and OnboardingProvider, so it can do the
+  // fetch itself rather than needing a prop threaded down from the root.
+  const { data } = useQuery({
+    queryKey: settingsKeys.mine(),
+    queryFn: () => api.get<{ settings: { dark_mode: boolean } }>('/settings', { token }),
+    enabled: !!token,
+    // The Settings screen writes the authoritative value into this same cache
+    // key on save, so a refetch here would only ever confirm what we have.
+    staleTime: Infinity,
+  });
+
+  const savedDark = data?.settings?.dark_mode;
   useEffect(() => {
-    applyColorScheme(initialDark);
-    setIsDark(initialDark);
-  }, [initialDark]);
+    if (typeof savedDark !== 'boolean') return;
+    setIsDark(savedDark);
+    applyColorScheme(savedDark);
+  }, [savedDark]);
+
+  // Signing out clears the query cache, so drop back to light rather than
+  // leaving the previous account's theme applied at the login screen.
+  useEffect(() => {
+    if (!token) {
+      setIsDark(false);
+      applyColorScheme(false);
+    }
+  }, [token]);
 
   const value = useMemo(() => ({ isDark, setDarkMode }), [isDark, setDarkMode]);
 

@@ -70,7 +70,7 @@ export default function SearchablePillDropdownField({
 
       {shouldShowDropdown && (
         <View
-          className="mt-1 border border-lhlBorderColor bg-white p-[6px]"
+          className="mt-1 border border-lhlBorderColor bg-lhlSurface p-[6px]"
           style={{ borderRadius }}
         >
           {filteredOptions.length > 0 ? (

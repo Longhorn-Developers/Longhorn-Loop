@@ -33,7 +33,7 @@ interface ModalActionProps {
 }
 
 const CONTAINER_BY_VARIANT: Record<ModalActionVariant, string> = {
-  outline: 'bg-white border border-lhlMutedBorder',
+  outline: 'bg-lhlSurface border border-lhlMutedBorder',
   ink: 'bg-lhlInk border border-lhlInk',
   brand: 'bg-lhlBurntOrange border border-lhlBurntOrange',
 };
@@ -131,7 +131,7 @@ export default function ProfileModal({
         {/* Absorbs taps so pressing the card itself never closes the modal. */}
         <Pressable
           onPress={() => {}}
-          className="w-[266px] items-center rounded-[10px] bg-white px-[20px] py-[30px]"
+          className="w-[266px] items-center rounded-[10px] bg-lhlSurface px-[20px] py-[30px]"
         >
           {icon || showIconPlaceholder ? (
             <View className="mb-[14px]">

@@ -1,3 +1,72 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Theme tokens.
+ *
+ * Every colour is a CSS variable with a light value on :root and a dark value
+ * on .dark, and tailwind.config.js maps the lhl* token names onto them. That
+ * matters because ~290 existing class usages (text-lhlInk,
+ * border-lhlMutedBorder, bg-lhlSurfaceGrey …) then pick up dark mode with no
+ * change to those files — the alternative was editing every screen.
+ *
+ * NativeWind flips the .dark class from colorScheme.set(), which is why
+ * tailwind.config.js sets darkMode: 'class'.
+ *
+ * Values are raw "R G B" triplets, not hex, so Tailwind can apply opacity
+ * modifiers (bg-lhlSurface/50) via rgb(var(--x) / <alpha-value>).
+ *
+ * Contrast was verified rather than eyeballed: every text/background pair
+ * below clears WCAG AA 4.5:1, white on a brand button clears 4.5:1, and the
+ * dark border matches the light theme's existing 2.1:1 against its surface.
+ * The commit message carries the script — re-run it before changing a value.
+ */
+
+:root {
+  /* Page background — warm off-white. */
+  --lhl-background: 249 248 245; /* #F9F8F5 */
+  /* Cards, inputs, anything raised off the page. */
+  --lhl-surface: 255 255 255; /* #FFFFFF */
+  /* Inset fills: search fields, disabled tiles. */
+  --lhl-surface-muted: 248 245 242; /* #F8F5F2 */
+
+  --lhl-ink: 9 9 11; /* #09090B  primary text */
+  --lhl-ink-secondary: 72 86 86; /* #485656  secondary text */
+
+  --lhl-border: 180 178 178; /* #B4B2B2 */
+  --lhl-placeholder: 217 217 217; /* #D9D9D9  avatar / image placeholders */
+
+  /* Filled buttons. White text sits on this, so it can't lighten in dark. */
+  --lhl-brand: 189 85 0; /* #BD5500 */
+  /* Accent TEXT (links, "Edit"/"Done"). Darker than brand in light so it
+     clears 4.5:1 on the page; much lighter in dark for the same reason. */
+  --lhl-accent: 168 75 0; /* #A84B00 */
+
+  --lhl-destructive: 179 4 4; /* #B30404 */
+
+  /* Scrim behind modals. */
+  --lhl-scrim: 9 9 11;
+}
+
+.dark {
+  /* Warm charcoal rather than pure black: the light theme is a warm
+     off-white, and a neutral black under it makes the burnt orange look
+     muddy and the app feel harsher than it reads by day. */
+  --lhl-background: 26 23 20; /* #1A1714 */
+  --lhl-surface: 35 32 25; /* #232019 */
+  --lhl-surface-muted: 43 39 33; /* #2B2721 */
+
+  --lhl-ink: 243 239 232; /* #F3EFE8  warm off-white, not pure #FFF */
+  --lhl-ink-secondary: 169 162 154; /* #A9A29A */
+
+  --lhl-border: 88 80 71; /* #585047  lightened to stay visible on #232019 */
+  --lhl-placeholder: 63 58 51; /* #3F3A33 */
+
+  --lhl-brand: 189 85 0; /* #BD5500  unchanged; white text still clears AA */
+  --lhl-accent: 240 151 92; /* #F0975C */
+
+  --lhl-destructive: 255 107 99; /* #FF6B63 */
+
+  --lhl-scrim: 0 0 0;
+}

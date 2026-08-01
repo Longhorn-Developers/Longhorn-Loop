@@ -74,7 +74,7 @@ export default function PillDropdownField({
           flex-row items-center
           border
           p-[9px] h-[38px] gap-[10px]
-          bg-white
+          bg-lhlSurface
         `}
         style={headerStyle}
       >
@@ -108,7 +108,7 @@ export default function PillDropdownField({
 
       {/* Dropdown Options Area */}
       {isOpen && (
-        <View className={`border-x border-b bg-white p-[10px]`} style={dropdownStyle}>
+        <View className={`border-x border-b bg-lhlSurface p-[10px]`} style={dropdownStyle}>
           <View className="flex-row flex-wrap gap-2">
             {options.map((option) => {
               const isSelected = selectedValues.includes(option);

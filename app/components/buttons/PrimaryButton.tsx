@@ -23,7 +23,7 @@ export default function PrimaryButton({
 }: PrimaryButtonProps) {
   const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
-  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-white';
+  const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-lhlSurface';
 
   const textColorClass = isFilled ? 'text-white' : 'text-lhlSecondaryTextGrey';
 

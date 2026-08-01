@@ -38,8 +38,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 interface MeResponse {
   user: {
@@ -71,6 +70,7 @@ const TABS: { key: ProfileEventTab; label: string; empty: string }[] = [
 ];
 
 export default function ProfileScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
@@ -122,7 +122,7 @@ export default function ProfileScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center" style={{ backgroundColor: BG }}>
+      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to see your profile.
         </Text>
@@ -133,10 +133,7 @@ export default function ProfileScreen() {
   if (profileQuery.isError) {
     const status = profileQuery.error instanceof ApiError ? profileQuery.error.status : null;
     return (
-      <SafeAreaView
-        className="flex-1 items-center justify-center px-[30px]"
-        style={{ backgroundColor: BG }}
-      >
+      <SafeAreaView className="flex-1 items-center justify-center px-[30px] bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
           Couldn’t load your profile
         </Text>
@@ -159,14 +156,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       {profileQuery.isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#BD5500" />
+        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+          <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
         <ScrollView
-          className="flex-1"
+          className="flex-1 bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -189,7 +186,7 @@ export default function ProfileScreen() {
           </View>
 
           {menuOpen ? (
-            <View className="mx-[20px] mb-[6px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-white">
+            <View className="mx-[20px] mb-[6px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-lhlSurface">
               {[
                 { label: 'Manage Organizations', to: '/settings' },
                 { label: 'Settings', to: '/settings/preferences' },
@@ -237,7 +234,7 @@ export default function ProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Edit profile"
                 onPress={() => router.push('/profile/edit')}
-                className="flex-row items-center gap-[5px] rounded-full border border-lhlMutedBorder bg-white px-[14px] py-[6px]"
+                className="flex-row items-center gap-[5px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[6px]"
               >
                 <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
                   Edit Profile
@@ -256,7 +253,7 @@ export default function ProfileScreen() {
                     accessibilityLabel={`Open ${meta.label}`}
                     // Routed through the Open Link warning (LOOP-182).
                     onPress={() => openLink.request(social.url)}
-                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-white"
+                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-lhlSurface"
                   >
                     <Icon size={16} />
                   </Pressable>
@@ -300,7 +297,7 @@ export default function ProfileScreen() {
               {(profile?.tags ?? []).map((tag) => (
                 <View
                   key={tag}
-                  className="rounded-full border border-lhlMutedBorder bg-white px-[12px] py-[5px]"
+                  className="rounded-full border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[5px]"
                 >
                   <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
                 </View>
@@ -311,7 +308,7 @@ export default function ProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Add interests"
                 onPress={() => router.push('/profile/edit')}
-                className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
+                className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
               >
                 <Text className="font-['Roboto-Flex'] text-[13px] leading-[15px] text-lhlSecondaryTextGrey">
                   +
@@ -339,7 +336,7 @@ export default function ProfileScreen() {
                     onPress={() => setTab(t.key)}
                     className={`flex-1 flex-row items-center justify-center rounded-full border py-[7px] ${
                       isActive
-                        ? 'border-lhlInk bg-white'
+                        ? 'border-lhlInk bg-lhlSurface'
                         : 'border-lhlMutedBorder bg-lhlSurfaceGrey'
                     }`}
                   >
@@ -382,7 +379,9 @@ export default function ProfileScreen() {
                       accessibilityState={{ selected: isActive }}
                       onPress={() => setFilter(key)}
                       className={`rounded-full px-[12px] py-[5px] ${
-                        isActive ? 'bg-lhlBurntOrange' : 'border border-lhlMutedBorder bg-white'
+                        isActive
+                          ? 'bg-lhlBurntOrange'
+                          : 'border border-lhlMutedBorder bg-lhlSurface'
                       }`}
                     >
                       <Text
@@ -401,7 +400,7 @@ export default function ProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={sortRecent ? 'Sort by date' : 'Sort by recently added'}
                 onPress={() => setSortRecent((v) => !v)}
-                className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-white px-[10px] py-[5px]"
+                className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[10px] py-[5px]"
               >
                 <Text className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey">
                   {sortRecent ? 'Recent' : 'Date'}
@@ -411,7 +410,7 @@ export default function ProfileScreen() {
 
             {/* Grid */}
             {eventsQuery.isLoading ? (
-              <ActivityIndicator className="mt-[24px]" color="#BD5500" />
+              <ActivityIndicator className="mt-[24px]" color={colors.brand} />
             ) : (
               <View className="mt-[14px] flex-row flex-wrap justify-between">
                 {(eventsQuery.data?.events ?? []).length === 0 ? (

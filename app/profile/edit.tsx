@@ -55,9 +55,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
-const BORDER = 'rgba(0,0,0,0.20)';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
@@ -98,6 +96,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function EditProfileScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
@@ -262,7 +261,7 @@ export default function EditProfileScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center" style={{ backgroundColor: BG }}>
+      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
         <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
           Sign in to edit your profile.
         </Text>
@@ -271,9 +270,9 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <KeyboardAvoidingView
-        className="flex-1"
+        className="flex-1 bg-lhlBackgroundColor"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Header: back + Save, Save orange only once something changed */}
@@ -289,7 +288,9 @@ export default function EditProfileScreen() {
             disabled={!isDirty || saveProfile.isPending}
             onPress={handleSave}
             className={`rounded-[6px] border px-[18px] py-[6px] ${
-              isDirty ? 'border-lhlBurntOrange bg-lhlBurntOrange' : 'border-lhlMutedBorder bg-white'
+              isDirty
+                ? 'border-lhlBurntOrange bg-lhlBurntOrange'
+                : 'border-lhlMutedBorder bg-lhlSurface'
             }`}
           >
             <Text
@@ -303,13 +304,13 @@ export default function EditProfileScreen() {
         </View>
 
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#BD5500" />
+          <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+            <ActivityIndicator color={colors.brand} />
           </View>
         ) : isError ? (
           // Without this the form renders blank with Save disabled, which reads
           // as a broken screen rather than a failed request.
-          <View className="flex-1 items-center justify-center px-[30px]">
+          <View className="flex-1 items-center justify-center px-[30px] bg-lhlBackgroundColor">
             <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
               Couldn’t load your profile
             </Text>
@@ -330,7 +331,7 @@ export default function EditProfileScreen() {
           </View>
         ) : (
           <ScrollView
-            className="flex-1 px-[20px]"
+            className="flex-1 px-[20px] bg-lhlBackgroundColor"
             contentContainerStyle={{ paddingBottom: 50 }}
             keyboardShouldPersistTaps="handled"
           >
@@ -349,7 +350,7 @@ export default function EditProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Edit photo"
                 onPress={() => setShowAvatarPicker(true)}
-                className="mt-[10px] rounded-full border border-lhlInk bg-white px-[16px] py-[5px]"
+                className="mt-[10px] rounded-full border border-lhlInk bg-lhlSurface px-[16px] py-[5px]"
               >
                 <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
                   Edit photo
@@ -374,8 +375,10 @@ export default function EditProfileScreen() {
                   setShowNameError(false);
                 }}
                 maxLength={MAX_NAME}
-                className="font-['Roboto-Flex'] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
-                style={{ borderColor: showNameError && !isNameValid ? '#B30404' : BORDER }}
+                className="font-['Roboto-Flex'] rounded-[6px] border bg-lhlSurface px-[12px] py-[10px] text-[13px] text-lhlInk"
+                style={{
+                  borderColor: showNameError && !isNameValid ? colors.destructive : colors.border,
+                }}
               />
             </View>
 
@@ -388,8 +391,10 @@ export default function EditProfileScreen() {
                   setShowNameError(false);
                 }}
                 maxLength={MAX_NAME}
-                className="font-['Roboto-Flex'] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
-                style={{ borderColor: showNameError && !isNameValid ? '#B30404' : BORDER }}
+                className="font-['Roboto-Flex'] rounded-[6px] border bg-lhlSurface px-[12px] py-[10px] text-[13px] text-lhlInk"
+                style={{
+                  borderColor: showNameError && !isNameValid ? colors.destructive : colors.border,
+                }}
               />
               {showNameError && !isNameValid ? (
                 <Text className="font-['Roboto-Flex'] mt-[6px] text-[11px] text-lhlDestructiveRed">
@@ -449,14 +454,14 @@ export default function EditProfileScreen() {
             <View className="mt-[18px]">
               <FieldLabel>Bio</FieldLabel>
               <View
-                className="rounded-[6px] border bg-white px-[12px] py-[10px]"
-                style={{ borderColor: BORDER }}
+                className="rounded-[6px] border bg-lhlSurface px-[12px] py-[10px]"
+                style={{ borderColor: colors.border }}
               >
                 <TextInput
                   value={bio}
                   onChangeText={setBio}
                   placeholder="Tell people a bit about you"
-                  placeholderTextColor="#9A9A9A"
+                  placeholderTextColor={colors.inkSecondary}
                   multiline
                   maxLength={MAX_BIO}
                   className="font-['Roboto-Flex'] h-[64px] text-[13px] text-lhlInk"
@@ -496,7 +501,7 @@ export default function EditProfileScreen() {
                       className={`rounded-full border px-[14px] py-[7px] ${
                         isSelected
                           ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                          : 'border-lhlMutedBorder bg-white'
+                          : 'border-lhlMutedBorder bg-lhlSurface'
                       }`}
                     >
                       <Text
@@ -534,7 +539,7 @@ export default function EditProfileScreen() {
                       className={`rounded-full border px-[14px] py-[7px] ${
                         isSelected
                           ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                          : 'border-lhlMutedBorder bg-white'
+                          : 'border-lhlMutedBorder bg-lhlSurface'
                       }`}
                     >
                       <Text

@@ -149,7 +149,7 @@ export default function AddSocialUrlModal({
                 keyboardType="url"
                 editable={!isSaving}
                 onSubmitEditing={handleAdd}
-                className="font-['Roboto-Flex'] mt-[16px] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
+                className="font-['Roboto-Flex'] mt-[16px] rounded-[6px] border bg-lhlSurface px-[12px] py-[10px] text-[13px] text-lhlInk"
                 style={{ borderColor: BORDER }}
               />
 
@@ -163,7 +163,7 @@ export default function AddSocialUrlModal({
                 className={`mt-[14px] items-center justify-center rounded-[8px] border py-[12px] ${
                   isValid
                     ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                    : 'border-lhlMutedBorder bg-white'
+                    : 'border-lhlMutedBorder bg-lhlSurface'
                 }`}
               >
                 <Text

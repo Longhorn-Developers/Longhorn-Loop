@@ -330,7 +330,7 @@ export default function EventDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={BURNT_ORANGE} />
         </View>
@@ -340,7 +340,7 @@ export default function EventDetailScreen() {
 
   if (error || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="px-5 pt-4">
           <TouchableOpacity onPress={() => router.back()}>
             <Text style={{ fontSize: 16, color: BURNT_ORANGE }}>‹ Back</Text>

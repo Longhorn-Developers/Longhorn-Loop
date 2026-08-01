@@ -17,8 +17,7 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BG = '#F9F8F5';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 interface MyOrg {
   id: number;
@@ -33,6 +32,7 @@ interface MyOrgsResponse {
 }
 
 export default function SettingsEntryScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
@@ -44,7 +44,7 @@ export default function SettingsEntryScreen() {
   });
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <View className="flex-row items-center px-[20px] py-[12px]">
         <Pressable
           accessibilityRole="button"
@@ -58,11 +58,14 @@ export default function SettingsEntryScreen() {
         </Text>
       </View>
 
-      <ScrollView className="flex-1 px-[20px]" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        className="flex-1 px-[20px] bg-lhlBackgroundColor"
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/settings/preferences')}
-          className="flex-row items-center justify-between rounded-[12px] border border-lhlMutedBorder bg-white px-[14px] py-[14px]"
+          className="flex-row items-center justify-between rounded-[12px] border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[14px]"
         >
           <View>
             <Text className="font-['Roboto-Flex'] text-[15px] font-semibold text-lhlInk">
@@ -81,7 +84,7 @@ export default function SettingsEntryScreen() {
         </Text>
 
         {orgs.isLoading ? (
-          <ActivityIndicator className="mt-[16px]" color="#BD5500" />
+          <ActivityIndicator className="mt-[16px]" color={colors.brand} />
         ) : (
           <View className="mt-[10px]">
             {orgs.data?.organizations.length === 0 ? (
@@ -92,11 +95,11 @@ export default function SettingsEntryScreen() {
               orgs.data?.organizations.map((o) => (
                 <View
                   key={o.id}
-                  className="mb-[10px] rounded-[12px] border border-lhlMutedBorder bg-white px-[14px] py-[12px]"
+                  className="mb-[10px] rounded-[12px] border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[12px]"
                 >
                   <View className="flex-row items-center">
                     <View className="h-[36px] w-[36px] rounded-full bg-lhlPlaceholderGrey" />
-                    <View className="ml-[10px] flex-1">
+                    <View className="ml-[10px] flex-1 bg-lhlBackgroundColor">
                       <View className="flex-row items-center gap-[5px]">
                         <Text
                           numberOfLines={1}
@@ -123,7 +126,7 @@ export default function SettingsEntryScreen() {
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => router.push(`/org/${o.id}`)}
-                      className="flex-1 items-center rounded-full border border-lhlMutedBorder bg-white py-[7px]"
+                      className="flex-1 items-center rounded-full border border-lhlMutedBorder bg-lhlSurface py-[7px]"
                     >
                       <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
                         Manage

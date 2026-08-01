@@ -22,9 +22,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useThemeColors } from '@/app/lib/themeColors';
 
-const BG = '#F9F8F5';
-const BORDER = 'rgba(0,0,0,0.20)';
 const MAX_MESSAGE = 2000;
 
 type FeedbackKind = 'feedback' | 'bug' | 'support';
@@ -48,6 +47,7 @@ const COPY: Record<FeedbackKind, { title: string; prompt: string; placeholder: s
 };
 
 export default function FeedbackScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ kind?: string }>();
   const { data: onboarding } = useOnboarding();
@@ -83,9 +83,9 @@ export default function FeedbackScreen() {
   const canSend = message.trim().length > 0 && !submit.isPending;
 
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       <KeyboardAvoidingView
-        className="flex-1"
+        className="flex-1 bg-lhlBackgroundColor"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View className="flex-row items-center px-[20px] py-[12px]">
@@ -102,7 +102,7 @@ export default function FeedbackScreen() {
         </View>
 
         <ScrollView
-          className="flex-1 px-[20px]"
+          className="flex-1 px-[20px] bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
@@ -119,8 +119,11 @@ export default function FeedbackScreen() {
             placeholder={copy.placeholder}
             multiline
             maxLength={MAX_MESSAGE}
-            className="font-['Roboto-Flex'] mt-[10px] h-[180px] rounded-[10px] border bg-white px-[12px] py-[10px] text-[14px] text-lhlInk"
-            style={{ borderColor: error ? '#B30404' : BORDER, textAlignVertical: 'top' }}
+            className="font-['Roboto-Flex'] mt-[10px] h-[180px] rounded-[10px] border bg-lhlSurface px-[12px] py-[10px] text-[14px] text-lhlInk"
+            style={{
+              borderColor: error ? colors.destructive : colors.border,
+              textAlignVertical: 'top',
+            }}
           />
 
           <Text className="font-['Roboto-Flex'] mt-[4px] text-right text-[11px] text-lhlSecondaryTextGrey">
@@ -142,7 +145,7 @@ export default function FeedbackScreen() {
             className={`mt-[20px] h-[50px] items-center justify-center rounded-[10px] border ${
               canSend
                 ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                : 'border-lhlMutedBorder bg-white opacity-60'
+                : 'border-lhlMutedBorder bg-lhlSurface opacity-60'
             }`}
           >
             <Text
