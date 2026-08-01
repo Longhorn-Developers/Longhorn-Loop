@@ -15,8 +15,23 @@ CREATE TABLE IF NOT EXISTS users (
   notifications_enabled INTEGER NOT NULL DEFAULT 0,
   terms_accepted_at TEXT,
   onboarding_completed INTEGER NOT NULL DEFAULT 0,
+  -- Short profile bio, edited on Edit Profile (LOOP-181). NULL = unset.
+  bio TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Linked socials -- up to MAX_LINKED_SOCIALS (3) per user (LOOP-181).
+-- One row per (user, platform); the 3-max cap is enforced in the route
+-- handler because SQLite can't express it as a constraint.
+CREATE TABLE IF NOT EXISTS user_socials (
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform   TEXT    NOT NULL,  -- see shared/socialPlatforms.ts
+  url        TEXT    NOT NULL,  -- normalized absolute https URL
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, platform)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_socials_user ON user_socials(user_id);
 
 -- User majors -- supports multiple majors per user
 CREATE TABLE IF NOT EXISTS user_majors (

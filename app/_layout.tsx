@@ -63,6 +63,9 @@ export default function RootLayout() {
           {/* View All events screen */}
           <Stack.Screen name="view-all" />
 
+          {/* Edit Profile, pushed from the Profile tab */}
+          <Stack.Screen name="profile/edit" />
+
           {/* Event detail + nested screens */}
           <Stack.Screen name="event/[id]/index" />
           <Stack.Screen name="event/[id]/report" />

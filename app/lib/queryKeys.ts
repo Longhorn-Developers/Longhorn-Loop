@@ -22,6 +22,14 @@ export const notifications = {
   list: () => [...notifications.all, 'list'] as const,
 };
 
+// Current user's profile (/users/me). Linked socials and the past-events
+// collections hang off the same root so one invalidate refreshes the profile.
+export const user = {
+  all: ['user'] as const,
+  me: () => [...user.all, 'me'] as const,
+  socials: () => [...user.all, 'socials'] as const,
+};
+
 // Phase 3 personalized feed endpoints (/feed/*).
 export const feed = {
   all: ['feed'] as const,
