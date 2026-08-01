@@ -278,7 +278,7 @@ export default function EditProfileScreen() {
         {/* Header: back + Save, Save orange only once something changed */}
         <View className="flex-row items-center justify-between px-[20px] py-[12px]">
           <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={handleBack}>
-            <ArrowLeftIcon width={22} height={22} />
+            <ArrowLeftIcon width={22} height={22} color={colors.ink} />
           </Pressable>
 
           <Pressable
@@ -429,6 +429,7 @@ export default function EditProfileScreen() {
                         onPress={() => removeSocial.mutate(social.platform)}
                         className="absolute right-0 top-0 h-[14px] w-[14px] items-center justify-center rounded-full bg-lhlDestructiveRed"
                       >
+                        {/* theme-exempt: cross sits on the filled destructive badge, white in both themes */}
                         <LhlPillCross size={6} color="#FFFFFF" />
                       </Pressable>
                     </View>
@@ -477,7 +478,7 @@ export default function EditProfileScreen() {
             <View className="mt-[18px]">
               <SearchablePillDropdownField
                 label="Whats your major(s)?"
-                leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+                leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
                 placeholder="Search for your major..."
                 options={MAJORS}
                 selectedValues={majors}
@@ -576,7 +577,7 @@ export default function EditProfileScreen() {
                   accessibilityRole="button"
                   onPress={() => setIsEditingInterests((v) => !v)}
                 >
-                  <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlBurntOrange">
+                  <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlAccent">
                     {isEditingInterests ? 'Done' : 'Edit'}
                   </Text>
                 </Pressable>
@@ -600,7 +601,7 @@ export default function EditProfileScreen() {
               {isEditingInterests ? (
                 <>
                   <SearchablePillDropdownField
-                    leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+                    leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
                     placeholder="Search for interests, events, activities..."
                     options={ALL_INTEREST_TAGS}
                     selectedValues={tags}

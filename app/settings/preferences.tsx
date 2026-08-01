@@ -199,7 +199,7 @@ export default function SettingsPreferencesScreen() {
           accessibilityLabel="Back"
           onPress={() => router.back()}
         >
-          <ArrowLeftIcon width={22} height={22} />
+          <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
         <View className="ml-[12px] flex-1 bg-lhlBackgroundColor">
           <Text className="font-['Roboto-Flex'] text-[20px] font-semibold text-lhlInk">
@@ -220,7 +220,7 @@ export default function SettingsPreferencesScreen() {
           autoCorrect={false}
           borderRadius={8}
           clearable
-          leftIcon={<LhlSearchIcon size={15} color="#485656" />}
+          leftIcon={<LhlSearchIcon size={15} color={colors.inkSecondary} />}
         />
       </View>
 

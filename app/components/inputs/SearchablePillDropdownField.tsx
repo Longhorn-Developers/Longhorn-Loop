@@ -75,7 +75,7 @@ export default function SearchablePillDropdownField({
         >
           {filteredOptions.length > 0 ? (
             <>
-              <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-neutral-500 mb-[10px] ml-[10px]">
+              <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlSecondaryTextGrey mb-[10px] ml-[10px]">
                 {filteredOptions.length} result{filteredOptions.length !== 1 ? 's' : ''} - tap to
                 select tag(s)
               </Text>
@@ -101,9 +101,9 @@ export default function SearchablePillDropdownField({
             </>
           ) : (
             <View className="py-4 items-center justify-center">
-              <Text className="font-['Roboto-Flex'] text-[12px] text-neutral-500">
+              <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
                 No results for{' '}
-                <Text className="font-['Roboto-Flex'] font-semibold text-neutral-500">
+                <Text className="font-['Roboto-Flex'] font-semibold text-lhlSecondaryTextGrey">
                   {`"${searchQuery.trim()}"`}
                 </Text>
               </Text>

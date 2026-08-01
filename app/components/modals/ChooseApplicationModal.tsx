@@ -17,6 +17,7 @@ import {
   SOCIAL_PLATFORMS_UI,
   type SocialPlatformId,
 } from '@/app/lib/socialPlatforms';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 export interface ChooseApplicationModalProps {
   visible: boolean;
@@ -33,6 +34,7 @@ export default function ChooseApplicationModal({
   onSelect,
   onClose,
 }: ChooseApplicationModalProps) {
+  const colors = useThemeColors();
   const [error, setError] = useState<string | null>(null);
 
   // Clear the "already linked" message each time the picker reopens.
@@ -69,7 +71,7 @@ export default function ChooseApplicationModal({
       onRequestClose={onClose}
     >
       <Pressable
-        style={{ backgroundColor: 'rgba(9, 9, 11, 0.5)' }}
+        style={{ backgroundColor: colors.scrim }}
         className="flex-1 items-center justify-center px-6"
         onPress={onClose}
       >
@@ -93,7 +95,7 @@ export default function ChooseApplicationModal({
           </View>
 
           {error ? (
-            <View className="mt-[12px] rounded-[6px] border border-lhlDestructiveRed bg-[#FCE4E4] px-[10px] py-[7px]">
+            <View className="mt-[12px] rounded-[6px] border border-lhlDestructiveRed bg-lhlDestructiveSoft px-[10px] py-[7px]">
               <Text className="font-['Roboto-Flex'] text-center text-[12px] text-lhlDestructiveRed">
                 {error}
               </Text>
@@ -120,7 +122,7 @@ export default function ChooseApplicationModal({
                     isConnected ? 'bg-lhlPlaceholderGrey' : 'bg-lhlBurntOrange'
                   }`}
                 >
-                  <Icon size={27} color={isConnected ? '#8A8A8A' : '#FFFFFF'} />
+                  <Icon size={27} color={isConnected ? colors.inkMuted : '#FFFFFF'} />
                 </Pressable>
               );
             })}

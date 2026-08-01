@@ -33,8 +33,16 @@
 
   --lhl-ink: 9 9 11; /* #09090B  primary text */
   --lhl-ink-secondary: 72 86 86; /* #485656  secondary text */
+  /* Tertiary text — timestamps, "3 going", inactive tab icons. Deliberately
+     lighter than ink-secondary; it is not held to 4.5:1 in light because it
+     was already below it before theming, and darkening it would restyle the
+     light app rather than add dark mode. */
+  --lhl-ink-muted: 154 154 154; /* #9A9A9A */
 
   --lhl-border: 180 178 178; /* #B4B2B2 */
+  /* Hairline rules between sections. Softer than border, which delimits
+     controls and has to stay visible. */
+  --lhl-divider: 210 222 224; /* #D2DEE0 */
   --lhl-placeholder: 217 217 217; /* #D9D9D9  avatar / image placeholders */
 
   /* Filled buttons. White text sits on this, so it can't lighten in dark. */
@@ -42,31 +50,45 @@
   /* Accent TEXT (links, "Edit"/"Done"). Darker than brand in light so it
      clears 4.5:1 on the page; much lighter in dark for the same reason. */
   --lhl-accent: 168 75 0; /* #A84B00 */
+  /* Tinted fill behind a selected card / saved state. */
+  --lhl-brand-soft: 255 245 229; /* #FFF5E5 */
 
   --lhl-destructive: 179 4 4; /* #B30404 */
+  /* Tinted fill behind an inline error. */
+  --lhl-destructive-soft: 252 228 228; /* #FCE4E4 */
+
+  /* Informational, non-brand: the "Going" badge. */
+  --lhl-info: 37 145 212; /* #2591D4 */
 
   /* Scrim behind modals. */
   --lhl-scrim: 9 9 11;
 }
 
 .dark {
-  /* Warm charcoal rather than pure black: the light theme is a warm
-     off-white, and a neutral black under it makes the burnt orange look
-     muddy and the app feel harsher than it reads by day. */
-  --lhl-background: 26 23 20; /* #1A1714 */
-  --lhl-surface: 35 32 25; /* #232019 */
-  --lhl-surface-muted: 43 39 33; /* #2B2721 */
+  /* A cool blue-black, matched to the reference swatch, rather than the warm
+     charcoal this started as — that read muddy next to the burnt orange.
+     The whole ramp sits a step above true black so surfaces can separate from
+     the page by lightening rather than by borders alone. */
+  --lhl-background: 20 23 28; /* #14171C */
+  --lhl-surface: 29 33 40; /* #1D2128 */
+  --lhl-surface-muted: 38 43 51; /* #262B33 */
 
-  --lhl-ink: 243 239 232; /* #F3EFE8  warm off-white, not pure #FFF */
-  --lhl-ink-secondary: 169 162 154; /* #A9A29A */
+  --lhl-ink: 242 244 247; /* #F2F4F7  not pure #FFF — less glare */
+  --lhl-ink-secondary: 164 174 187; /* #A4AEBB */
+  --lhl-ink-muted: 144 154 166; /* #909AA6  still clears 4.5:1 here */
 
-  --lhl-border: 88 80 71; /* #585047  lightened to stay visible on #232019 */
-  --lhl-placeholder: 63 58 51; /* #3F3A33 */
+  --lhl-border: 79 86 97; /* #4F5661  lightened to stay visible on #1D2128 */
+  --lhl-divider: 46 52 61; /* #2E343D */
+  --lhl-placeholder: 51 57 66; /* #333942 */
 
   --lhl-brand: 189 85 0; /* #BD5500  unchanged; white text still clears AA */
   --lhl-accent: 240 151 92; /* #F0975C */
+  --lhl-brand-soft: 58 38 18; /* #3A2612 */
 
   --lhl-destructive: 255 107 99; /* #FF6B63 */
+  --lhl-destructive-soft: 66 32 30; /* #42201E */
+
+  --lhl-info: 90 180 238; /* #5AB4EE  lightened; the light blue is too dark here */
 
   --lhl-scrim: 0 0 0;
 }

@@ -1,3 +1,4 @@
+import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useState } from 'react';
 import { NativeSyntheticEvent, TextInput, TextInputKeyPressEventData, View } from 'react-native';
 
@@ -17,17 +18,18 @@ const OtpInput: React.FC<OtpInputProps> = ({
   handleKeyPress,
 }) => {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const colors = useThemeColors();
 
   return (
     <View className="w-full flex-row justify-between">
       {code.map((digit, index) => {
         const isFocused = focusedIndex === index;
 
-        let borderColor = 'black';
+        let borderColor = colors.ink;
         if (error) {
-          borderColor = '#EF4444'; // red-500
+          borderColor = colors.destructive;
         } else if (isFocused || digit) {
-          borderColor = 'hsla(27, 93%, 32%, 1)'; // lhlBurntOrange
+          borderColor = colors.brand;
         }
 
         const borderWidth = isFocused ? 2 : 1;
@@ -40,7 +42,7 @@ const OtpInput: React.FC<OtpInputProps> = ({
                 inputs.current[index] = ref;
               }
             }}
-            className="w-12 h-14 rounded-lg font-['Roboto-Flex'] text-center text-xl font-semibold"
+            className="h-14 w-12 rounded-lg font-['Roboto-Flex'] text-center text-xl font-semibold text-lhlInk"
             style={{
               borderColor,
               borderWidth,

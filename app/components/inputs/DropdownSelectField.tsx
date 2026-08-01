@@ -31,7 +31,9 @@ export default function DropdownSelectField({
     <View>
       {label && (
         <Pressable onPress={onToggle}>
-          <Text className="font-['Roboto-Flex'] font-semibold text-[16px]">{label}</Text>
+          <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
+            {label}
+          </Text>
         </Pressable>
       )}
 
@@ -59,7 +61,7 @@ export default function DropdownSelectField({
         <Text
           numberOfLines={1}
           className={`flex-1 font-['Roboto-Flex'] text-[14px] ${
-            selectedValue ? 'text-black' : 'text-neutral-400'
+            selectedValue ? 'text-lhlInk' : 'text-lhlMutedText'
           }`}
         >
           {selectedValue || placeholder}
@@ -89,7 +91,7 @@ export default function DropdownSelectField({
                 ${index !== options.length - 1 ? 'border-b' : ''}
               `}
             >
-              <Text className="font-['Roboto-Flex'] text-[14px] text-black">{option}</Text>
+              <Text className="font-['Roboto-Flex'] text-[14px] text-lhlInk">{option}</Text>
             </Pressable>
           ))}
         </View>

@@ -84,7 +84,7 @@ export default function OrgNotificationSettingsScreen() {
           accessibilityLabel="Back"
           onPress={() => router.back()}
         >
-          <ArrowLeftIcon width={22} height={22} />
+          <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
         <Text className="font-['Roboto-Flex'] ml-[12px] text-[18px] font-semibold text-lhlInk">
           Notifications

@@ -363,7 +363,7 @@ export default function ProfileScreen() {
                 autoCorrect={false}
                 borderRadius={8}
                 clearable
-                leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+                leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
               />
             </View>
 

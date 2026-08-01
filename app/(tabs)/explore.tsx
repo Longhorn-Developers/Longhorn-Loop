@@ -10,14 +10,7 @@ import { ListIcon, MapPin } from 'phosphor-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BURNT_ORANGE = '#BF5700';
-const TEXT_PRIMARY = '#020B12';
-const TEXT_MUTED = '#9A9A9A';
-const BG_OFFWHITE = '#F9F8F6';
-const DIVIDER = '#D2DEE0';
-const TOGGLE_BG = '#EFEFEF';
-const TOGGLE_ACTIVE_BG = '#FFFFFF';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type EventsListResponse = { events: ApiEvent[] };
 type SavedListResponse = { events: ApiEvent[] };
@@ -26,6 +19,7 @@ type ViewMode = 'list' | 'map';
 const IS_WEB = Platform.OS === 'web';
 
 export default function ExploreScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
@@ -105,13 +99,13 @@ export default function ExploreScreen() {
       <SafeAreaView
         style={{
           flex: 1,
-          backgroundColor: BG_OFFWHITE,
+          backgroundColor: colors.background,
           alignItems: 'center',
           justifyContent: 'center',
         }}
         edges={['left', 'right']}
       >
-        <ActivityIndicator size="large" color={BURNT_ORANGE} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </SafeAreaView>
     );
   }
@@ -121,14 +115,14 @@ export default function ExploreScreen() {
       <SafeAreaView
         style={{
           flex: 1,
-          backgroundColor: BG_OFFWHITE,
+          backgroundColor: colors.background,
           alignItems: 'center',
           justifyContent: 'center',
           paddingHorizontal: 24,
         }}
         edges={['left', 'right']}
       >
-        <Text style={{ fontSize: 16, color: TEXT_MUTED, textAlign: 'center' }}>
+        <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
           Could not load events. Check your connection.
         </Text>
       </SafeAreaView>
@@ -138,7 +132,7 @@ export default function ExploreScreen() {
   const showList = viewMode === 'list' || IS_WEB;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG_OFFWHITE }} edges={['left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
       {/* Header */}
       <View
         style={{
@@ -150,14 +144,14 @@ export default function ExploreScreen() {
           alignItems: 'center',
         }}
       >
-        <Text style={{ fontSize: 32, fontWeight: '700', color: TEXT_PRIMARY }}>Explore</Text>
+        <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>Explore</Text>
 
         {/* Toggle hidden on web — react-native-maps has no web renderer */}
         {!IS_WEB && (
           <View
             style={{
               flexDirection: 'row',
-              backgroundColor: TOGGLE_BG,
+              backgroundColor: colors.surfaceMuted,
               borderRadius: 10,
               padding: 3,
             }}
@@ -170,12 +164,12 @@ export default function ExploreScreen() {
               style={{
                 padding: 7,
                 borderRadius: 8,
-                backgroundColor: viewMode === 'list' ? TOGGLE_ACTIVE_BG : 'transparent',
+                backgroundColor: viewMode === 'list' ? colors.surface : 'transparent',
               }}
             >
               <ListIcon
                 size={18}
-                color={viewMode === 'list' ? BURNT_ORANGE : TEXT_MUTED}
+                color={viewMode === 'list' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
             </TouchableOpacity>
@@ -184,12 +178,12 @@ export default function ExploreScreen() {
               style={{
                 padding: 7,
                 borderRadius: 8,
-                backgroundColor: viewMode === 'map' ? TOGGLE_ACTIVE_BG : 'transparent',
+                backgroundColor: viewMode === 'map' ? colors.surface : 'transparent',
               }}
             >
               <MapPin
                 size={18}
-                color={viewMode === 'map' ? BURNT_ORANGE : TEXT_MUTED}
+                color={viewMode === 'map' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
             </TouchableOpacity>
@@ -199,7 +193,12 @@ export default function ExploreScreen() {
 
       {/* Divider */}
       <View
-        style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20, marginBottom: 16 }}
+        style={{
+          height: 1,
+          backgroundColor: colors.divider,
+          marginHorizontal: 20,
+          marginBottom: 16,
+        }}
       />
 
       {/* Content */}
@@ -213,7 +212,7 @@ export default function ExploreScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <Text style={{ color: TEXT_MUTED, textAlign: 'center', marginTop: 40 }}>
+            <Text style={{ color: colors.inkMuted, textAlign: 'center', marginTop: 40 }}>
               No events found.
             </Text>
           }

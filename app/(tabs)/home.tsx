@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -48,6 +49,8 @@ function CarouselSection({
   onToggleSave: (eventId: number) => void;
   onViewAll?: () => void;
 }) {
+  const colors = useThemeColors();
+
   if (section.events.length === 0) return null;
 
   return (
@@ -61,10 +64,10 @@ function CarouselSection({
           marginBottom: 12,
         }}
       >
-        <Text style={{ fontSize: 18, fontWeight: '700', color: '#020B12' }}>{section.label}</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.ink }}>{section.label}</Text>
         {onViewAll && (
           <TouchableOpacity onPress={onViewAll}>
-            <Text style={{ fontSize: 22, color: '#9A9A9A' }}>›</Text>
+            <Text style={{ fontSize: 22, color: colors.inkMuted }}>›</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -83,6 +86,7 @@ function CarouselSection({
 }
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
@@ -193,12 +197,14 @@ export default function HomeScreen() {
           }}
         >
           <View>
-            <Text style={{ fontSize: 16, fontWeight: '400', color: '#9A9A9A' }}>
+            <Text style={{ fontSize: 16, fontWeight: '400', color: colors.inkMuted }}>
               {getGreeting()}
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: '#020B12' }}>{firstName}</Text>
-              <HookemIcon width={31} height={31} />
+              <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>
+                {firstName}
+              </Text>
+              <HookemIcon width={31} height={31} color={colors.ink} />
             </View>
           </View>
 
@@ -207,13 +213,13 @@ export default function HomeScreen() {
             style={{ position: 'relative', padding: 4 }}
             onPress={() => router.push('/notifications')}
           >
-            <BellIcon width={22} height={25} />
+            <BellIcon width={22} height={25} color={colors.ink} />
             <View
               style={{
                 position: 'absolute',
                 top: 0,
                 right: 0,
-                backgroundColor: '#EF4444',
+                backgroundColor: colors.destructive,
                 borderRadius: 8,
                 width: 16,
                 height: 16,
@@ -221,20 +227,33 @@ export default function HomeScreen() {
                 justifyContent: 'center',
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>1</Text>
+              <Text
+                style={{
+                  color: '#fff', // theme-exempt: white count on the filled destructive badge
+                  fontSize: 10,
+                  fontWeight: '700',
+                }}
+              >
+                1
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
 
         {/* Divider */}
         <View
-          style={{ height: 1, backgroundColor: '#D2DEE0', marginHorizontal: 20, marginBottom: 24 }}
+          style={{
+            height: 1,
+            backgroundColor: colors.divider,
+            marginHorizontal: 20,
+            marginBottom: 24,
+          }}
         />
 
         {/* Server-driven carousels: Upcoming + one per interest bucket. */}
         {feedQuery.isPending ? (
           <View style={{ paddingVertical: 40 }}>
-            <ActivityIndicator size="large" color="#BF5700" />
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         ) : (
           sections.map((section) => (

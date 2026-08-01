@@ -94,7 +94,7 @@ export default function FeedbackScreen() {
             accessibilityLabel="Back"
             onPress={() => router.back()}
           >
-            <ArrowLeftIcon width={22} height={22} />
+            <ArrowLeftIcon width={22} height={22} color={colors.ink} />
           </Pressable>
           <Text className="font-['Roboto-Flex'] ml-[12px] text-[20px] font-semibold text-lhlInk">
             {copy.title}

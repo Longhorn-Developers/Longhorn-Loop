@@ -77,7 +77,7 @@ export default function TermsAndConditions() {
               </View>
 
               {/* Label Text */}
-              <Text className="font-['Roboto-Flex'] text-[12px]  font-normal text-lhlBurntOrange flex-1">
+              <Text className="font-['Roboto-Flex'] text-[12px]  font-normal text-lhlAccent flex-1">
                 {term.label}
               </Text>
             </Pressable>

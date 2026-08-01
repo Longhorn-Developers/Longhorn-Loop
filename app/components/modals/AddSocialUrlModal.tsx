@@ -21,8 +21,7 @@ import {
   validateSocialUrl,
   type SocialPlatformId,
 } from '@/app/lib/socialPlatforms';
-
-const BORDER = 'rgba(0,0,0,0.20)';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 export interface AddSocialUrlModalProps {
   visible: boolean;
@@ -45,6 +44,7 @@ export default function AddSocialUrlModal({
   onClose,
   onBack,
 }: AddSocialUrlModalProps) {
+  const colors = useThemeColors();
   const [url, setUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export default function AddSocialUrlModal({
       onRequestClose={onClose}
     >
       <Pressable
-        style={{ backgroundColor: 'rgba(9, 9, 11, 0.5)' }}
+        style={{ backgroundColor: colors.scrim }}
         className="flex-1 items-center justify-center px-6"
         onPress={isSaving ? undefined : onClose}
       >
@@ -143,14 +143,14 @@ export default function AddSocialUrlModal({
                 value={url}
                 onChangeText={setUrl}
                 placeholder="Enter url here"
-                placeholderTextColor="#9A9A9A"
+                placeholderTextColor={colors.inkMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
                 editable={!isSaving}
                 onSubmitEditing={handleAdd}
                 className="font-['Roboto-Flex'] mt-[16px] rounded-[6px] border bg-lhlSurface px-[12px] py-[10px] text-[13px] text-lhlInk"
-                style={{ borderColor: BORDER }}
+                style={{ borderColor: colors.border }}
               />
 
               <Pressable

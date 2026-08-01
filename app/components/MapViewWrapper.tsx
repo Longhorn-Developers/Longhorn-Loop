@@ -1,10 +1,11 @@
 import { ApiEvent } from '@/app/components/EventCard';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
-const BURNT_ORANGE = '#BF5700';
-const SELECTED_ORANGE = '#FF8C00';
+const BURNT_ORANGE = '#BF5700'; // theme-exempt: map marker pin, drawn over Google's tiles
+const SELECTED_ORANGE = '#FF8C00'; // theme-exempt: map marker pin, drawn over Google's tiles
 
 const UT_REGION = {
   latitude: 30.2849,
@@ -31,6 +32,7 @@ export default function MapViewWrapper({
   // Hook must be called before any conditional return to satisfy the
   // rules of hooks.
   const pinJustPressed = useRef(false);
+  const colors = useThemeColors();
 
   if (Platform.OS === 'web') {
     return (
@@ -38,7 +40,7 @@ export default function MapViewWrapper({
         <Text
           style={{
             fontSize: 16,
-            color: '#9A9A9A',
+            color: colors.inkMuted,
             textAlign: 'center',
             paddingHorizontal: 40,
             lineHeight: 24,

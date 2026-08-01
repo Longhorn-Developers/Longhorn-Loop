@@ -1,3 +1,4 @@
+import { useThemeColors } from '@/app/lib/themeColors';
 import { ArrowLeftIcon } from 'phosphor-react-native';
 import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -30,6 +31,7 @@ export default function FlowLayout({
   footer,
   onBackPress = () => {},
 }: FlowLayoutProps) {
+  const colors = useThemeColors();
   const progress = useSharedValue(startingPercentage);
 
   useEffect(() => {
@@ -54,17 +56,17 @@ export default function FlowLayout({
       >
         <View className="min-h-screen pt-[70px] px-[20px]">
           <Pressable onPress={onBackPress} className="mb-[8px]">
-            <ArrowLeftIcon size={24} />
+            <ArrowLeftIcon size={24} color={colors.ink} />
           </Pressable>
 
           {showProgressBar && (
-            <View className="w-full h-[10px] bg-black rounded-full overflow-hidden mt-[36px]">
+            <View className="w-full h-[10px] bg-lhlPlaceholderGrey rounded-full overflow-hidden mt-[36px]">
               <Animated.View
                 style={[
                   {
                     height: '100%',
                     borderRadius: 999,
-                    backgroundColor: 'hsla(27, 100%, 37%, 1)',
+                    backgroundColor: colors.brand,
                   },
                   animatedStyle,
                 ]}
@@ -73,13 +75,13 @@ export default function FlowLayout({
           )}
 
           {title && (
-            <Text className="mt-[42px] font-['Roboto-Flex'] font-semibold text-[32px]">
+            <Text className="mt-[42px] font-['Roboto-Flex'] text-[32px] font-semibold text-lhlInk">
               {title}
             </Text>
           )}
 
           {subTitle && (
-            <Text className="mt-[6px] mb-[4px] font-['Roboto-Flex'] font-semibold text-[16px]">
+            <Text className="mb-[4px] mt-[6px] font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
               {subTitle}
             </Text>
           )}

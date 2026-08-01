@@ -149,7 +149,7 @@ export default function OrgRegisterScreen() {
       <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
         <View className="flex-1 items-center justify-center px-[36px] bg-lhlBackgroundColor">
           <View className="h-[72px] w-[72px] items-center justify-center rounded-full bg-lhlSurfaceGrey">
-            <Text className="text-[30px] text-lhlBurntOrange">✓</Text>
+            <Text className="text-[30px] text-lhlAccent">✓</Text>
           </View>
 
           <Text className="font-['Roboto-Flex'] mt-[20px] text-center text-[22px] font-semibold text-lhlInk">
@@ -200,7 +200,7 @@ export default function OrgRegisterScreen() {
               router.back();
             }}
           >
-            <ArrowLeftIcon width={22} height={22} />
+            <ArrowLeftIcon width={22} height={22} color={colors.ink} />
           </Pressable>
           <Text className="font-['Roboto-Flex'] ml-[12px] text-[18px] font-semibold text-lhlInk">
             Verify Organization
@@ -283,7 +283,7 @@ export default function OrgRegisterScreen() {
             }`}
           >
             {isSubmitting ? (
-              <ActivityIndicator color={canSubmit ? '#FFFFFF' : '#485656'} />
+              <ActivityIndicator color={canSubmit ? '#FFFFFF' : colors.inkSecondary} />
             ) : (
               <Text
                 className={`font-['Roboto-Flex'] text-[16px] font-semibold ${

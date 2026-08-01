@@ -9,6 +9,7 @@
 import BookmarkIcon from '@/assets/images/bookmark.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import { formatEventDate, type ApiEvent } from '@/app/components/EventCard';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
@@ -20,6 +21,7 @@ export interface ProfileEventCardProps {
 
 export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCardProps) {
   const router = useRouter();
+  const colors = useThemeColors();
   const isSaved = !!event.is_saved;
 
   return (
@@ -62,7 +64,11 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             }}
             className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
-            <BookmarkIcon width={13} height={13} color={isSaved ? '#BD5500' : '#485656'} />
+            <BookmarkIcon
+              width={13}
+              height={13}
+              color={isSaved ? colors.accent : colors.inkSecondary}
+            />
           </Pressable>
         ) : null}
       </View>
@@ -85,7 +91,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             </Text>
             {event.org_verified ? (
               <Text
-                className="ml-[3px] text-[10px] text-lhlBurntOrange"
+                className="ml-[3px] text-[10px] text-lhlAccent"
                 accessibilityLabel="Verified organization"
               >
                 ✓
@@ -100,7 +106,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
 
         {event.location_short ? (
           <View className="mt-[3px] flex-row items-center gap-[3px]">
-            <LocationIcon width={9} height={9} />
+            <LocationIcon width={9} height={9} color={colors.inkSecondary} />
             <Text
               numberOfLines={1}
               className="font-['Roboto-Flex'] shrink text-[10px] text-lhlSecondaryTextGrey"

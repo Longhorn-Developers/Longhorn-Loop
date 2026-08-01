@@ -27,10 +27,14 @@ module.exports = {
 
         lhlInk: 'rgb(var(--lhl-ink) / <alpha-value>)',
         lhlSecondaryTextGrey: 'rgb(var(--lhl-ink-secondary) / <alpha-value>)',
+        // Tertiary text — timestamps, counts, inactive icons.
+        lhlMutedText: 'rgb(var(--lhl-ink-muted) / <alpha-value>)',
 
         lhlMutedBorder: 'rgb(var(--lhl-border) / <alpha-value>)',
         // Legacy alias — was a near-black hairline, now the themed border.
         lhlBorderColor: 'rgb(var(--lhl-border) / <alpha-value>)',
+        // Hairline rules between sections; softer than the control border.
+        lhlDivider: 'rgb(var(--lhl-divider) / <alpha-value>)',
         lhlPlaceholderGrey: 'rgb(var(--lhl-placeholder) / <alpha-value>)',
 
         // Filled buttons; white text sits on this in both themes.
@@ -38,8 +42,14 @@ module.exports = {
         // Accent TEXT — links, "Edit"/"Done". Differs from the button colour
         // because it has to clear 4.5:1 against the page in both themes.
         lhlAccent: 'rgb(var(--lhl-accent) / <alpha-value>)',
+        // Tinted fill behind a selected card / saved state.
+        lhlBrandSoft: 'rgb(var(--lhl-brand-soft) / <alpha-value>)',
 
         lhlDestructiveRed: 'rgb(var(--lhl-destructive) / <alpha-value>)',
+        // Tinted fill behind an inline error.
+        lhlDestructiveSoft: 'rgb(var(--lhl-destructive-soft) / <alpha-value>)',
+        // Informational, non-brand: the "Going" badge.
+        lhlInfo: 'rgb(var(--lhl-info) / <alpha-value>)',
         lhlScrim: 'rgb(var(--lhl-scrim) / <alpha-value>)',
       },
       fontFamily: {

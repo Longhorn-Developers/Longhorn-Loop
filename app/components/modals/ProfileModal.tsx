@@ -39,7 +39,7 @@ const CONTAINER_BY_VARIANT: Record<ModalActionVariant, string> = {
 };
 
 const TEXT_BY_VARIANT: Record<ModalActionVariant, string> = {
-  outline: 'text-black',
+  outline: 'text-lhlInk',
   ink: 'text-white',
   brand: 'text-white',
 };
@@ -148,7 +148,7 @@ export default function ProfileModal({
           </Text>
 
           {body ? (
-            <Text className="font-['Roboto-Flex'] mt-[9px] text-center text-[12px] font-medium text-black">
+            <Text className="font-['Roboto-Flex'] mt-[9px] text-center text-[12px] font-medium text-lhlInk">
               {body}
             </Text>
           ) : null}

@@ -1,6 +1,7 @@
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { INTEREST_CATEGORIES, ALL_INTEREST_TAGS } from '@/app/lib/interestCategories';
 import { MAX_INTERESTS } from '@/shared/taxonomy';
+import { useThemeColors } from '@/app/lib/themeColors';
 import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -14,6 +15,7 @@ import FlowLayout from '../components/layouts/FlowLayout';
 // Categories/tags live in app/lib/interestCategories.ts
 
 export default function CategorySelectorScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { update } = useOnboarding();
 
@@ -89,7 +91,7 @@ export default function CategorySelectorScreen() {
 
       <View className="mt-[10px]">
         <SearchablePillDropdownField
-          leftIcon={<SearchIcon width={15} height={15} fill="#a3a3a3" />}
+          leftIcon={<SearchIcon width={15} height={15} color={colors.inkMuted} />}
           placeholder="Search for interests, events, activities..."
           options={ALL_INTEREST_TAGS}
           selectedValues={selectedTags}

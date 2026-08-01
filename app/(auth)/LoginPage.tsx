@@ -64,7 +64,7 @@ export default function LoginPage() {
       <Pressable className="mt-4" onPress={handleCreateAccount}>
         <Text className="font-['Roboto-Flex'] text-base text-center">
           {"Don't have an account? "}
-          <Text className="font-['Roboto-Flex'] font-semibold text-lhlBurntOrange">Sign Up</Text>
+          <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">Sign Up</Text>
         </Text>
       </Pressable>
     </FlowLayout>

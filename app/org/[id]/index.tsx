@@ -215,7 +215,7 @@ export default function OrgConsoleScreen() {
           accessibilityLabel="Back"
           onPress={() => router.back()}
         >
-          <ArrowLeftIcon width={22} height={22} />
+          <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
         <Text className="font-['Roboto-Flex'] ml-[12px] text-[18px] font-semibold text-lhlInk">
           Manage Organization
@@ -243,7 +243,7 @@ export default function OrgConsoleScreen() {
                   {org?.name}
                 </Text>
                 {org?.verified ? (
-                  <Text className="text-[13px] text-lhlBurntOrange" accessibilityLabel="Verified">
+                  <Text className="text-[13px] text-lhlAccent" accessibilityLabel="Verified">
                     ✓
                   </Text>
                 ) : null}
@@ -376,7 +376,7 @@ export default function OrgConsoleScreen() {
                               });
                             }}
                           >
-                            <Text className="font-['Roboto-Flex'] text-[11px] font-semibold text-lhlBurntOrange">
+                            <Text className="font-['Roboto-Flex'] text-[11px] font-semibold text-lhlAccent">
                               Swap
                             </Text>
                           </Pressable>

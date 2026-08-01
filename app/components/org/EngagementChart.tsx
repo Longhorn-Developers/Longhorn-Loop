@@ -8,7 +8,9 @@
 // The API returns only days that had activity, so the caller passes a dense
 // Mon–Sun series — see buildWeeklySeries below.
 
-import React from 'react';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
+import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 
@@ -60,13 +62,18 @@ export function buildWeeklySeries(rows: WeeklyRow[], today = new Date()): DayPoi
   return points;
 }
 
-const SERIES: { key: keyof Omit<DayPoint, 'label'>; color: string; label: string }[] = [
-  { key: 'views', color: '#BD5500', label: 'Views' },
-  { key: 'going', color: '#09090B', label: 'Going' },
-  { key: 'saved', color: '#B4B2B2', label: 'Saved' },
+const makeSeries = (
+  c: ThemeColors,
+): { key: keyof Omit<DayPoint, 'label'>; color: string; label: string }[] => [
+  { key: 'views', color: c.brand, label: 'Views' },
+  { key: 'going', color: c.ink, label: 'Going' },
+  { key: 'saved', color: c.border, label: 'Saved' },
 ];
 
 export default function EngagementChart({ data }: { data: DayPoint[] }) {
+  const colors = useThemeColors();
+  const SERIES = useMemo(() => makeSeries(colors), [colors]);
+
   // Fixed viewBox width; the SVG scales to whatever the container is, so the
   // chart doesn't need to know its own pixel width.
   const width = 300;

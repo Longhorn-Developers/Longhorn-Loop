@@ -51,7 +51,7 @@ export default function SettingsEntryScreen() {
           accessibilityLabel="Back"
           onPress={() => router.back()}
         >
-          <ArrowLeftIcon width={22} height={22} />
+          <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
         <Text className="font-['Roboto-Flex'] ml-[12px] text-[20px] font-semibold text-lhlInk">
           Account
@@ -109,7 +109,7 @@ export default function SettingsEntryScreen() {
                         </Text>
                         {o.verified ? (
                           <Text
-                            className="text-[12px] text-lhlBurntOrange"
+                            className="text-[12px] text-lhlAccent"
                             accessibilityLabel="Verified"
                           >
                             ✓
