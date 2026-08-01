@@ -89,6 +89,172 @@ orgRoutes.get('/mine', async (c) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Organization registration — verification tail (LOOP-185)
+// ---------------------------------------------------------------------------
+//
+// Owns the president-email check and the code confirmation. The earlier
+// search/claim steps are LOOP-141; generic UT email verification is LOOP-134.
+//
+// These are registered above /:orgId for the same reason /mine is: Hono
+// matches in definition order and "register" would otherwise be read as an
+// org id.
+
+/**
+ * A 4-digit code, as the Figma frame specifies.
+ *
+ * Deliberately reuses the existing verification_codes table (2FA) rather than
+ * adding a parallel one: it already has hashing, expiry, attempt counting and
+ * resend throttling. The key is namespaced so an org verification can't be
+ * satisfied by a login code the user requested seconds earlier, and vice versa.
+ */
+function orgVerificationKey(orgId: number, email: string): string {
+  return `org:${orgId}:${email.toLowerCase()}`;
+}
+
+async function hashCode(code: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// POST /orgs/register/verify-president
+//
+// Body: { org_id, email }. Validates the email against the org's president on
+// file and issues a code.
+orgRoutes.post('/register/verify-president', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const body = await c.req.json().catch(() => null);
+  const orgId = body && Number.isFinite(Number(body.org_id)) ? Number(body.org_id) : null;
+  const email = body && typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+
+  if (orgId === null) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  // Build step 4: an empty or non-UT address never reaches the mismatch check.
+  if (!/^[^\s@]+@([\w-]+\.)*utexas\.edu$/i.test(email)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: 'Enter a valid UT email address.' }, 400);
+  }
+
+  const org = await c.env.DB.prepare(
+    'SELECT id, name, president_email FROM organizations WHERE id = ?',
+  )
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  const onFile = typeof org.president_email === 'string' ? org.president_email.toLowerCase() : null;
+
+  // Build step 3. If we have no president on file we cannot confirm anyone, so
+  // treat it as a mismatch rather than waving the request through — approving
+  // an unverifiable claim is the worse failure.
+  if (!onFile || onFile !== email) {
+    return c.json(
+      {
+        error: 'PRESIDENT_EMAIL_MISMATCH',
+        message: 'This email does not match the president on file.',
+      },
+      422,
+    );
+  }
+
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+  const key = orgVerificationKey(orgId, email);
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+
+  await c.env.DB.prepare(
+    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, attempts, last_sent_at)
+     VALUES (?, ?, ?, 0, 0, ?)
+     ON CONFLICT(email) DO UPDATE SET
+       code_hash    = excluded.code_hash,
+       expires_at   = excluded.expires_at,
+       verified     = 0,
+       used_at      = NULL,
+       attempts     = 0,
+       last_sent_at = excluded.last_sent_at`,
+  )
+    .bind(key, await hashCode(code), expiresAt, Date.now())
+    .run();
+
+  // Dev mode mirrors auth.worker.ts: log instead of sending, so the flow is
+  // testable before Resend has a verified sending domain.
+  if (c.env.RESEND_DEV_MODE === 'true') {
+    console.log(`[org-verify] code for ${email} (org ${orgId}): ${code}`);
+  }
+
+  return c.json({ sent: true, org_name: org.name });
+});
+
+// POST /orgs/register/confirm
+//
+// Body: { org_id, code }. On success the caller becomes an admin of the org
+// and the org is flagged as awaiting review.
+orgRoutes.post('/register/confirm', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const body = await c.req.json().catch(() => null);
+  const orgId = body && Number.isFinite(Number(body.org_id)) ? Number(body.org_id) : null;
+  const code = body && typeof body.code === 'string' ? body.code.trim() : '';
+
+  if (orgId === null) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+  if (!/^\d{4}$/.test(code)) return c.json({ error: 'INVALID_CODE' }, 400);
+
+  const org = await c.env.DB.prepare('SELECT president_email FROM organizations WHERE id = ?')
+    .bind(orgId)
+    .first();
+  if (!org || typeof org.president_email !== 'string') {
+    return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+  }
+
+  const key = orgVerificationKey(orgId, org.president_email.toLowerCase());
+  const row = await c.env.DB.prepare('SELECT * FROM verification_codes WHERE email = ?')
+    .bind(key)
+    .first();
+
+  if (!row) return c.json({ error: 'NO_PENDING_VERIFICATION' }, 400);
+  if (Number(row.expires_at) < Date.now()) return c.json({ error: 'CODE_EXPIRED' }, 400);
+  if (Number(row.attempts) >= 5) return c.json({ error: 'TOO_MANY_ATTEMPTS' }, 429);
+
+  if (row.code_hash !== (await hashCode(code))) {
+    await c.env.DB.prepare('UPDATE verification_codes SET attempts = attempts + 1 WHERE email = ?')
+      .bind(key)
+      .run();
+    return c.json(
+      { error: 'INVALID_CODE', message: 'That code isn’t right. Check it and try again.' },
+      422,
+    );
+  }
+
+  await c.env.DB.prepare('UPDATE verification_codes SET verified = 1, used_at = ? WHERE email = ?')
+    .bind(Date.now(), key)
+    .run();
+
+  // The claimant becomes an admin so they can manage the org immediately;
+  // `verified` stays 0 until a human approves, which is what the success
+  // screen's "our team will review" copy promises.
+  await c.env.DB.prepare(
+    `INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'admin')
+     ON CONFLICT(org_id, user_id) DO UPDATE SET role = 'admin'`,
+  )
+    .bind(orgId, userId)
+    .run();
+
+  await c.env.DB.prepare(
+    "UPDATE organizations SET verification_status = 'pending_review', updated_at = datetime('now') WHERE id = ?",
+  )
+    .bind(orgId)
+    .run();
+
+  return c.json({ verified: true, status: 'pending_review' });
+});
+
 // GET /orgs/:orgId -- console header: identity, role, follower counts, tiles.
 orgRoutes.get('/:orgId', async (c) => {
   const member = await resolveMembership(c);

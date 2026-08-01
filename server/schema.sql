@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS organizations (
   slug TEXT,
   profile_picture TEXT,
   verified INTEGER NOT NULL DEFAULT 0,
+  -- President on file, checked against a claimant's entered email (LOOP-185).
+  -- NULL = nobody on record, which the route treats as a mismatch.
+  president_email TEXT,
+  -- unverified | pending_review | rejected. Distinct from `verified`,
+  -- which only a human approval flips.
+  verification_status TEXT NOT NULL DEFAULT 'unverified',
   source TEXT NOT NULL DEFAULT 'hornslink',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -122,6 +128,52 @@ CREATE TABLE IF NOT EXISTS events (
 -- Cleanup job (LOOP-150) and past-events view (LOOP-200) both filter on these
 CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
 CREATE INDEX IF NOT EXISTS idx_events_created_by_user_id ON events(created_by_user_id);
+
+-- User settings -- preferences, notification toggles, delivery channels
+-- (LOOP-184). Created lazily; absent row means "all defaults".
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+
+  -- Preferences
+  dark_mode INTEGER NOT NULL DEFAULT 0,
+
+  -- Notifications: from-activity toggles
+  event_reminders     INTEGER NOT NULL DEFAULT 1,
+  new_events          INTEGER NOT NULL DEFAULT 1,
+  weekly_digest       INTEGER NOT NULL DEFAULT 0,
+  rsvp_confirmations  INTEGER NOT NULL DEFAULT 1,
+
+  -- How long before an event a reminder fires. Stored in minutes rather than
+  -- a label so the reminder cron can do arithmetic without parsing strings;
+  -- the UI maps these to "1 hour before" / "1 day before" etc.
+  reminder_lead_minutes INTEGER NOT NULL DEFAULT 1440,
+
+  -- Delivery channels
+  channel_push   INTEGER NOT NULL DEFAULT 1,
+  channel_email  INTEGER NOT NULL DEFAULT 0,
+  channel_in_app INTEGER NOT NULL DEFAULT 1,
+
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Feedback submissions from the Settings feedback form ("Let us know your
+-- thoughts") and Report a Bug.
+--
+-- user_id is nullable and ON DELETE SET NULL: deleting an account must not
+-- delete the feedback, or a bug report vanishes the moment the reporter
+-- leaves -- exactly when the team still needs it.
+CREATE TABLE IF NOT EXISTS feedback (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  kind       TEXT    NOT NULL DEFAULT 'feedback'
+             CHECK(kind IN ('feedback', 'bug', 'support')),
+  message    TEXT    NOT NULL,
+  -- Free-form client context (app version, platform) for triage.
+  context    TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
 
 -- Org membership. Two roles, matching the badges in the Figma Members tab:
 --   admin  -- can change roles, remove editors, and invite
