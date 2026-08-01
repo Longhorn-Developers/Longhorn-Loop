@@ -1,37 +1,49 @@
-// Edit Profile (LOOP-181, implementing the form LOOP-130 designed).
+// Edit Profile — Figma "Edit Profile" frame (reviewed 2026-08-01), building
+// the form LOOP-130 designed.
 //
-// Figma: Edit Profile frame (nodes 2793:3990, 2723:3741, 2723:3551), reviewed
-// 2026-06-08.
+// Order, matching the frame: avatar + Edit photo, First Name, Last Name,
+// Linked Socials (3 max), Bio, What's your major(s)?, Classification.
 //
-// Sections: name, classification year, bio, Linked Socials, interests.
+// Two departures from the frame, both deliberate:
+//   - Classification stays a pill row rather than the frame's dropdown —
+//     Matthew preferred it (2026-08-01).
+//   - Interests are edited here too, below Classification. The frame has no
+//     interests field, but Profile Main's "Details and Interests" section has
+//     a "+" that has to land somewhere, and this is the only edit surface.
 //
-// Two behaviours worth knowing before changing anything here:
+// Two behaviours worth knowing before changing anything:
 //
 //   1. Socials save IMMEDIATELY, not on Save. Connecting an app is a
 //      server-validated action that can fail on its own terms ("link was not
 //      found"), so it can't sit in local form state waiting for a Save that
 //      might never come. That's also why removing a social doesn't mark the
-//      form dirty — it's already persisted.
+//      form dirty — it's already persisted. The avatar behaves the same way.
 //   2. Everything else is deferred and diffed against the loaded profile, so
 //      Save only lights up on a real change and backing out with edits
 //      pending raises LeaveWithoutSavingModal (LOOP-182).
 
-import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import AddSocialUrlModal from '@/app/components/modals/AddSocialUrlModal';
 import ChooseApplicationModal from '@/app/components/modals/ChooseApplicationModal';
 import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingModal';
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
-import LinkedSocialsRow from '@/app/components/profile/LinkedSocialsRow';
+import SearchablePillDropdownField from '@/app/components/inputs/SearchablePillDropdownField';
+import AvatarPickerModal, { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { ALL_INTEREST_TAGS } from '@/app/lib/interestCategories';
+import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
+import { getSocialPlatformUI } from '@/app/lib/socialPlatforms';
+import LhlPillCross from '@/assets/icons/LhlPillCross';
+import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -46,8 +58,10 @@ const BG = '#F9F8F5';
 const BORDER = 'rgba(0,0,0,0.20)';
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
-const MAX_BIO = 300;
+/** The frame's counter reads "44 / 150". */
+const MAX_BIO = 150;
 const MAX_NAME = 50;
+const MAX_SOCIALS = 3;
 
 interface MeResponse {
   user: {
@@ -55,17 +69,27 @@ interface MeResponse {
     last_name: string;
     year_classification: string | null;
     bio: string | null;
+    avatar: number | null;
+    majors: string[];
     tags: string[];
     socials: LinkedSocial[];
   };
 }
 
-/** Order-insensitive compare, so re-picking the same tags isn't a "change". */
-function sameTags(a: string[], b: string[]): boolean {
+/** Order-insensitive compare, so re-picking the same values isn't a "change". */
+function sameSet(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
   const sortedB = [...b].sort();
-  return sortedA.every((tag, i) => tag === sortedB[i]);
+  return sortedA.every((v, i) => v === sortedB[i]);
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text className="font-['Roboto-Flex'] mb-[6px] text-[13px] font-semibold text-lhlInk">
+      {children}
+    </Text>
+  );
 }
 
 export default function EditProfileScreen() {
@@ -85,12 +109,14 @@ export default function EditProfileScreen() {
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
   const [bio, setBio] = useState('');
+  const [majors, setMajors] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [isEditingInterests, setIsEditingInterests] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
 
   // --- Modal state ---------------------------------------------------------
   const [showPicker, setShowPicker] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [pendingPlatform, setPendingPlatform] = useState<SocialPlatformId | null>(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
@@ -106,11 +132,13 @@ export default function EditProfileScreen() {
     setLastName(loaded.last_name ?? '');
     setYear(loaded.year_classification ?? '');
     setBio(loaded.bio ?? '');
+    setMajors(loaded.majors ?? []);
     setTags(loaded.tags ?? []);
   }, [loaded]);
 
   const socials = loaded?.socials ?? [];
   const connected = socials.map((s) => s.platform);
+  const avatarSource = getAvatarSource(loaded?.avatar);
 
   const isNameValid =
     firstName.trim().length > 0 &&
@@ -126,9 +154,10 @@ export default function EditProfileScreen() {
       lastName.trim() !== (loaded.last_name ?? '') ||
       year !== (loaded.year_classification ?? '') ||
       bio.trim() !== (loaded.bio ?? '') ||
-      !sameTags(tags, loaded.tags ?? [])
+      !sameSet(majors, loaded.majors ?? []) ||
+      !sameSet(tags, loaded.tags ?? [])
     );
-  }, [loaded, firstName, lastName, year, bio, tags]);
+  }, [loaded, firstName, lastName, year, bio, majors, tags]);
 
   // --- Mutations -----------------------------------------------------------
   const saveProfile = useMutation({
@@ -140,9 +169,15 @@ export default function EditProfileScreen() {
           last_name: lastName.trim(),
           year_classification: year || null,
           bio: bio.trim() || null,
+          majors,
           tags,
         },
       }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.me() }),
+  });
+
+  const saveAvatar = useMutation({
+    mutationFn: (avatar: number) => api.patch('/users/me/profile', { token, body: { avatar } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.me() }),
   });
 
@@ -187,7 +222,9 @@ export default function EditProfileScreen() {
         err instanceof ApiError && err.body && typeof err.body === 'object'
           ? ((err.body as Record<string, unknown>).message as string | undefined)
           : undefined;
-      throw new Error(message ?? 'That link could not be added.');
+      throw new Error(
+        message ?? `${getSocialPlatformUI(platform)?.label ?? 'That'} link was not found`,
+      );
     }
   };
 
@@ -211,14 +248,30 @@ export default function EditProfileScreen() {
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header */}
-        <View className="flex-row items-center px-[20px] py-[12px]">
+        {/* Header: back + Save, Save orange only once something changed */}
+        <View className="flex-row items-center justify-between px-[20px] py-[12px]">
           <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={handleBack}>
             <ArrowLeftIcon width={22} height={22} />
           </Pressable>
-          <Text className="font-['Roboto-Flex'] ml-[12px] text-[20px] font-semibold text-lhlInk">
-            Edit Profile
-          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save"
+            accessibilityState={{ disabled: !isDirty || saveProfile.isPending }}
+            disabled={!isDirty || saveProfile.isPending}
+            onPress={handleSave}
+            className={`rounded-[6px] border px-[18px] py-[6px] ${
+              isDirty ? 'border-lhlBurntOrange bg-lhlBurntOrange' : 'border-lhlMutedBorder bg-white'
+            }`}
+          >
+            <Text
+              className={`font-['Roboto-Flex'] text-[13px] font-semibold ${
+                isDirty ? 'text-white' : 'text-lhlSecondaryTextGrey'
+              }`}
+            >
+              {saveProfile.isPending ? 'Saving…' : 'Save'}
+            </Text>
+          </Pressable>
         </View>
 
         {isLoading ? (
@@ -226,9 +279,8 @@ export default function EditProfileScreen() {
             <ActivityIndicator color="#BD5500" />
           </View>
         ) : isError ? (
-          // Without this the form renders blank with Save disabled (nothing
-          // differs from the profile that never loaded), which reads as a
-          // broken screen rather than a failed request.
+          // Without this the form renders blank with Save disabled, which reads
+          // as a broken screen rather than a failed request.
           <View className="flex-1 items-center justify-center px-[30px]">
             <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
               Couldn’t load your profile
@@ -251,64 +303,160 @@ export default function EditProfileScreen() {
         ) : (
           <ScrollView
             className="flex-1 px-[20px]"
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 50 }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Name */}
-            <View className="mt-[8px]">
-              <View className="flex-row">
-                <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                  Name
+            <Text className="font-['Roboto-Flex'] text-center text-[17px] font-bold text-lhlInk">
+              Editing Profile
+            </Text>
+
+            {/* Avatar + Edit photo */}
+            <View className="mt-[14px] items-center">
+              <View className="h-[92px] w-[92px] overflow-hidden rounded-full border-2 border-lhlInk bg-lhlPlaceholderGrey">
+                {avatarSource ? (
+                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit photo"
+                onPress={() => setShowAvatarPicker(true)}
+                className="mt-[10px] rounded-full border border-lhlInk bg-white px-[16px] py-[5px]"
+              >
+                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                  Edit photo
                 </Text>
+              </Pressable>
+            </View>
+
+            {/* First / Last name */}
+            <View className="mt-[20px]">
+              <View className="flex-row">
+                <FieldLabel>First Name</FieldLabel>
                 {showNameError && !isNameValid ? (
-                  <Text className="font-['Roboto-Flex'] ml-[4px] text-[14px] text-lhlDestructiveRed">
+                  <Text className="font-['Roboto-Flex'] ml-[4px] text-[13px] text-lhlDestructiveRed">
                     *
                   </Text>
                 ) : null}
               </View>
+              <TextInput
+                value={firstName}
+                onChangeText={(t) => {
+                  setFirstName(t);
+                  setShowNameError(false);
+                }}
+                maxLength={MAX_NAME}
+                className="font-['Roboto-Flex'] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
+                style={{ borderColor: showNameError && !isNameValid ? '#B30404' : BORDER }}
+              />
+            </View>
 
-              <View className="mt-[8px] flex-row gap-[10px]">
-                <TextInput
-                  value={firstName}
-                  onChangeText={(t) => {
-                    setFirstName(t);
-                    setShowNameError(false);
-                  }}
-                  placeholder="First name"
-                  maxLength={MAX_NAME}
-                  className="font-['Roboto-Flex'] flex-1 rounded-[8px] border bg-white px-[12px] py-[10px] text-[14px] text-lhlInk"
-                  style={{
-                    borderColor: showNameError && !isNameValid ? '#B30404' : BORDER,
-                  }}
-                />
-                <TextInput
-                  value={lastName}
-                  onChangeText={(t) => {
-                    setLastName(t);
-                    setShowNameError(false);
-                  }}
-                  placeholder="Last name"
-                  maxLength={MAX_NAME}
-                  className="font-['Roboto-Flex'] flex-1 rounded-[8px] border bg-white px-[12px] py-[10px] text-[14px] text-lhlInk"
-                  style={{
-                    borderColor: showNameError && !isNameValid ? '#B30404' : BORDER,
-                  }}
-                />
-              </View>
-
+            <View className="mt-[14px]">
+              <FieldLabel>Last Name</FieldLabel>
+              <TextInput
+                value={lastName}
+                onChangeText={(t) => {
+                  setLastName(t);
+                  setShowNameError(false);
+                }}
+                maxLength={MAX_NAME}
+                className="font-['Roboto-Flex'] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
+                style={{ borderColor: showNameError && !isNameValid ? '#B30404' : BORDER }}
+              />
               {showNameError && !isNameValid ? (
                 <Text className="font-['Roboto-Flex'] mt-[6px] text-[11px] text-lhlDestructiveRed">
-                  Enter a first and last name (50 characters max).
+                  Enter a first and last name ({MAX_NAME} characters max).
                 </Text>
               ) : null}
             </View>
 
-            {/* Year */}
-            <View className="mt-[22px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                Classification
-              </Text>
-              <View className="mt-[8px] flex-row flex-wrap gap-[8px]">
+            {/* Linked Socials */}
+            <View className="mt-[18px]">
+              <FieldLabel>Linked Socials ({MAX_SOCIALS} max)</FieldLabel>
+              <View className="flex-row flex-wrap items-center gap-[10px]">
+                {socials.map((social) => {
+                  const meta = getSocialPlatformUI(social.platform);
+                  if (!meta) return null;
+                  const Icon = meta.icon;
+                  return (
+                    <View key={social.platform} className="h-[34px] w-[34px]">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${meta.label} link`}
+                        onPress={() => openLink.request(social.url)}
+                        className="h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-lhlBurntOrange"
+                      >
+                        <Icon size={16} color="#FFFFFF" />
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${meta.label}`}
+                        hitSlop={10}
+                        disabled={removeSocial.isPending}
+                        onPress={() => removeSocial.mutate(social.platform)}
+                        className="absolute right-0 top-0 h-[14px] w-[14px] items-center justify-center rounded-full bg-lhlDestructiveRed"
+                      >
+                        <LhlPillCross size={6} color="#FFFFFF" />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+
+                {socials.length < MAX_SOCIALS ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Add a linked social"
+                    onPress={() => setShowPicker(true)}
+                    className="h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-lhlBurntOrange"
+                  >
+                    <Text className="font-['Roboto-Flex'] text-[16px] leading-[18px] text-white">
+                      +
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
+            {/* Bio */}
+            <View className="mt-[18px]">
+              <FieldLabel>Bio</FieldLabel>
+              <View
+                className="rounded-[6px] border bg-white px-[12px] py-[10px]"
+                style={{ borderColor: BORDER }}
+              >
+                <TextInput
+                  value={bio}
+                  onChangeText={setBio}
+                  placeholder="Tell people a bit about you"
+                  placeholderTextColor="#9A9A9A"
+                  multiline
+                  maxLength={MAX_BIO}
+                  className="font-['Roboto-Flex'] h-[64px] text-[13px] text-lhlInk"
+                  style={{ textAlignVertical: 'top' }}
+                />
+                <Text className="font-['Roboto-Flex'] text-right text-[10px] text-lhlSecondaryTextGrey">
+                  {bio.length} / {MAX_BIO}
+                </Text>
+              </View>
+            </View>
+
+            {/* Majors */}
+            <View className="mt-[18px]">
+              <SearchablePillDropdownField
+                label="Whats your major(s)?"
+                leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+                placeholder="Search for your major..."
+                options={MAJORS}
+                selectedValues={majors}
+                onSelect={setMajors}
+                borderRadius={6}
+              />
+            </View>
+
+            {/* Classification — pills, kept over the frame's dropdown */}
+            <View className="mt-[18px]">
+              <FieldLabel>Classification</FieldLabel>
+              <View className="flex-row flex-wrap gap-[8px]">
                 {YEAR_OPTIONS.map((option) => {
                   const isSelected = year === option;
                   return (
@@ -336,53 +484,21 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            {/* Bio */}
+            {/* Interests — not in the frame; see the header comment. */}
             <View className="mt-[22px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                Bio
-              </Text>
-              <TextInput
-                value={bio}
-                onChangeText={setBio}
-                placeholder="Tell people a bit about you"
-                multiline
-                maxLength={MAX_BIO}
-                className="font-['Roboto-Flex'] mt-[8px] h-[92px] rounded-[8px] border bg-white px-[12px] py-[10px] text-[14px] text-lhlInk"
-                style={{ borderColor: BORDER, textAlignVertical: 'top' }}
-              />
-              <Text className="font-['Roboto-Flex'] mt-[4px] text-right text-[11px] text-lhlSecondaryTextGrey">
-                {bio.length}/{MAX_BIO}
-              </Text>
-            </View>
-
-            {/* Linked socials */}
-            <View className="mt-[22px]">
-              <LinkedSocialsRow
-                socials={socials}
-                onAdd={() => setShowPicker(true)}
-                onRemove={(social) => removeSocial.mutate(social.platform)}
-                onPreview={(social) => openLink.request(social.url)}
-                disabled={removeSocial.isPending}
-              />
-            </View>
-
-            {/* Interests */}
-            <View className="mt-[26px]">
               <View className="flex-row items-center justify-between">
-                <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                  Interests
-                </Text>
+                <FieldLabel>Interests</FieldLabel>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setIsEditingInterests((v) => !v)}
                 >
-                  <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-lhlBurntOrange">
+                  <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlBurntOrange">
                     {isEditingInterests ? 'Done' : 'Edit'}
                   </Text>
                 </Pressable>
               </View>
 
-              <View className="mt-[10px] flex-row flex-wrap gap-[8px]">
+              <View className="flex-row flex-wrap gap-[8px]">
                 {(isEditingInterests ? ALL_INTEREST_TAGS : tags).map((tag) => {
                   const isSelected = tags.includes(tag);
                   return (
@@ -425,33 +541,18 @@ export default function EditProfileScreen() {
                 ) : null}
               </View>
             </View>
-
-            {/* Save */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Save changes"
-              accessibilityState={{ disabled: !isDirty || saveProfile.isPending }}
-              disabled={!isDirty || saveProfile.isPending}
-              onPress={handleSave}
-              className={`mt-[30px] h-[50px] items-center justify-center rounded-[10px] border ${
-                isDirty
-                  ? 'border-lhlBurntOrange bg-lhlBurntOrange'
-                  : 'border-lhlMutedBorder bg-white opacity-60'
-              }`}
-            >
-              <Text
-                className={`font-['Roboto-Flex'] text-[16px] font-semibold ${
-                  isDirty ? 'text-white' : 'text-lhlSecondaryTextGrey'
-                }`}
-              >
-                {saveProfile.isPending ? 'Saving…' : 'Save'}
-              </Text>
-            </Pressable>
           </ScrollView>
         )}
       </KeyboardAvoidingView>
 
       {/* --- Modals --- */}
+      <AvatarPickerModal
+        visible={showAvatarPicker}
+        value={loaded?.avatar ?? null}
+        onSelect={(id) => saveAvatar.mutate(id)}
+        onClose={() => setShowAvatarPicker(false)}
+      />
+
       <ChooseApplicationModal
         visible={showPicker}
         connected={connected}

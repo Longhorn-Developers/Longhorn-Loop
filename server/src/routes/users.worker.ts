@@ -20,6 +20,9 @@ import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
+/** Bio cap shown by the Edit Profile counter ("44 / 150"). */
+const MAX_BIO = 150;
+
 /**
  * The "N followers · N following" line on the profile header.
  *
@@ -217,7 +220,7 @@ userRoutes.patch('/me/profile', async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== 'object') return c.json({ error: 'INVALID_BODY' }, 400);
 
-  const { first_name, last_name, avatar, year_classification, bio, tags } = body as Record<
+  const { first_name, last_name, avatar, year_classification, bio, majors, tags } = body as Record<
     string,
     unknown
   >;
@@ -238,7 +241,9 @@ userRoutes.patch('/me/profile', async (c) => {
   }
   if (bio !== undefined && bio !== null) {
     if (typeof bio !== 'string') return c.json({ error: 'INVALID_BIO' }, 400);
-    if (bio.length > 300) return c.json({ error: 'BIO_TOO_LONG' }, 400);
+    // 150 is the cap the Edit Profile counter shows ("44 / 150"). Keep this in
+    // step with MAX_BIO in app/profile/edit.tsx.
+    if (bio.length > MAX_BIO) return c.json({ error: 'BIO_TOO_LONG', max: MAX_BIO }, 400);
   }
 
   // Build the UPDATE from only the keys actually supplied.
@@ -272,7 +277,9 @@ userRoutes.patch('/me/profile', async (c) => {
       .run();
   }
 
-  // Interests are replace-all, matching the onboarding endpoint.
+  // Interests and majors are replace-all, matching the onboarding endpoint.
+  // Both are only touched when the key is present, so a PATCH that saves just
+  // a bio can't wipe either of them.
   if (tags !== undefined) {
     if (!Array.isArray(tags)) return c.json({ error: 'INVALID_TAGS' }, 400);
     await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
@@ -281,6 +288,18 @@ userRoutes.patch('/me/profile', async (c) => {
         'INSERT INTO user_tags (user_id, tag) VALUES (?, ?) ON CONFLICT DO NOTHING',
       )
         .bind(userId, String(tag))
+        .run();
+    }
+  }
+
+  if (majors !== undefined) {
+    if (!Array.isArray(majors)) return c.json({ error: 'INVALID_MAJORS' }, 400);
+    await c.env.DB.prepare('DELETE FROM user_majors WHERE user_id = ?').bind(userId).run();
+    for (const major of majors) {
+      await c.env.DB.prepare(
+        'INSERT INTO user_majors (user_id, major) VALUES (?, ?) ON CONFLICT DO NOTHING',
+      )
+        .bind(userId, String(major))
         .run();
     }
   }

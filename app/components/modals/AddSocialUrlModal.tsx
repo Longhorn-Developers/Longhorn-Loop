@@ -1,29 +1,28 @@
-// "add <App> url" — step two of the connection flow, after the user picks an
+// "Add <App> url" — step two of the connection flow, after the user picks an
 // app in ChooseApplicationModal (LOOP-181).
 //
-// Figma: Edit Profile frame, "add socials" (node 2723:3741), reviewed
-// 2026-06-08.
+// Figma: "Edit Profile" frame, connection apps modal, reviewed 2026-08-01.
 //
 // States covered:
-//   - Add button inactive while the field is empty or the URL is malformed,
-//     burnt orange once it validates
-//   - "<App> link was not found" + Try again when the server rejects it
+//   - header row: back arrow, orange platform tile, "Add Instagram url"
+//   - Add button white/outline while the URL is empty or malformed, burnt
+//     orange the moment it parses
+//   - "<App> link was not found" + a Try again button when the server rejects
 //
 // Format validation runs locally through the same shared/socialPlatforms.ts
 // rules the Worker uses, so a typo disables the button instantly instead of
 // costing a round trip. The server still re-validates — this is UX, not trust.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 
-import TextInputField from '@/app/components/inputs/TextInputField';
 import {
   getSocialPlatformUI,
   validateSocialUrl,
   type SocialPlatformId,
 } from '@/app/lib/socialPlatforms';
 
-import ProfileModal, { ModalAction } from './ProfileModal';
+const BORDER = 'rgba(0,0,0,0.20)';
 
 export interface AddSocialUrlModalProps {
   visible: boolean;
@@ -62,6 +61,7 @@ export default function AddSocialUrlModal({
 
   const meta = platform ? getSocialPlatformUI(platform) : undefined;
   const label = meta?.label ?? 'app';
+  const Icon = meta?.icon;
 
   const isValid = platform ? validateSocialUrl(platform, url).ok : false;
 
@@ -80,69 +80,104 @@ export default function AddSocialUrlModal({
     }
   }, [platform, isValid, url, onAdd, onClose, label]);
 
-  // The error state replaces the form with a Try again affordance, matching
-  // the dedicated error frame in the design.
-  if (error) {
-    return (
-      <ProfileModal
-        visible={visible}
-        onDismiss={onClose}
-        title={error}
-        body="Check the link and try again."
-        icon={meta ? <meta.icon size={40} color="#B30404" /> : undefined}
-        actions={
-          <>
-            <ModalAction label="Cancel" variant="outline" onPress={onClose} />
-            <ModalAction label="Try again" variant="brand" onPress={() => setError(null)} />
-          </>
-        }
-      />
-    );
-  }
-
   return (
-    <ProfileModal
+    <Modal
       visible={visible}
-      onDismiss={onClose}
-      dismissOnBackdropPress={!isSaving}
-      title={`add ${label} url`}
-      icon={meta ? <meta.icon size={40} /> : undefined}
-      actions={
-        <>
-          <ModalAction
-            label="Back"
-            variant="outline"
-            onPress={onBack ?? onClose}
-            disabled={isSaving}
-          />
-          <ModalAction
-            label={isSaving ? 'Adding…' : 'Add'}
-            // Inactive until the URL parses; orange the moment it does.
-            variant={isValid ? 'brand' : 'outline'}
-            onPress={handleAdd}
-            disabled={!isValid || isSaving}
-          />
-        </>
-      }
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
     >
-      <View className="w-full">
-        <TextInputField
-          value={url}
-          onChangeText={setUrl}
-          placeholder={meta?.placeholder}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          borderRadius={8}
-          editable={!isSaving}
-          onSubmitEditing={handleAdd}
-        />
-        {url.trim().length > 0 && !isValid ? (
-          <Text className="font-['Roboto-Flex'] mt-[6px] text-center text-[11px] text-lhlSecondaryTextGrey">
-            {`That doesn't look like a ${label} link yet.`}
-          </Text>
-        ) : null}
-      </View>
-    </ProfileModal>
+      <Pressable
+        style={{ backgroundColor: 'rgba(9, 9, 11, 0.5)' }}
+        className="flex-1 items-center justify-center px-6"
+        onPress={isSaving ? undefined : onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          className="w-full max-w-[320px] rounded-[10px] bg-lhlBackgroundColor px-[20px] py-[18px]"
+        >
+          {error ? (
+            // Dedicated error frame: the form is replaced by the failure and a
+            // Try again that returns to the field with the URL still typed.
+            <View className="items-center py-[10px]">
+              <Text className="font-['Roboto-Flex'] text-center text-[14px] text-lhlInk">
+                {error}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Try again"
+                onPress={() => setError(null)}
+                className="mt-[16px] rounded-[6px] bg-lhlPlaceholderGrey px-[22px] py-[8px]"
+              >
+                <Text className="font-['Roboto-Flex'] text-[13px] font-medium text-lhlInk">
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View className="flex-row items-center gap-[10px]">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Back"
+                  hitSlop={10}
+                  disabled={isSaving}
+                  onPress={onBack ?? onClose}
+                >
+                  <Text className="font-['Roboto-Flex'] text-[17px] text-lhlInk">←</Text>
+                </Pressable>
+
+                {Icon ? (
+                  <View className="h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-lhlBurntOrange">
+                    <Icon size={16} color="#FFFFFF" />
+                  </View>
+                ) : null}
+
+                <Text className="font-['Roboto-Flex'] text-[14px] font-medium text-lhlInk">
+                  Add {label} url
+                </Text>
+              </View>
+
+              <TextInput
+                value={url}
+                onChangeText={setUrl}
+                placeholder="Enter url here"
+                placeholderTextColor="#9A9A9A"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                editable={!isSaving}
+                onSubmitEditing={handleAdd}
+                className="font-['Roboto-Flex'] mt-[16px] rounded-[6px] border bg-white px-[12px] py-[10px] text-[13px] text-lhlInk"
+                style={{ borderColor: BORDER }}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add"
+                accessibilityState={{ disabled: !isValid || isSaving }}
+                disabled={!isValid || isSaving}
+                onPress={handleAdd}
+                // Outline until the URL parses, then burnt orange.
+                className={`mt-[14px] items-center justify-center rounded-[8px] border py-[12px] ${
+                  isValid
+                    ? 'border-lhlBurntOrange bg-lhlBurntOrange'
+                    : 'border-lhlMutedBorder bg-white'
+                }`}
+              >
+                <Text
+                  className={`font-['Roboto-Flex'] text-[15px] font-semibold ${
+                    isValid ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                  }`}
+                >
+                  {isSaving ? 'Adding…' : 'Add'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
