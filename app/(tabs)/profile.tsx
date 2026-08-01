@@ -85,14 +85,27 @@ export default function ProfileScreen() {
               ) : null}
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
-              onPress={() => router.push('/profile/edit')}
-              className="rounded-full border border-lhlMutedBorder bg-white px-[14px] py-[7px]"
-            >
-              <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">Edit</Text>
-            </Pressable>
+            <View className="flex-row items-center gap-[8px]">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile"
+                onPress={() => router.push('/profile/edit')}
+                className="rounded-full border border-lhlMutedBorder bg-white px-[14px] py-[7px]"
+              >
+                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                  Edit
+                </Text>
+              </Pressable>
+              {/* Settings is also the org-management entry point (LOOP-184). */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                onPress={() => router.push('/settings')}
+                className="h-[32px] w-[32px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
+              >
+                <Text className="text-[14px] text-lhlInk">⚙</Text>
+              </Pressable>
+            </View>
           </View>
 
           {profile?.bio ? (

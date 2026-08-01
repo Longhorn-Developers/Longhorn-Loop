@@ -31,6 +31,12 @@ export const user = {
   pastEvents: () => [...user.all, 'past-events'] as const,
 };
 
+// User settings (/settings). One row per user; `mine` is the whole thing.
+export const settings = {
+  all: ['settings'] as const,
+  mine: () => [...settings.all, 'mine'] as const,
+};
+
 // Org Management console (/orgs/*). `mine` backs the Manage Organizations
 // list on Settings; the rest are per-org console tabs.
 export const org = {

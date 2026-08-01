@@ -5,6 +5,7 @@ import * as NativeSplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import SplashScreen from './components/SplashScreen';
 import { OnboardingProvider } from './context/OnboardingContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 // One QueryClient for the whole app. 30s staleTime means same-key queries
 // won't refetch within 30s of the last fetch. Mutations still force fresh
@@ -44,40 +45,48 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <OnboardingProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Entry: FrontPage */}
-          <Stack.Screen name="index" />
+        <ThemeProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Entry: FrontPage */}
+            <Stack.Screen name="index" />
 
-          {/* Auth flow */}
-          <Stack.Screen name="(auth)" />
+            {/* Auth flow */}
+            <Stack.Screen name="(auth)" />
 
-          {/* Onboarding flow */}
-          <Stack.Screen name="(onboarding)" />
+            {/* Onboarding flow */}
+            <Stack.Screen name="(onboarding)" />
 
-          {/* Main tabs — disable swipe back to prevent returning to onboarding */}
-          <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+            {/* Main tabs — disable swipe back to prevent returning to onboarding */}
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
-          {/* Create Event multi-step flow */}
-          <Stack.Screen name="(create-event)" />
+            {/* Create Event multi-step flow */}
+            <Stack.Screen name="(create-event)" />
 
-          {/* View All events screen */}
-          <Stack.Screen name="view-all" />
+            {/* View All events screen */}
+            <Stack.Screen name="view-all" />
 
-          {/* Edit Profile + Past Events, pushed from the Profile tab */}
-          <Stack.Screen name="profile/edit" />
-          <Stack.Screen name="profile/past" />
+            {/* Edit Profile + Past Events, pushed from the Profile tab */}
+            <Stack.Screen name="profile/edit" />
+            <Stack.Screen name="profile/past" />
 
-          {/* Org Management console */}
-          <Stack.Screen name="org/[id]/index" />
-          <Stack.Screen name="org/[id]/notifications" />
+            {/* Org Management console + registration */}
+            <Stack.Screen name="org/[id]/index" />
+            <Stack.Screen name="org/[id]/notifications" />
+            <Stack.Screen name="org/register" />
 
-          {/* Event detail + nested screens */}
-          <Stack.Screen name="event/[id]/index" />
-          <Stack.Screen name="event/[id]/report" />
-          <Stack.Screen name="event/[id]/report-success" />
-        </Stack>
+            {/* Settings */}
+            <Stack.Screen name="settings/index" />
+            <Stack.Screen name="settings/preferences" />
+            <Stack.Screen name="settings/feedback" />
 
-        {!splashDone && <SplashScreen onFinish={() => setSplashDone(true)} />}
+            {/* Event detail + nested screens */}
+            <Stack.Screen name="event/[id]/index" />
+            <Stack.Screen name="event/[id]/report" />
+            <Stack.Screen name="event/[id]/report-success" />
+          </Stack>
+
+          {!splashDone && <SplashScreen onFinish={() => setSplashDone(true)} />}
+        </ThemeProvider>
       </OnboardingProvider>
     </QueryClientProvider>
   );
