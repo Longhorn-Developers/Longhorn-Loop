@@ -29,6 +29,11 @@ export const user = {
   me: () => [...user.all, 'me'] as const,
   socials: () => [...user.all, 'socials'] as const,
   pastEvents: () => [...user.all, 'past-events'] as const,
+  // My Events grid. The params object is part of the key so switching tab,
+  // search, filter or sort is a distinct cache entry; myEventsAll() is the
+  // prefix to invalidate after a save/RSVP changes any of them.
+  myEventsAll: () => [...user.all, 'my-events'] as const,
+  myEvents: (params: Record<string, string>) => [...user.myEventsAll(), params] as const,
 };
 
 // User settings (/settings). One row per user; `mine` is the whole thing.

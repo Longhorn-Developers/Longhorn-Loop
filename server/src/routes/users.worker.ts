@@ -9,9 +9,49 @@ import {
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
+import {
+  PROFILE_EVENT_FILTERS,
+  PROFILE_EVENT_TABS,
+  bucketsForFilter,
+  isProfileEventFilter,
+  isProfileEventTab,
+} from '../../../shared/profileEventFilters';
 import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
+
+/**
+ * The "N followers · N following" line on the profile header.
+ *
+ * `following` deliberately counts BOTH users and orgs. To someone reading
+ * their own profile it means "things I follow", and the app lets you follow
+ * orgs as well as people — reporting only user follows would show 0 for a
+ * student who follows twenty orgs and nobody. Followers is users only,
+ * because an org can't follow a person.
+ */
+async function getFollowCounts(
+  db: D1Database,
+  userId: number,
+): Promise<{ follower_count: number; following_count: number }> {
+  const followers = await db
+    .prepare('SELECT COUNT(*) AS c FROM user_follows WHERE followed_user_id = ?')
+    .bind(userId)
+    .first();
+
+  const following = await db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM user_follows WHERE follower_user_id = ?1)
+       + (SELECT COUNT(*) FROM org_followers WHERE user_id = ?1) AS c`,
+    )
+    .bind(userId)
+    .first();
+
+  return {
+    follower_count: (followers?.c as number) ?? 0,
+    following_count: (following?.c as number) ?? 0,
+  };
+}
 
 // POST /users/me/agreements
 userRoutes.post('/me/agreements', async (c) => {
@@ -149,12 +189,15 @@ userRoutes.get('/me', async (c) => {
     .bind(userId)
     .all();
 
+  const counts = await getFollowCounts(c.env.DB, userId);
+
   return c.json({
     user: {
       ...dbUser,
       majors: majors.results.map((r) => r.major),
       tags: tags.results.map((r) => r.tag),
       socials: socials.results,
+      ...counts,
     },
   });
 });
@@ -347,6 +390,196 @@ userRoutes.delete('/me/socials/:platform', async (c) => {
   // Idempotent: removing something already gone is a success, so repeated
   // taps on the x badge can't produce an error toast.
   return c.json({ removed: true });
+});
+
+// ---------------------------------------------------------------------------
+// My Events collections — Going / Saved / Posted (Profile Main frame)
+// ---------------------------------------------------------------------------
+
+/**
+ * Each tab is a different relationship to an event, not a different time range.
+ *
+ * Scope: these show events that HAVEN'T ended. History lives on the Past
+ * Events screen (LOOP-200), which covers the same three relationships for
+ * ended events — so an event moves from Going to Past when it finishes rather
+ * than appearing in both.
+ */
+const MY_EVENT_TABS = {
+  going: {
+    join: 'JOIN event_rsvps r ON r.event_id = e.id AND r.user_id = ?',
+    where: '1 = 1',
+  },
+  saved: {
+    join: 'JOIN saved_events s ON s.event_id = e.id AND s.user_id = ?',
+    where: '1 = 1',
+  },
+  posted: {
+    join: '',
+    where: 'e.created_by_user_id = ?',
+  },
+} as const;
+
+type MyEventTab = keyof typeof MY_EVENT_TABS;
+
+/** Not ended, and not archived by the cleanup job. */
+const UPCOMING_CONDITION = `(e.is_archived = 0 AND COALESCE(e.end_datetime, e.start_datetime) >= datetime('now'))`;
+
+// GET /users/me/events -- the My Events section of the profile.
+//
+// Query params:
+//   tab    going | saved | posted   (default going)
+//   q      free-text search over title / description / host
+//   filter all | general | academic | social   (chip row)
+//   sort   date | recent            (default date = soonest first)
+//
+// Returns { tab, events, counts } — counts covers all three tabs so the
+// segmented control can render "Going (2) Saved (3) Posted (2)" without three
+// extra round trips.
+userRoutes.get('/me/events', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const rawTab = c.req.query('tab') ?? 'going';
+  if (!isProfileEventTab(rawTab)) {
+    return c.json({ error: 'INVALID_TAB', valid: PROFILE_EVENT_TABS }, 400);
+  }
+  const tab = rawTab as MyEventTab;
+
+  const rawFilter = c.req.query('filter') ?? 'all';
+  if (!isProfileEventFilter(rawFilter)) {
+    return c.json({ error: 'INVALID_FILTER', valid: PROFILE_EVENT_FILTERS }, 400);
+  }
+
+  const sort = c.req.query('sort') === 'recent' ? 'recent' : 'date';
+  const search = (c.req.query('q') ?? '').trim();
+
+  const { join, where } = MY_EVENT_TABS[tab];
+
+  // Binds are positional, so they must be pushed in the order the placeholders
+  // appear in the SQL below: is_saved subquery (SELECT), then the tab's own
+  // user_id (JOIN for going/saved, WHERE for posted), then search, then buckets.
+  const binds: unknown[] = [userId, userId];
+
+  let searchClause = '';
+  if (search) {
+    // Escape LIKE wildcards — someone searching for "50% off" shouldn't have
+    // the % silently match everything.
+    const escaped = search.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    searchClause = ` AND (e.title LIKE ? ESCAPE '\\'
+                          OR e.description LIKE ? ESCAPE '\\'
+                          OR e.host_organization_name LIKE ? ESCAPE '\\')`;
+    binds.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`);
+  }
+
+  const buckets = bucketsForFilter(rawFilter);
+  let bucketClause = '';
+  if (buckets.length > 0) {
+    bucketClause = ` AND EXISTS (
+                       SELECT 1 FROM event_tags t
+                       WHERE t.event_id = e.id
+                         AND t.bucket_id IN (${buckets.map(() => '?').join(', ')})
+                     )`;
+    binds.push(...buckets);
+  }
+
+  const orderBy =
+    sort === 'recent' ? 'e.created_at DESC' : 'COALESCE(e.start_datetime, e.end_datetime) ASC';
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.*,
+            o.profile_picture AS org_profile_picture,
+            o.verified AS org_verified,
+            EXISTS (
+              SELECT 1 FROM saved_events sv WHERE sv.event_id = e.id AND sv.user_id = ?
+            ) AS is_saved
+     FROM events e
+     ${join}
+     LEFT JOIN organizations o ON e.host_organization_id = o.id
+     WHERE ${where}
+       AND ${UPCOMING_CONDITION}
+       ${searchClause}
+       ${bucketClause}
+     ORDER BY ${orderBy}
+     LIMIT 100`,
+  )
+    .bind(...binds)
+    .all();
+
+  // Counts ignore search and filter: the chip row narrows what's listed, but
+  // the tab labels should keep showing how many events are in each collection.
+  const counts: Record<string, number> = {};
+  for (const key of PROFILE_EVENT_TABS) {
+    const t = MY_EVENT_TABS[key as MyEventTab];
+    const row = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS c FROM events e ${t.join}
+       WHERE ${t.where} AND ${UPCOMING_CONDITION}`,
+    )
+      .bind(userId)
+      .first();
+    counts[key] = (row?.c as number) ?? 0;
+  }
+
+  return c.json({
+    tab,
+    events: (results as Record<string, unknown>[]).map((e) => ({
+      ...e,
+      is_saved: Number(e.is_saved) === 1,
+      org_verified: Number(e.org_verified) === 1,
+    })),
+    counts,
+  });
+});
+
+// POST /users/:userId/follow -- follow another user.
+//
+// The Follow *button* belongs to LOOP-180 (public profiles), but the follower
+// counts on this ticket's header are meaningless without a way to create a
+// follow, and leaving the endpoint out would mean LOOP-180 reinventing it.
+userRoutes.post('/:userId/follow', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const followerId = await getUserId(c.env.DB, auth.email);
+  if (!followerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+  if (targetId === followerId) return c.json({ error: 'CANNOT_FOLLOW_SELF' }, 400);
+
+  const target = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(targetId).first();
+  if (!target) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  await c.env.DB.prepare(
+    `INSERT INTO user_follows (follower_user_id, followed_user_id) VALUES (?, ?)
+     ON CONFLICT DO NOTHING`,
+  )
+    .bind(followerId, targetId)
+    .run();
+
+  return c.json({ following: true });
+});
+
+// DELETE /users/:userId/follow -- unfollow. Idempotent.
+userRoutes.delete('/:userId/follow', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const followerId = await getUserId(c.env.DB, auth.email);
+  if (!followerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+
+  await c.env.DB.prepare(
+    'DELETE FROM user_follows WHERE follower_user_id = ? AND followed_user_id = ?',
+  )
+    .bind(followerId, targetId)
+    .run();
+
+  return c.json({ following: false });
 });
 
 // ---------------------------------------------------------------------------

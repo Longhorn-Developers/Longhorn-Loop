@@ -33,6 +33,19 @@ CREATE TABLE IF NOT EXISTS user_socials (
 
 CREATE INDEX IF NOT EXISTS idx_user_socials_user ON user_socials(user_id);
 
+-- User-to-user follows (Profile Main frame). Drives the "N followers -
+-- N following" line on the profile header. Distinct from org_followers
+-- (user->org) and org_follows (org->org).
+CREATE TABLE IF NOT EXISTS user_follows (
+  follower_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  followed_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (follower_user_id, followed_user_id),
+  CHECK (follower_user_id <> followed_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_follows_followed ON user_follows(followed_user_id);
+
 -- User majors -- supports multiple majors per user
 CREATE TABLE IF NOT EXISTS user_majors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,21 +1,37 @@
-// Profile tab (LOOP-181).
+// Profile tab — "Profile Main" frame (LOOP-123 header + LOOP-137/138
+// collections, both signed off in design but never built in code).
 //
-// Replaces the placeholder screen with the real header the Figma Profile frame
-// specifies: avatar, name, classification, bio, linked-social chips and an
-// entry point into Edit Profile.
+// Layout, top to bottom:
+//   hamburger (org management + settings)
+//   centred avatar, name, "N followers · N following"
+//   Edit Profile pill + linked-social icon row
+//   bio
+//   Details and Interests — tag chips + "+" into Edit Profile
+//   My Events — Going / Saved / Posted segmented control with counts,
+//               search field, category chips, date sort, two-column grid
 //
-// Scope note: this is the profile *shell* only. The Going / Saved / Posted
-// collections are LOOP-137 / LOOP-138, and the Past view is LOOP-200 — this
-// screen is built so those drop in below the header without restructuring it.
+// Scope: this is the OWNER's own profile. The read-only Follow/Block variant
+// for other users and orgs is LOOP-180 (assigned separately), which is why
+// nothing here is written to take a target user id.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
+import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
+import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
-import { user as userKeys } from '@/app/lib/queryKeys';
+import { events as eventsKeys, user as userKeys } from '@/app/lib/queryKeys';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
-import { useQuery } from '@tanstack/react-query';
+import type { ApiEvent } from '@/app/components/EventCard';
+import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import {
+  PROFILE_EVENT_FILTERS,
+  PROFILE_EVENT_FILTER_LABELS,
+  type ProfileEventFilter,
+  type ProfileEventTab,
+} from '@/shared/profileEventFilters';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,30 +39,77 @@ const BG = '#F9F8F5';
 
 interface MeResponse {
   user: {
+    id: number;
     first_name: string;
     last_name: string;
     year_classification: string | null;
     bio: string | null;
     tags: string[];
     socials: LinkedSocial[];
+    follower_count: number;
+    following_count: number;
   };
 }
+
+interface MyEventsResponse {
+  tab: ProfileEventTab;
+  events: (ApiEvent & { org_verified?: boolean; is_saved?: boolean })[];
+  counts: Record<ProfileEventTab, number>;
+}
+
+const TABS: { key: ProfileEventTab; label: string; empty: string }[] = [
+  { key: 'going', label: 'Going', empty: 'Events you RSVP to will show up here' },
+  { key: 'saved', label: 'Saved', empty: 'Events you save will show up here' },
+  { key: 'posted', label: 'Posted', empty: 'Events you create will show up here' },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
+  const queryClient = useQueryClient();
 
   const openLink = useOpenLinkGuard();
 
-  const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
+  const [tab, setTab] = useState<ProfileEventTab>('going');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ProfileEventFilter>('all');
+  const [sortRecent, setSortRecent] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const profileQuery = useQuery({
     queryKey: userKeys.me(),
     queryFn: () => api.get<MeResponse>('/users/me', { token }),
     enabled: !!token,
   });
 
-  const profile = data?.user;
+  const eventsQuery = useQuery({
+    queryKey: userKeys.myEvents({ tab, q: search, filter, sort: sortRecent ? 'recent' : 'date' }),
+    queryFn: () => {
+      const params = new URLSearchParams({
+        tab,
+        filter,
+        sort: sortRecent ? 'recent' : 'date',
+      });
+      if (search.trim()) params.set('q', search.trim());
+      return api.get<MyEventsResponse>(`/users/me/events?${params.toString()}`, { token });
+    },
+    enabled: !!token,
+  });
+
+  const toggleSave = useMutation({
+    mutationFn: async ({ eventId, saved }: { eventId: number; saved: boolean }) =>
+      saved ? api.delete(`/saved/${eventId}`, { token }) : api.post(`/saved/${eventId}`, { token }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userKeys.myEventsAll() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.all });
+    },
+  });
+
+  const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
+  const counts = eventsQuery.data?.counts;
+  const activeTab = TABS.find((t) => t.key === tab)!;
 
   if (!token) {
     return (
@@ -58,12 +121,8 @@ export default function ProfileScreen() {
     );
   }
 
-  // A failed fetch must not render as an empty-looking profile. Without this
-  // the screen degrades into "Your profile" with no name, bio, socials or
-  // interests — indistinguishable from a genuinely empty account, which sends
-  // you looking for a bug in the wrong place.
-  if (isError) {
-    const status = error instanceof ApiError ? error.status : null;
+  if (profileQuery.isError) {
+    const status = profileQuery.error instanceof ApiError ? profileQuery.error.status : null;
     return (
       <SafeAreaView
         className="flex-1 items-center justify-center px-[30px]"
@@ -72,22 +131,18 @@ export default function ProfileScreen() {
         <Text className="font-['Roboto-Flex'] text-center text-[15px] font-semibold text-lhlInk">
           Couldn’t load your profile
         </Text>
-        <Text className="font-['Roboto-Flex'] mt-[6px] text-center text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
+        <Text className="font-['Roboto-Flex'] mt-[6px] text-center text-[12px] text-lhlSecondaryTextGrey">
           {status === 401
             ? 'Your session expired. Sign in again.'
-            : status === 404
-              ? 'We couldn’t find your account.'
-              : `Something went wrong${status ? ` (HTTP ${status})` : ''}.`}
+            : `Something went wrong${status ? ` (HTTP ${status})` : ''}.`}
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Try again"
-          disabled={isRefetching}
-          onPress={() => refetch()}
+          onPress={() => profileQuery.refetch()}
           className="mt-[18px] rounded-full bg-lhlBurntOrange px-[22px] py-[9px]"
         >
           <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-white">
-            {isRefetching ? 'Retrying…' : 'Try again'}
+            Try again
           </Text>
         </Pressable>
       </SafeAreaView>
@@ -96,63 +151,88 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: BG }} edges={['top']}>
-      {isLoading ? (
+      {profileQuery.isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#BD5500" />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-[20px]" contentContainerStyle={{ paddingBottom: 40 }}>
-          <View className="mt-[10px] flex-row items-center">
-            {/* Avatar art is LOOP-130's open question (preset vs upload), so
-                the placeholder circle from the design stands in for now. */}
-            <View className="h-[72px] w-[72px] rounded-full bg-lhlPlaceholderGrey" />
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* --- Hamburger: org management + settings --- */}
+          <View className="flex-row justify-end px-[20px] pt-[6px]">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Menu"
+              accessibilityState={{ expanded: menuOpen }}
+              onPress={() => setMenuOpen((v) => !v)}
+              hitSlop={10}
+              className="h-[28px] w-[28px] items-center justify-center"
+            >
+              {/* Three bars, drawn rather than an emoji glyph so it renders
+                  identically on both platforms. */}
+              {[0, 1, 2].map((i) => (
+                <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
+              ))}
+            </Pressable>
+          </View>
 
-            <View className="ml-[14px] flex-1">
-              <Text
-                numberOfLines={1}
-                className="font-['Roboto-Flex'] text-[20px] font-semibold text-lhlInk"
-              >
-                {fullName || 'Your profile'}
-              </Text>
-              {profile?.year_classification ? (
-                <Text className="font-['Roboto-Flex'] mt-[2px] text-[13px] text-lhlSecondaryTextGrey">
-                  {profile.year_classification}
-                </Text>
-              ) : null}
+          {menuOpen ? (
+            <View className="mx-[20px] mb-[6px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-white">
+              {[
+                { label: 'Manage Organizations', to: '/settings' },
+                { label: 'Settings', to: '/settings/preferences' },
+              ].map((item, i) => (
+                <Pressable
+                  key={item.to}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setMenuOpen(false);
+                    router.push(item.to as never);
+                  }}
+                  className={`px-[14px] py-[12px] ${i > 0 ? 'border-t border-lhlSurfaceGrey' : ''}`}
+                >
+                  <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">{item.label}</Text>
+                </Pressable>
+              ))}
             </View>
+          ) : null}
 
-            <View className="flex-row items-center gap-[8px]">
+          {/* --- Header --- */}
+          <View className="items-center px-[20px]">
+            <View className="h-[92px] w-[92px] rounded-full bg-lhlPlaceholderGrey" />
+
+            <Text
+              numberOfLines={1}
+              className="font-['Roboto-Flex'] mt-[10px] text-[20px] font-bold text-lhlInk"
+            >
+              {fullName || 'Your profile'}
+            </Text>
+
+            <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
+              <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
+              followers ·{' '}
+              <Text className="font-semibold text-lhlInk">{profile?.following_count ?? 0}</Text>{' '}
+              following
+            </Text>
+
+            {/* Edit Profile + linked socials, one row */}
+            <View className="mt-[10px] flex-row items-center gap-[8px]">
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Edit profile"
                 onPress={() => router.push('/profile/edit')}
-                className="rounded-full border border-lhlMutedBorder bg-white px-[14px] py-[7px]"
+                className="flex-row items-center gap-[5px] rounded-full border border-lhlMutedBorder bg-white px-[14px] py-[6px]"
               >
                 <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
-                  Edit
+                  Edit Profile
                 </Text>
+                <Text className="text-[10px] text-lhlSecondaryTextGrey">✎</Text>
               </Pressable>
-              {/* Settings is also the org-management entry point (LOOP-184). */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Settings"
-                onPress={() => router.push('/settings')}
-                className="h-[32px] w-[32px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
-              >
-                <Text className="text-[14px] text-lhlInk">⚙</Text>
-              </Pressable>
-            </View>
-          </View>
 
-          {profile?.bio ? (
-            <Text className="font-['Roboto-Flex'] mt-[14px] text-[13px] leading-[19px] text-lhlInk">
-              {profile.bio}
-            </Text>
-          ) : null}
-
-          {profile?.socials && profile.socials.length > 0 ? (
-            <View className="mt-[16px] flex-row gap-[12px]">
-              {profile.socials.map((social) => {
+              {profile?.socials?.map((social) => {
                 const meta = getSocialPlatformUI(social.platform);
                 if (!meta) return null;
                 const Icon = meta.icon;
@@ -161,56 +241,179 @@ export default function ProfileScreen() {
                     key={social.platform}
                     accessibilityRole="link"
                     accessibilityLabel={`Open ${meta.label}`}
-                    // Routed through the Open Link warning (LOOP-182) rather
-                    // than Linking.openURL, so the guard can't be bypassed.
+                    // Routed through the Open Link warning (LOOP-182).
                     onPress={() => openLink.request(social.url)}
-                    className="h-[40px] w-[40px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
+                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-white"
                   >
-                    <Icon size={20} />
+                    <Icon size={16} />
                   </Pressable>
                 );
               })}
             </View>
-          ) : null}
 
-          {/* Past events (LOOP-200). Sits above Interests so history is one
-              tap from the header, per the Profile frame. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Past events"
-            onPress={() => router.push('/profile/past')}
-            className="mt-[20px] flex-row items-center justify-between rounded-[12px] border border-lhlMutedBorder bg-white px-[14px] py-[12px]"
-          >
-            <View>
-              <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                Past Events
+            {profile?.bio ? (
+              <Text className="font-['Roboto-Flex'] mt-[12px] text-center text-[12px] leading-[18px] text-lhlInk">
+                {profile.bio}
               </Text>
-              <Text className="font-['Roboto-Flex'] mt-[2px] text-[11px] text-lhlSecondaryTextGrey">
-                Events you created, attended or saved
-              </Text>
+            ) : null}
+          </View>
+
+          {/* --- Details and Interests --- */}
+          <View className="mt-[20px] px-[20px]">
+            <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
+              Details and Interests
+            </Text>
+            <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
+              {(profile?.tags ?? []).map((tag) => (
+                <View
+                  key={tag}
+                  className="rounded-full border border-lhlMutedBorder bg-white px-[12px] py-[5px]"
+                >
+                  <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
+                </View>
+              ))}
+              {/* "+" goes to Edit Profile rather than opening an inline picker,
+                  so interests have exactly one place they're edited. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add interests"
+                onPress={() => router.push('/profile/edit')}
+                className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-white"
+              >
+                <Text className="font-['Roboto-Flex'] text-[13px] leading-[15px] text-lhlSecondaryTextGrey">
+                  +
+                </Text>
+              </Pressable>
             </View>
-            <Text className="font-['Roboto-Flex'] text-[18px] text-lhlSecondaryTextGrey">›</Text>
-          </Pressable>
+          </View>
 
-          {profile?.tags && profile.tags.length > 0 ? (
-            <View className="mt-[20px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
-                Interests
-              </Text>
-              <View className="mt-[8px] flex-row flex-wrap gap-[8px]">
-                {profile.tags.map((tag) => (
-                  <View
-                    key={tag}
-                    className="rounded-full border border-lhlMutedBorder bg-white px-[12px] py-[6px]"
+          {/* --- My Events --- */}
+          <View className="mt-[22px] px-[20px]">
+            <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
+              My Events
+            </Text>
+
+            {/* Segmented control with counts */}
+            <View className="mt-[10px] flex-row gap-[6px]">
+              {TABS.map((t) => {
+                const isActive = t.key === tab;
+                const count = counts?.[t.key];
+                return (
+                  <Pressable
+                    key={t.key}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isActive }}
+                    onPress={() => setTab(t.key)}
+                    className={`flex-1 flex-row items-center justify-center rounded-full border py-[7px] ${
+                      isActive
+                        ? 'border-lhlInk bg-white'
+                        : 'border-lhlMutedBorder bg-lhlSurfaceGrey'
+                    }`}
                   >
-                    <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
-                      {tag}
+                    <Text
+                      className={`font-['Roboto-Flex'] text-[11px] ${
+                        isActive ? 'font-semibold text-lhlInk' : 'text-lhlSecondaryTextGrey'
+                      }`}
+                    >
+                      {t.label}
+                      {count !== undefined ? ` (${count})` : ''}
                     </Text>
-                  </View>
-                ))}
-              </View>
+                  </Pressable>
+                );
+              })}
             </View>
-          ) : null}
+
+            {/* Search */}
+            <View className="mt-[10px]">
+              <TextInputField
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search events..."
+                autoCapitalize="none"
+                autoCorrect={false}
+                borderRadius={8}
+                clearable
+                leftIcon={<LhlSearchIcon size={14} color="#485656" />}
+              />
+            </View>
+
+            {/* Category chips + date sort */}
+            <View className="mt-[10px] flex-row items-center justify-between">
+              <View className="flex-row gap-[6px]">
+                {PROFILE_EVENT_FILTERS.map((key) => {
+                  const isActive = key === filter;
+                  return (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isActive }}
+                      onPress={() => setFilter(key)}
+                      className={`rounded-full px-[12px] py-[5px] ${
+                        isActive ? 'bg-lhlBurntOrange' : 'border border-lhlMutedBorder bg-white'
+                      }`}
+                    >
+                      <Text
+                        className={`font-['Roboto-Flex'] text-[11px] font-medium ${
+                          isActive ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                        }`}
+                      >
+                        {PROFILE_EVENT_FILTER_LABELS[key]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={sortRecent ? 'Sort by date' : 'Sort by recently added'}
+                onPress={() => setSortRecent((v) => !v)}
+                className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-white px-[10px] py-[5px]"
+              >
+                <Text className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey">
+                  {sortRecent ? 'Recent' : 'Date'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Grid */}
+            {eventsQuery.isLoading ? (
+              <ActivityIndicator className="mt-[24px]" color="#BD5500" />
+            ) : (
+              <View className="mt-[14px] flex-row flex-wrap justify-between">
+                {(eventsQuery.data?.events ?? []).length === 0 ? (
+                  <View className="w-full items-center py-[30px]">
+                    <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
+                      {search.trim() || filter !== 'all'
+                        ? 'No events match that search.'
+                        : activeTab.empty}
+                    </Text>
+                    {!search.trim() && filter === 'all' && tab !== 'posted' ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => router.push('/(tabs)/home')}
+                        className="mt-[14px] rounded-full bg-lhlBurntOrange px-[20px] py-[8px]"
+                      >
+                        <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">
+                          Explore Events
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : (
+                  eventsQuery.data?.events.map((event) => (
+                    <ProfileEventCard
+                      key={event.id}
+                      event={event}
+                      onToggleSave={(eventId) =>
+                        toggleSave.mutate({ eventId, saved: !!event.is_saved })
+                      }
+                    />
+                  ))
+                )}
+              </View>
+            )}
+          </View>
         </ScrollView>
       )}
 
