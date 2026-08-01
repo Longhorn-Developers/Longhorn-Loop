@@ -1,4 +1,4 @@
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -161,11 +161,7 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
             elevation: 3,
           }}
         >
-          <BookmarkIcon
-            width={10}
-            height={14}
-            color={isSaved ? colors.accent : colors.inkSecondary}
-          />
+          <BookmarkGlyph saved={isSaved} width={10} height={14} />
         </TouchableOpacity>
       </View>
 

@@ -6,7 +6,7 @@
 // two sit side by side, and carries the poster-first layout the profile grid
 // uses: image with a bookmark overlay, title, "Posted by <org> ✓", date, room.
 
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import { formatEventDate, type ApiEvent } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -64,11 +64,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             }}
             className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
-            <BookmarkIcon
-              width={13}
-              height={13}
-              color={isSaved ? colors.accent : colors.inkSecondary}
-            />
+            <BookmarkGlyph saved={isSaved} width={13} height={13} />
           </Pressable>
         ) : null}
       </View>

@@ -3,7 +3,7 @@
 // pending backend support.
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import CalendarIcon from '@/assets/images/calendar.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
@@ -499,7 +499,7 @@ export default function EventDetailScreen() {
       <SafeAreaView edges={['bottom']} style={styles.actionBarWrapper}>
         <View style={styles.actionBar}>
           <TouchableOpacity onPress={handleToggleSave} style={styles.bookmarkButton}>
-            <BookmarkIcon width={14} height={18} color={isSaved ? colors.accent : colors.ink} />
+            <BookmarkGlyph saved={isSaved} width={14} height={18} idleColor={colors.ink} />
           </TouchableOpacity>
 
           <Pressable

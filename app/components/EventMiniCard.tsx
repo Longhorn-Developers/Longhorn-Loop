@@ -1,4 +1,4 @@
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import { ApiEvent, formatEventDate } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -110,11 +110,7 @@ export default function EventMiniCard({
             justifyContent: 'center',
           }}
         >
-          <BookmarkIcon
-            width={10}
-            height={13}
-            color={isSaved ? colors.accent : colors.inkSecondary}
-          />
+          <BookmarkGlyph saved={isSaved} width={10} height={13} />
         </TouchableOpacity>
 
         <TouchableOpacity
