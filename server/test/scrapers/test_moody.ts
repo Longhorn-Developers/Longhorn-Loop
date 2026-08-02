@@ -18,6 +18,7 @@ function loadFixture(name: string): string {
   );
 }
 
+// Keep time-dependent filtering deterministic and earlier than fixture events.
 const NOW = new Date('2027-01-01T00:00:00Z').getTime();
 
 describe('Moody listing parser', () => {
@@ -94,6 +95,7 @@ describe('Moody detail parser', () => {
     };
     const event = parseMoodyEvent(secondOccurrence, detail, NOW);
     expect(event?.sourceEventId).toBe('student-screenwriting-festival::2027-04-01T17:00:00-05:00');
+    // The inherited three-hour duration ends at 8:00 pm CDT (01:00 UTC).
     expect(event?.endDatetime).toBe('2027-04-02T01:00:00.000Z');
   });
 

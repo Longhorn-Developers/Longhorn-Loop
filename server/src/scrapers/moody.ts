@@ -29,6 +29,8 @@ interface ScraperResult {
 }
 
 export interface MoodyListingEvent {
+  // Drupal reuses one node URL for every occurrence of a recurring event.
+  // `startDatetime` must therefore be part of the eventual dedupe key.
   slug: string;
   title: string;
   description: string | null;
@@ -85,6 +87,9 @@ export function normalizeHtml(html: string): string {
     .replace(/> </g, '><');
 }
 
+// Each Drupal Views result starts with views-row, but the nested card has no
+// convenient unique closing tag. Splitting on the next row marker tolerates
+// optional card fields and changes in nesting depth.
 export function extractEventCards(html: string): string[] {
   return normalizeHtml(html)
     .split('<div class="views-row">')
@@ -97,6 +102,8 @@ export function hasNextPage(html: string): boolean {
 }
 
 function chicagoOffset(date: string): string {
+  // Listing dates have no offset. Resolve it for the event date rather than
+  // assuming CST or CDT, since one scrape can span a DST boundary.
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago',
     timeZoneName: 'shortOffset',
@@ -169,6 +176,8 @@ export function parseListingCard(cardHtml: string): MoodyListingEvent | null {
   };
 }
 
+// A page can contain unrelated JSON-LD blocks. Scan until an Event node is
+// found and ignore malformed or non-event blocks.
 export function extractSchemaEvent(html: string): SchemaEvent | null {
   const scripts = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   for (const script of scripts) {
@@ -196,6 +205,8 @@ function extractLabeledValue(html: string, label: string): string | null {
 export function extractCategories(detailHtml: string): string[] {
   const match = detailHtml.match(/<strong>Event Categories:<\/strong>([\s\S]*?)<\/p>/i);
   if (!match) return [];
+  // Moody renders taxonomy values as separate text lines without commas or
+  // wrapping elements. Preserve those lines or distinct names merge together.
   return match[1]
     .split(/\r?\n/)
     .map((line) => textContent(line))
@@ -246,6 +257,8 @@ export function parseMoodyEvent(
   const schema = extractSchemaEvent(detailHtml);
   let endDatetime: string | null = null;
   if (schema?.startDate && schema.endDate) {
+    // Recurring nodes describe their first occurrence in JSON-LD even when the
+    // listing points to a later one. Reuse the duration, not the stale start.
     const duration = new Date(schema.endDate).getTime() - new Date(schema.startDate).getTime();
     if (Number.isFinite(duration) && duration >= 0) {
       endDatetime =
@@ -273,6 +286,7 @@ export function parseMoodyEvent(
 
   return {
     source: SOURCE,
+    // Slugs repeat across occurrences; slug + start is stable across reruns.
     sourceEventId: `${listing.slug}::${listing.startDatetime}`,
     title: schema?.name?.trim() || listing.title,
     description: schema?.description?.trim() || listing.description,
@@ -302,6 +316,7 @@ export function parseMoodyEvent(
   };
 }
 
+// The cap guards against a malformed pager producing an infinite Worker run.
 export async function discoverEventCards(): Promise<string[]> {
   const cards: string[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
@@ -355,6 +370,8 @@ export async function scrapeMoody(
         const res = await fetchWithRetry(listing.eventUrl, { headers: { Accept: '*/*' } });
         detailHtml = await res.text();
       } catch (err) {
+        // The listing still provides enough data for a useful partial record,
+        // so one failed detail request must not drop the event.
         console.warn(`[moody] Failed to fetch detail page ${listing.eventUrl}: ${err}`);
       }
 
@@ -365,6 +382,8 @@ export async function scrapeMoody(
       }
 
       if (parsed.imageUrl && (!parsed.imageWidth || !parsed.imageHeight)) {
+        // JSON-LD usually provides dimensions. Only range-read the image when
+        // that metadata is absent.
         const meta = await fetchImageMeta(parsed.imageUrl, 'moody');
         parsed.imageWidth = meta.width;
         parsed.imageHeight = meta.height;
