@@ -15,6 +15,11 @@ export type Env = {
   DB: D1Database;
   EVENT_IMAGES?: R2Bucket;
   EVENT_IMAGE_PUBLIC_BASE_URL?: string;
+  // Workers AI binding (embeddings). Optional so tests/CI without the binding
+  // still typecheck; ingest falls back to the keyword classifier when absent.
+  AI?: Ai;
+  // Vectorize index holding taxonomy tag vectors, queried at ingest.
+  VECTORIZE?: VectorizeIndex;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   // When set to "true" in .dev.vars, the Worker logs verification codes to

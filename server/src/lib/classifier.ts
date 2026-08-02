@@ -16,7 +16,15 @@
 
 import { TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 
-export type ClassifierMatch = { bucketId: string; tag: string };
+export type ClassifierMatch = {
+  bucketId: string;
+  tag: string;
+  // How this tag was assigned. 'user' = hand-picked on a user-created event.
+  // Omitted by the keyword classifier; writeEventTags defaults to 'keyword'.
+  source?: 'semantic' | 'keyword' | 'user';
+  // Cosine score for semantic tags; null/omitted for keyword and user tags.
+  score?: number | null;
+};
 
 // ---------------------------------------------------------------------------
 // Hand-tuned keyword supplements
@@ -72,6 +80,12 @@ const KEYWORD_SUPPLEMENTS: Array<{ keyword: string; bucketId: string; tag: strin
   { keyword: 'match', bucketId: 'sports', tag: 'Team Sports' },
   { keyword: 'tournament', bucketId: 'sports', tag: 'Team Sports' },
   { keyword: 'intramural', bucketId: 'sports', tag: 'Team Sports' },
+  // Spectator/game-day events (tailgates, watch parties) are sports, not
+  // parties. These deterministic keywords catch what the embedding model
+  // mis-reads as "themed party" because of the word "party".
+  { keyword: 'tailgate', bucketId: 'sports', tag: 'Watch Parties & Game Day' },
+  { keyword: 'watch party', bucketId: 'sports', tag: 'Watch Parties & Game Day' },
+  { keyword: 'game day', bucketId: 'sports', tag: 'Watch Parties & Game Day' },
   { keyword: 'race', bucketId: 'sports', tag: 'Running & Endurance' },
   { keyword: 'run', bucketId: 'sports', tag: 'Running & Endurance' },
   { keyword: 'marathon', bucketId: 'sports', tag: 'Running & Endurance' },
@@ -165,7 +179,7 @@ const KEYWORD_SUPPLEMENTS: Array<{ keyword: string; bucketId: string; tag: strin
   { keyword: 'pub quiz', bucketId: 'gaming', tag: 'Trivia Nights' },
   { keyword: 'escape room', bucketId: 'gaming', tag: 'Escape Rooms' },
   { keyword: 'video game', bucketId: 'gaming', tag: 'Video Gaming' },
-  { keyword: 'esport', bucketId: 'gaming', tag: 'Esports & Competitive Gaming' },
+  { keyword: 'esport', bucketId: 'gaming', tag: 'Video Gaming' },
   { keyword: 'gaming', bucketId: 'gaming', tag: 'Video Gaming' },
   { keyword: 'rpg', bucketId: 'gaming', tag: 'Role-Playing Games (RPG)' },
 
@@ -372,10 +386,15 @@ export async function writeEventTags(
   matches: ClassifierMatch[],
 ): Promise<void> {
   await db.prepare('DELETE FROM event_tags WHERE event_id = ?').bind(eventId).run();
-  for (const { bucketId, tag } of matches) {
+  for (const { bucketId, tag, source, score } of matches) {
     await db
-      .prepare(`INSERT OR IGNORE INTO event_tags (event_id, bucket_id, tag) VALUES (?, ?, ?)`)
-      .bind(eventId, bucketId, tag)
+      .prepare(
+        `INSERT OR IGNORE INTO event_tags (event_id, bucket_id, tag, source, score)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      // A match with no source came from the keyword classifier; a keyword tag
+      // has no score, so default to null.
+      .bind(eventId, bucketId, tag, source ?? 'keyword', score ?? null)
       .run();
   }
 }

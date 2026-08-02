@@ -1,6 +1,9 @@
 name = "loop-db"
 main = "src/worker.ts"
 compatibility_date = "2024-01-01"
+# Pin to the Longhorn Developers account; the login token can also see a
+# personal account, which makes wrangler ambiguous in non-interactive mode.
+account_id = "9f38fafdc1cf403ddb29934c9992449f"
 
 [[d1_databases]]
 binding = "DB"
@@ -10,6 +13,17 @@ database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
 [[r2_buckets]]
 binding = "EVENT_IMAGES"
 bucket_name = "longhorn-loop-event-images"
+
+# Workers AI: gives c.env.AI for running embedding models at ingest.
+[ai]
+binding = "AI"
+
+# Vectorize: stores the ~70 taxonomy tag vectors that events are matched
+# against at ingest. Index created via:
+#   npx wrangler vectorize create loop-event-tags --dimensions=1024 --metric=cosine
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "loop-event-tags"
 
 [triggers]
 # Both schedules fire the same scheduled() handler in worker.ts, which

@@ -1,5 +1,6 @@
 // Events routes for Cloudflare Worker
 import { Hono } from 'hono';
+import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
 import { getAuthUser, getUserId } from '../lib/utils';
@@ -818,6 +819,30 @@ eventRoutes.post('/create', async (c) => {
       .run();
   }
 
+  // Feed ranking reads event_tags, not event_categories. Scraped events get
+  // tagged by the classifier at ingest; user-created events are hand-tagged
+  // here so they flow into the same ranking. The picked tags all belong to the
+  // chosen discovery bucket (the create UI scopes them to it), so we write each
+  // as a { bucket, tag } pair with source 'user'.
+  const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
+  if (discoveryBucket && BUCKET_ID_SET.has(discoveryBucket)) {
+    const bucketTags = new Set(TAXONOMY_BUCKETS.find((b) => b.id === discoveryBucket)?.tags ?? []);
+    const matches = categories
+      .filter((cat) => cat.name && bucketTags.has(cat.name))
+      .map((cat) => ({
+        bucketId: discoveryBucket,
+        tag: cat.name as string,
+        source: 'user' as const,
+        // Full confidence: a creator hand-picking a tag is the strongest signal
+        // we have, stronger than a semantic guess. Ranks these at full weight.
+        score: 1,
+      }));
+    if (matches.length > 0) {
+      const { writeEventTags } = await import('../lib/classifier');
+      await writeEventTags(c.env.DB, eventId, matches);
+    }
+  }
+
   const event = await getCreatedEvent(c.env.DB, eventId);
   return c.json({ event }, 201);
 });
@@ -1166,19 +1191,27 @@ eventRoutes.post('/scrape/:name', async (c) => {
 
 // POST /events/reclassify -- backfill event_tags for all existing events (LOOP-221)
 eventRoutes.post('/reclassify', async (c) => {
-  const { classifyEvent, writeEventTags } = await import('../lib/classifier');
+  const { writeEventTags } = await import('../lib/classifier');
+  const { classifyEventsBatch } = await import('../lib/semanticTags');
 
   const rows = await c.env.DB.prepare(
     'SELECT id, title, description FROM events WHERE is_archived = 0',
   ).all<{ id: number; title: string; description: string | null }>();
 
+  // Batch-classify to stay under the Workers AI per-invocation embed cap; the
+  // same reason ingestEvents batches. tagsByIndex[i] <-> rows.results[i].
+  const tagsByIndex = await classifyEventsBatch(
+    c.env,
+    rows.results.map((r) => ({ title: r.title, description: r.description })),
+  );
+
   let processed = 0;
   const errors: string[] = [];
 
-  for (const event of rows.results) {
+  for (let i = 0; i < rows.results.length; i++) {
+    const event = rows.results[i];
     try {
-      const matches = classifyEvent(event.title, event.description);
-      await writeEventTags(c.env.DB, event.id, matches);
+      await writeEventTags(c.env.DB, event.id, tagsByIndex[i]);
       processed++;
     } catch (err) {
       errors.push(`event ${event.id}: ${err}`);
@@ -1186,4 +1219,25 @@ eventRoutes.post('/reclassify', async (c) => {
   }
 
   return c.json({ ok: true, processed, errors });
+});
+
+// POST /events/seed-tag-vectors that embeds every taxonomy tag into Vectorize.
+// Run once after deploy and whenever the taxonomy changes. Safe to re-run
+// (upsert overwrites existing tag vectors).
+eventRoutes.post('/seed-tag-vectors', async (c) => {
+  const { seedTagVectors } = await import('../lib/semanticTags');
+  const result = await seedTagVectors(c.env);
+  return c.json({ ok: true, ...result });
+});
+
+// POST /events/delete-tag-vectors -- remove stale tag vectors by id.
+// Body: { ids: string[] } where each id is `tag:<bucketId>:<tagName>`.
+// Use after renaming/removing a taxonomy tag: seeding adds the new vector but
+// leaves the old id orphaned, and the binding has no list method to find it.
+eventRoutes.post('/delete-tag-vectors', async (c) => {
+  const { deleteTagVectors } = await import('../lib/semanticTags');
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: string[] };
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  const result = await deleteTagVectors(c.env, ids);
+  return c.json({ ok: true, ...result });
 });
