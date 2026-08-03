@@ -38,32 +38,28 @@ describe('server taxonomy module', () => {
   });
 
   it('contains the expected bucket IDs (spot-check)', () => {
-    expect(BUCKET_ID_SET.has('music')).toBe(true);
+    expect(BUCKET_ID_SET.has('performing')).toBe(true);
     expect(BUCKET_ID_SET.has('tech')).toBe(true);
     expect(BUCKET_ID_SET.has('sports')).toBe(true);
     expect(BUCKET_ID_SET.has('food')).toBe(true);
     expect(BUCKET_ID_SET.has('education')).toBe(true);
   });
 
-  it('has exactly the 16 buckets from the shared taxonomy', () => {
+  it('has exactly the 12 buckets from the shared taxonomy', () => {
     // Source of truth: shared/taxonomy.ts (imported by both app and server).
     const expected = [
-      'music',
       'performing',
-      'spirituality',
       'arts',
       'sports',
       'food',
       'tech',
-      'science',
       'education',
       'outdoors',
       'gaming',
       'social',
-      'health',
-      'business',
       'travel',
       'nightlife',
+      'spirituality',
     ];
     expect(TAXONOMY_BUCKETS.map((b) => b.id)).toEqual(expected);
   });

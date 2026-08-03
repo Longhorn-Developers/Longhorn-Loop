@@ -8,7 +8,14 @@
  * knobs that matter
  */
 
+// One tag on an event, with the semantic confidence it was assigned at.
+// score is null for keyword-fallback tags (no cosine score); see
+// KEYWORD_CONFIDENCE below for how those are weighted.
+export type ScorableTag = { tag: string; score: number | null };
+
 // Raw signals a scorer needs about one event. Maps to columns on `events`.
+// scoredTags carries the tag + its confidence for ranking; the app-facing
+// `tags: string[]` field lives on FeedEvent separately (different shape).
 export type ScorableEvent = {
   id: number;
   start_datetime: string;
@@ -16,7 +23,7 @@ export type ScorableEvent = {
   save_count: number;
   rsvp_count: number;
   view_count: number;
-  tags: string[];
+  scoredTags: ScorableTag[];
   bucketIds: string[];
 };
 
@@ -43,19 +50,42 @@ const POPULARITY_MIDPOINT = 20;
 // Timeliness half-life: an event this many hours out scores ~0.5.
 const TIMELINESS_HALFLIFE_HOURS = 72;
 
+// Map a tag's semantic score to a [0,1] confidence weight so noisy low-score
+// tags barely count toward ranking. Band is bge-large's useful range; a 0.55
+// match contributes ~0, a 0.72 match ~1.
+const CONFIDENCE_FLOOR = 0.55;
+const CONFIDENCE_TOP = 0.72;
+// Keyword-fallback tags have no score; treat as moderately confident.
+const KEYWORD_CONFIDENCE = 0.6;
+
+function tagConfidence(score: number | null): number {
+  const s = score ?? KEYWORD_CONFIDENCE;
+  const ramp = (s - CONFIDENCE_FLOOR) / (CONFIDENCE_TOP - CONFIDENCE_FLOOR);
+  return Math.max(0, Math.min(1, ramp));
+}
+
 /**
- * Interest term in [0, 1]. A direct tag match is the strong signal; a
- * bucket-only match (same bucket, different tag) counts for less. Saturates so
- * matching 3 tags isn't required to rank well.
+ * Interest term in [0, 1]. Each matched tag is weighted by its confidence so a
+ * noisy low-score tag barely moves ranking. Bucket-only matches are a weaker
+ * fallback. Saturates so one strong match ranks well.
  */
 export function interestScore(event: ScorableEvent, user: UserInterest): number {
-  const tagMatches = event.tags.filter((t) => user.tags.has(t)).length;
-  const bucketMatches = event.bucketIds.filter((b) => user.bucketIds.has(b)).length;
+  const matchConfidences = event.scoredTags
+    .filter((t) => user.tags.has(t.tag))
+    .map((t) => tagConfidence(t.score))
+    .sort((a, b) => b - a);
 
-  // First tag match is worth the most; extra matches add with diminishing value.
-  const tagTerm = tagMatches > 0 ? 0.7 + 0.1 * Math.min(tagMatches - 1, 3) : 0;
+  // First match full weight, extras discounted (0.7^i), scaled so one
+  // full-confidence match reaches the 0.7 "one tag" level.
+  let tagTerm = 0;
+  matchConfidences.forEach((c, i) => {
+    tagTerm += c * Math.pow(0.7, i);
+  });
+  tagTerm *= 0.7;
+
+  const bucketMatches = event.bucketIds.filter((b) => user.bucketIds.has(b)).length;
   // Bucket-only affinity (no exact tag hit) is a weaker signal.
-  const bucketTerm = tagMatches === 0 && bucketMatches > 0 ? 0.3 : 0;
+  const bucketTerm = tagTerm === 0 && bucketMatches > 0 ? 0.3 : 0;
 
   return Math.min(1, tagTerm + bucketTerm);
 }

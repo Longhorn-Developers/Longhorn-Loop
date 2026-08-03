@@ -57,6 +57,13 @@ class FakeD1Database {
     category_id: string;
     category_name: string | null;
   }[] = [];
+  readonly eventTags: {
+    event_id: number;
+    bucket_id: string;
+    tag: string;
+    source: string;
+    score: number | null;
+  }[] = [];
 
   constructor(
     private readonly users: UserRow[] = [
@@ -151,6 +158,25 @@ class FakeD1Database {
       ) {
         this.eventCategories.push(row);
       }
+      return { meta: {} };
+    }
+
+    if (sql.includes('DELETE FROM event_tags WHERE event_id = ?')) {
+      const eventId = params[0] as number;
+      for (let i = this.eventTags.length - 1; i >= 0; i--) {
+        if (this.eventTags[i].event_id === eventId) this.eventTags.splice(i, 1);
+      }
+      return { meta: {} };
+    }
+
+    if (sql.includes('INSERT OR IGNORE INTO event_tags')) {
+      this.eventTags.push({
+        event_id: params[0] as number,
+        bucket_id: params[1] as string,
+        tag: params[2] as string,
+        source: params[3] as string,
+        score: params[4] as number | null,
+      });
       return { meta: {} };
     }
 
@@ -265,6 +291,28 @@ describe('POST /events/create', () => {
       { id: 'board-games-and-tabletop', name: 'Board Games & Tabletop' },
     ]);
     expect(db.events).toHaveLength(1);
+  });
+
+  it('writes hand-picked taxonomy tags to event_tags with source user', async () => {
+    const db = new FakeD1Database();
+    const token = await signJwt(USER_EMAIL);
+
+    const res = await postCreate(
+      makeEnv(db),
+      {
+        title: 'Board Game Night',
+        start_datetime: '2026-07-07T19:00:00-05:00',
+        discoveryBucket: 'gaming',
+        // 'Board Games' is a real gaming tag; 'Not A Tag' is not and is skipped.
+        categories: ['Board Games', 'Not A Tag'],
+      },
+      token,
+    );
+
+    expect(res.status).toBe(201);
+    expect(db.eventTags).toEqual([
+      { event_id: 1, bucket_id: 'gaming', tag: 'Board Games', source: 'user', score: 1 },
+    ]);
   });
 
   it('returns validation errors when a required field is missing', async () => {
