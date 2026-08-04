@@ -52,8 +52,15 @@ module.exports = {
         lhlInfo: 'rgb(var(--lhl-info) / <alpha-value>)',
         lhlScrim: 'rgb(var(--lhl-scrim) / <alpha-value>)',
       },
+      // Each weight is its own registered family (see app/_layout.tsx) because
+      // React Native can't pick a weight off a single variable font. Use these
+      // font-* utilities instead of pairing font-['Roboto-Flex'] with a
+      // font-bold/semibold weight class, which only renders bold on web.
       fontFamily: {
         roboto: ['Roboto-Flex'],
+        'roboto-medium': ['Roboto-Flex-Medium'],
+        'roboto-semibold': ['Roboto-Flex-SemiBold'],
+        'roboto-bold': ['Roboto-Flex-Bold'],
       },
     },
   },
