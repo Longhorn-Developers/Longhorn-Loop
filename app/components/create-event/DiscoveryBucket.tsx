@@ -1,66 +1,33 @@
 import CheckIcon from '@/assets/images/check-selected.svg';
-import PosterOrgSmallIcon from '@/assets/images/poster-org-small.svg';
-import PosterOrgIcon from '@/assets/images/poster-org.svg';
-import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
-import type { CreateEventPoster } from '@/app/context/CreateEventContext';
+import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
+import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors, withAlpha } from '@/app/lib/themeColors';
-import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SvgProps } from 'react-native-svg';
 
-type PosterOption = CreateEventPoster & {
-  Icon: React.FC<SvgProps>;
-  iconSize: { width: number; height: number };
-};
+const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
 
-// NOTE: hard-coded placeholder posters. Swap for real data once the
-// profile endpoint is wired up. Expected source:
-//   - Personal account: current user (name from /users/me/profile)
-//   - Orgs: the memberships list on the user profile, filtered to roles
-//     that can post (Admin / Editor / etc.)
-// Match the shape of PosterOption when mapping the API response.
-const POSTERS: PosterOption[] = [
-  {
-    kind: 'personal',
-    id: 'me',
-    name: 'Todd Jenkins',
-    role: 'Personal Account',
-    Icon: PosterPersonalIcon,
-    iconSize: { width: 24, height: 24 },
-  },
-  {
-    kind: 'org',
-    id: 'longhorn-ai',
-    name: 'Longhorn AI Society',
-    role: 'Admin',
-    Icon: PosterOrgIcon,
-    iconSize: { width: 20, height: 20 },
-  },
-  {
-    kind: 'org',
-    id: 'ut-food',
-    name: 'UT Food Society',
-    role: 'Editor',
-    Icon: PosterOrgSmallIcon,
-    iconSize: { width: 19, height: 16 },
-  },
-];
+// Derived from the shared interestCategories.ts.
+const BUCKETS = INTEREST_CATEGORIES.map((c) => ({
+  id: c.id as DiscoveryBucketId,
+  title: c.label,
+  description: c.description,
+  Icon: c.icon,
+  iconSize: DEFAULT_ICON_SIZE,
+}));
 
-export default function WhosPosting() {
-  const router = useRouter();
+export default function DiscoveryBucket() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update } = useCreateEvent();
-  const selectedId = data.poster?.id ?? null;
-
+  const { data, update, goNext, goBack } = useCreateEvent();
+  const selectedId = data.discoveryBucket;
   const canContinue = selectedId !== null;
 
   const onContinue = () => {
     if (!canContinue) return;
-    router.push('/(create-event)/DiscoveryBucket');
+    goNext();
   };
 
   return (
@@ -71,7 +38,7 @@ export default function WhosPosting() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <TouchableOpacity onPress={goBack} hitSlop={12}>
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create an Event</Text>
@@ -79,34 +46,35 @@ export default function WhosPosting() {
         </View>
 
         <View style={styles.stepBlock}>
-          <Text style={styles.stepLabel}>STEP 1 OF 6</Text>
-          <Text style={styles.stepTitle}>Who&apos;s Posting?</Text>
+          <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
+          <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
         </View>
 
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '16.66%' }]} />
+          <View style={[styles.progressFill, { width: '33.33%' }]} />
         </View>
 
-        <Text style={styles.instruction}>
-          Your event will be attributed to the profile or organization that you select.
-        </Text>
+        <Text style={styles.instruction}>Buckets help your event reach the right audience.</Text>
 
-        <View style={styles.posterList}>
-          {POSTERS.map((poster) => {
-            const isSelected = poster.id === selectedId;
-            const { Icon, iconSize } = poster;
-            const posterForContext: CreateEventPoster = {
-              kind: poster.kind,
-              id: poster.id,
-              name: poster.name,
-              role: poster.role,
-            };
+        <View style={styles.bucketList}>
+          {BUCKETS.map((bucket) => {
+            const isSelected = bucket.id === selectedId;
+            const { Icon, iconSize } = bucket;
             return (
               <TouchableOpacity
-                key={poster.id}
+                key={bucket.id}
                 activeOpacity={0.85}
-                onPress={() => update({ poster: posterForContext })}
-                style={[styles.posterCard, isSelected && styles.posterCardSelected]}
+                onPress={() => {
+                  // Clear interest tags when the bucket changes — the tag
+                  // list on step 3 is derived from the bucket's category,
+                  // so previous picks wouldn't be visible anyway.
+                  const changing = bucket.id !== data.discoveryBucket;
+                  update({
+                    discoveryBucket: bucket.id,
+                    ...(changing ? { interestTags: [] } : {}),
+                  });
+                }}
+                style={[styles.bucketCard, isSelected && styles.bucketCardSelected]}
               >
                 <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
                   <Icon
@@ -115,17 +83,9 @@ export default function WhosPosting() {
                     color={isSelected ? colors.accent : colors.ink}
                   />
                 </View>
-                <View style={styles.posterText}>
-                  <Text style={styles.posterName}>{poster.name}</Text>
-                  <Text style={styles.posterRole}>
-                    {poster.kind === 'personal' ? (
-                      poster.role
-                    ) : (
-                      <>
-                        Org <Text style={styles.posterRoleBold}>·</Text> {poster.role}
-                      </>
-                    )}
-                  </Text>
+                <View style={styles.bucketText}>
+                  <Text style={styles.bucketTitle}>{bucket.title}</Text>
+                  <Text style={styles.bucketDescription}>{bucket.description}</Text>
                 </View>
                 {isSelected && <CheckIcon width={19} height={14} color={colors.accent} />}
               </TouchableOpacity>
@@ -211,11 +171,11 @@ const makeStyles = (c: ThemeColors) =>
       lineHeight: 20,
       marginBottom: 24,
     },
-    posterList: {
+    bucketList: {
       gap: 12,
       marginBottom: 24,
     },
-    posterCard: {
+    bucketCard: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -225,7 +185,7 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    posterCardSelected: {
+    bucketCardSelected: {
       borderColor: c.brand,
       backgroundColor: c.brandSoft,
     },
@@ -240,21 +200,18 @@ const makeStyles = (c: ThemeColors) =>
     avatarSelected: {
       backgroundColor: withAlpha(c.brand, 0.35),
     },
-    posterText: {
+    bucketText: {
       flex: 1,
       gap: 2,
     },
-    posterName: {
+    bucketTitle: {
       fontSize: 16,
       fontWeight: '600',
       color: c.ink,
     },
-    posterRole: {
+    bucketDescription: {
       fontSize: 12,
       color: c.ink,
-    },
-    posterRoleBold: {
-      fontWeight: '700',
     },
     continueButton: {
       borderRadius: 8,

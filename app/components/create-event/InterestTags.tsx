@@ -1,35 +1,40 @@
-import CheckIcon from '@/assets/images/check-selected.svg';
-import { useCreateEvent } from '@/app/context/CreateEventContext';
-import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
+import ChipCloseIcon from '@/assets/images/chip-close.svg';
+import ChipPlusIcon from '@/assets/images/chip-plus.svg';
+import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import type { ThemeColors } from '@/app/lib/themeColors';
-import { useThemeColors, withAlpha } from '@/app/lib/themeColors';
-import { useRouter } from 'expo-router';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
-
-// Derived from the shared interestCategories.ts.
-const BUCKETS = INTEREST_CATEGORIES.map((c) => ({
-  id: c.id as DiscoveryBucketId,
-  title: c.label,
-  description: c.description,
-  Icon: c.icon,
-  iconSize: DEFAULT_ICON_SIZE,
-}));
-
-export default function DiscoveryBucket() {
-  const router = useRouter();
+export default function InterestTags() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update } = useCreateEvent();
-  const selectedId = data.discoveryBucket;
-  const canContinue = selectedId !== null;
+  const { data, update, goNext, goBack } = useCreateEvent();
+
+  // Tags come from the category matching the discovery bucket picked in
+  // step 2. That step is required, so this will always resolve.
+  const tags = useMemo(() => {
+    const match = INTEREST_CATEGORIES.find((c) => c.id === data.discoveryBucket);
+    return match?.tags ?? [];
+  }, [data.discoveryBucket]);
+
+  const canContinue = data.interestTags.length > 0;
+  const atLimit = data.interestTags.length >= MAX_INTEREST_TAGS;
+
+  const toggleTag = (tag: string) => {
+    const isSelected = data.interestTags.includes(tag);
+    if (isSelected) {
+      update({ interestTags: data.interestTags.filter((t) => t !== tag) });
+      return;
+    }
+    if (atLimit) return;
+    update({ interestTags: [...data.interestTags, tag] });
+  };
 
   const onContinue = () => {
     if (!canContinue) return;
-    router.push('/(create-event)/InterestTags');
+    goNext();
   };
 
   return (
@@ -40,7 +45,7 @@ export default function DiscoveryBucket() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <TouchableOpacity onPress={goBack} hitSlop={12}>
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create an Event</Text>
@@ -48,48 +53,47 @@ export default function DiscoveryBucket() {
         </View>
 
         <View style={styles.stepBlock}>
-          <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
-          <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
+          <Text style={styles.stepLabel}>STEP 3 OF 6</Text>
+          <Text style={styles.stepTitle}>Add Up to 5 Interest Tags</Text>
         </View>
 
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '33.33%' }]} />
+          <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
 
-        <Text style={styles.instruction}>Buckets help your event reach the right audience.</Text>
+        <View style={styles.instructionRow}>
+          <Text style={styles.instruction}>
+            Pick interests so the right people find your event.
+          </Text>
+          <View style={styles.counterPill}>
+            <Text style={styles.counterText}>
+              {data.interestTags.length}/{MAX_INTEREST_TAGS}
+            </Text>
+          </View>
+        </View>
 
-        <View style={styles.bucketList}>
-          {BUCKETS.map((bucket) => {
-            const isSelected = bucket.id === selectedId;
-            const { Icon, iconSize } = bucket;
+        <View style={styles.chipWrap}>
+          {tags.map((tag) => {
+            const isSelected = data.interestTags.includes(tag);
+            const disabled = !isSelected && atLimit;
             return (
               <TouchableOpacity
-                key={bucket.id}
-                activeOpacity={0.85}
-                onPress={() => {
-                  // Clear interest tags when the bucket changes — the tag
-                  // list on step 3 is derived from the bucket's category,
-                  // so previous picks wouldn't be visible anyway.
-                  const changing = bucket.id !== data.discoveryBucket;
-                  update({
-                    discoveryBucket: bucket.id,
-                    ...(changing ? { interestTags: [] } : {}),
-                  });
-                }}
-                style={[styles.bucketCard, isSelected && styles.bucketCardSelected]}
+                key={tag}
+                onPress={() => toggleTag(tag)}
+                activeOpacity={disabled ? 1 : 0.85}
+                disabled={disabled}
+                style={[
+                  styles.chip,
+                  isSelected && styles.chipSelected,
+                  disabled && styles.chipDisabled,
+                ]}
               >
-                <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
-                  <Icon
-                    width={iconSize.width}
-                    height={iconSize.height}
-                    color={isSelected ? colors.accent : colors.ink}
-                  />
-                </View>
-                <View style={styles.bucketText}>
-                  <Text style={styles.bucketTitle}>{bucket.title}</Text>
-                  <Text style={styles.bucketDescription}>{bucket.description}</Text>
-                </View>
-                {isSelected && <CheckIcon width={19} height={14} color={colors.accent} />}
+                {isSelected ? (
+                  <ChipCloseIcon width={7} height={7} color="#FFFFFF" />
+                ) : (
+                  <ChipPlusIcon width={8} height={8} color={colors.ink} />
+                )}
+                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{tag}</Text>
               </TouchableOpacity>
             );
           })}
@@ -167,53 +171,63 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.brand,
       borderRadius: 999,
     },
+    instructionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 20,
+    },
     instruction: {
+      flex: 1,
       fontSize: 14,
       color: c.ink,
       lineHeight: 20,
-      marginBottom: 24,
     },
-    bucketList: {
-      gap: 12,
-      marginBottom: 24,
-    },
-    bucketCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-      padding: 12,
-      borderRadius: 10,
+    counterPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    bucketCardSelected: {
-      borderColor: c.brand,
-      backgroundColor: c.brandSoft,
-    },
-    avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: c.surfaceMuted,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarSelected: {
-      backgroundColor: withAlpha(c.brand, 0.35),
-    },
-    bucketText: {
-      flex: 1,
-      gap: 2,
-    },
-    bucketTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: c.ink,
-    },
-    bucketDescription: {
+    counterText: {
       fontSize: 12,
+      fontWeight: '500',
       color: c.ink,
+    },
+    chipWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 32,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    chipSelected: {
+      borderColor: c.brand,
+      backgroundColor: c.brand,
+    },
+    chipDisabled: {
+      opacity: 0.4,
+    },
+    chipText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: c.ink,
+    },
+    chipTextSelected: {
+      color: '#FFFFFF',
     },
     continueButton: {
       borderRadius: 8,
