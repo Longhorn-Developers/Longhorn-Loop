@@ -55,7 +55,13 @@
       "expo-secure-store",
       "@react-native-community/datetimepicker",
       "@sentry/react-native",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Longhorn Loop uses your location to show how far events are and to give directions."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
