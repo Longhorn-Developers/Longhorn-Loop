@@ -2,7 +2,6 @@ import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { EventTypeId } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
   KeyboardAvoidingView,
@@ -31,17 +30,16 @@ const TITLE_MAX = 80;
 const DESCRIPTION_MAX = 500;
 
 export default function EventDetails() {
-  const router = useRouter();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update } = useCreateEvent();
+  const { data, update, goNext, goBack } = useCreateEvent();
 
   const canContinue =
     data.title.trim().length > 0 && data.description.trim().length > 0 && data.eventType !== null;
 
   const onContinue = () => {
     if (!canContinue) return;
-    router.push('/(create-event)/WhenIsIt');
+    goNext();
   };
 
   return (
@@ -56,7 +54,7 @@ export default function EventDetails() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+            <TouchableOpacity onPress={goBack} hitSlop={12}>
               <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Create an Event</Text>
