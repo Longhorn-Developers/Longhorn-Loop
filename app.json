@@ -41,7 +41,13 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Longhorn Loop uses your location to show how far events are and to give directions."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
