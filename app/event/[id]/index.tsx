@@ -100,7 +100,7 @@ function formatShortTime(isoString: string): string {
     : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function MetaRow({ event }: { event: ApiEvent }) {
+function MetaRow({ event, token }: { event: ApiEvent; token: string | null }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [mapOpen, setMapOpen] = useState(false);
@@ -132,7 +132,12 @@ function MetaRow({ event }: { event: ApiEvent }) {
         </View>
       </View>
 
-      <EventLocationMapModal visible={mapOpen} onClose={() => setMapOpen(false)} event={event} />
+      <EventLocationMapModal
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        event={event}
+        token={token}
+      />
     </View>
   );
 }
@@ -438,7 +443,7 @@ export default function EventDetailScreen() {
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <Text style={styles.title}>{event.title}</Text>
 
-          <MetaRow event={event} />
+          <MetaRow event={event} token={token} />
 
           {event.description ? (
             <View style={{ marginBottom: 18 }}>

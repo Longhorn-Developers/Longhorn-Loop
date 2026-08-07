@@ -3,6 +3,7 @@ import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
+import { searchPlace } from '@/app/lib/localSearch';
 import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -88,6 +89,17 @@ async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
     form.append('end_datetime', data.endDatetime);
   }
   appendOptional(form, 'location', data.locationFull);
+  // Resolve the typed location to coordinates now (iOS MKLocalSearch), so the
+  // event is stored with a real pin instead of relying on a viewer to backfill
+  // it later. No-op on non-iOS or when the place can't be resolved.
+  const location = data.locationFull.trim();
+  if (location) {
+    const place = await searchPlace(location);
+    if (place) {
+      form.append('latitude', String(place.latitude));
+      form.append('longitude', String(place.longitude));
+    }
+  }
   appendOptional(form, 'rsvp_url', data.rsvpUrl);
   if (data.discoveryBucket) form.append('discoveryBucket', data.discoveryBucket);
   if (data.eventType) form.append('event_type', data.eventType);

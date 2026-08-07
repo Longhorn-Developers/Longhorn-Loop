@@ -1117,6 +1117,48 @@ eventRoutes.post('/:id/view', async (c) => {
   return c.json({ ok: true });
 });
 
+// POST /events/:id/coordinates -- backfill an event's coordinates.
+// Body: { latitude: number, longitude: number }
+//
+// Scraped events store a location label but no coordinates; the first iOS
+// client that resolves the label via MKLocalSearch posts the result back here
+// so it's persisted for every later viewer and for feed ranking. Only fills
+// when both columns are currently NULL, so a real coordinate is never
+// overwritten and concurrent resolvers converge on the first write.
+eventRoutes.post('/:id/coordinates', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const latitude = readNumberField(isRecord(body) ? body : {}, ['latitude', 'lat']);
+  const longitude = readNumberField(isRecord(body) ? body : {}, ['longitude', 'lng', 'lon']);
+  if (
+    latitude == null ||
+    longitude == null ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    return c.json({ error: 'INVALID_COORDINATES' }, 400);
+  }
+
+  const updated = await c.env.DB.prepare(
+    `UPDATE events SET latitude = ?, longitude = ?
+     WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
+  )
+    .bind(latitude, longitude, eventId)
+    .run();
+
+  return c.json({ ok: true, updated: updated.meta.changes > 0 });
+});
+
 // POST /events/:id/report -- user reports an event for moderation.
 // Body: { reasons: string[], description: string }
 // At REPORT_HIDE_THRESHOLD reports, the event is hidden from every feed.
