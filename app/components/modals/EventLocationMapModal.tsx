@@ -1,4 +1,6 @@
 import type { ApiEvent } from '@/app/components/EventCard';
+import { api } from '@/app/lib/api';
+import { searchPlace } from '@/app/lib/localSearch';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import * as Linking from 'expo-linking';
@@ -20,6 +22,10 @@ interface EventLocationMapModalProps {
   visible: boolean;
   onClose: () => void;
   event: ApiEvent;
+  // Auth token, so a coordinate resolved from the location label can be
+  // written back to the server for this event (backfill). Optional: without it
+  // the map still shows, the coordinate just isn't persisted.
+  token?: string | null;
 }
 
 // Average walking speed (~5 km/h) for the straight-line ETA. Real turn-by-turn
@@ -43,6 +49,7 @@ export default function EventLocationMapModal({
   visible,
   onClose,
   event,
+  token,
 }: EventLocationMapModalProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -77,17 +84,39 @@ export default function EventLocationMapModal({
         }
         return;
       }
-      // Geocode the address string into coordinates on the fly.
+
+      // Resolve the location label to coordinates. MKLocalSearch first — it's a
+      // point-of-interest search (iOS only) that understands building/landmark
+      // names like "Texas Union Ballroom", which a plain postal geocoder can't.
+      // Fall back to geocodeAsync on other platforms or when POI search misses.
+      let resolved: Coord | null = null;
       try {
-        const results = await Location.geocodeAsync(addressString);
-        if (!cancelled) {
+        const poi = await searchPlace(addressString);
+        if (poi) {
+          resolved = { latitude: poi.latitude, longitude: poi.longitude };
+        } else {
+          const results = await Location.geocodeAsync(addressString);
           const first = results[0];
-          setCoord(first ? { latitude: first.latitude, longitude: first.longitude } : null);
+          if (first) resolved = { latitude: first.latitude, longitude: first.longitude };
         }
       } catch {
-        if (!cancelled) setCoord(null);
-      } finally {
-        if (!cancelled) setResolving(false);
+        resolved = null;
+      }
+
+      if (cancelled) return;
+      setCoord(resolved);
+      setResolving(false);
+
+      // Backfill: this event had no stored coordinates, so persist the one we
+      // just resolved. The server only fills when the columns are still NULL,
+      // so this is safe to fire and forget from any viewing client.
+      if (resolved && token) {
+        api
+          .post(`/events/${event.id}/coordinates`, {
+            token,
+            body: { latitude: resolved.latitude, longitude: resolved.longitude },
+          })
+          .catch(() => {});
       }
     };
 
@@ -95,7 +124,7 @@ export default function EventLocationMapModal({
     return () => {
       cancelled = true;
     };
-  }, [visible, event.latitude, event.longitude, addressString]);
+  }, [visible, event.id, event.latitude, event.longitude, addressString, token]);
 
   // Reset per-open transient state when the modal closes.
   useEffect(() => {
