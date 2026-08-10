@@ -43,7 +43,8 @@ const SLIDES: Slide[] = [
     eyebrow: 'STAY IN THE LOOP',
     title: 'Campus, all in one place',
     titleSize: 30,
-    subtitle: "Every UT event and org, sorted by what's close, what's next, and what's worth your time.",
+    subtitle:
+      "Every UT event and org, sorted by what's close, what's next, and what's worth your time.",
   },
   {
     id: 'people',
@@ -52,7 +53,8 @@ const SLIDES: Slide[] = [
     eyebrow: 'FIND YOUR PEOPLE',
     title: 'Make Campus Feel Smaller',
     titleSize: 26,
-    subtitle: "See who's going, discover communities you'll love, and turn new faces into familiar ones.",
+    subtitle:
+      "See who's going, discover communities you'll love, and turn new faces into familiar ones.",
   },
   {
     id: 'yours',
@@ -153,7 +155,11 @@ export default function FrontPage() {
       <View className="gap-4 px-5 pb-2 pt-4">
         {isLastSlide ? (
           <>
-            <PrimaryButton label="Get Started" isFilled onPress={() => router.push('/RegisterPage')} />
+            <PrimaryButton
+              label="Get Started"
+              isFilled
+              onPress={() => router.push('/RegisterPage')}
+            />
             <Pressable
               className="h-[55px] flex-row items-center justify-center rounded-lg border-2 border-lhlBorderColor bg-lhlSurface"
               onPress={() => router.push('/LoginPage')}
