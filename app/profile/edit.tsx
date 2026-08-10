@@ -32,7 +32,6 @@ import AvatarPickerModal, { getAvatarSource } from '@/app/components/profile/Ava
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { ALL_INTEREST_TAGS, INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
-import { MAX_INTERESTS } from '@/shared/taxonomy';
 import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
@@ -118,7 +117,6 @@ export default function EditProfileScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [isEditingInterests, setIsEditingInterests] = useState(false);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [interestCapHit, setInterestCapHit] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
 
   // --- Modal state ---------------------------------------------------------
@@ -147,7 +145,6 @@ export default function EditProfileScreen() {
   const socials = loaded?.socials ?? [];
   const connected = socials.map((s) => s.platform);
   const avatarSource = getAvatarSource(loaded?.avatar);
-  const isOverInterestCap = tags.length > MAX_INTERESTS;
 
   const isNameValid =
     firstName.trim().length > 0 &&
@@ -218,12 +215,6 @@ export default function EditProfileScreen() {
       setShowNameError(true);
       return;
     }
-    // Legacy rows can hold more than the cap; the server rejects the write, so
-    // stop here and point at the section rather than surfacing a 400.
-    if (isOverInterestCap) {
-      setIsEditingInterests(true);
-      return;
-    }
     await saveProfile.mutateAsync();
     router.back();
   };
@@ -245,18 +236,10 @@ export default function EditProfileScreen() {
     }
   };
 
-  /**
-   * Cap enforcement lives here rather than inside the pill components, which
-   * both just append on select. Removing is always allowed — otherwise
-   * someone already at (or over) the cap could never change their mind.
-   */
+  // No cap on interests — the Worker accepts any number, so the pill
+  // components' append-on-select behaviour needs no gate here.
   const applyTagSelection = (next: string[]) => {
-    if (next.length <= tags.length || next.length <= MAX_INTERESTS) {
-      setTags(next);
-      setInterestCapHit(false);
-      return;
-    }
-    setInterestCapHit(true);
+    setTags(next);
   };
 
   if (!token) {
@@ -565,12 +548,8 @@ export default function EditProfileScreen() {
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-baseline gap-[6px]">
                   <FieldLabel>Interests</FieldLabel>
-                  <Text
-                    className={`font-['Roboto-Flex'] mb-[6px] text-[11px] ${
-                      isOverInterestCap ? 'text-lhlDestructiveRed' : 'text-lhlSecondaryTextGrey'
-                    }`}
-                  >
-                    {tags.length} / {MAX_INTERESTS}
+                  <Text className="font-['Roboto-Flex'] mb-[6px] text-[11px] text-lhlSecondaryTextGrey">
+                    {tags.length} selected
                   </Text>
                 </View>
                 <Pressable
@@ -582,21 +561,6 @@ export default function EditProfileScreen() {
                   </Text>
                 </Pressable>
               </View>
-
-              {interestCapHit && !isOverInterestCap ? (
-                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlSecondaryTextGrey">
-                  That&apos;s {MAX_INTERESTS} — remove one to swap it out.
-                </Text>
-              ) : null}
-
-              {isOverInterestCap ? (
-                // Reachable by anyone who onboarded before the cap existed.
-                // Reads never reject, so they keep their interests until they
-                // next save — at which point they have to trim.
-                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlDestructiveRed">
-                  Pick your top {MAX_INTERESTS} — remove {tags.length - MAX_INTERESTS} to save.
-                </Text>
-              ) : null}
 
               {isEditingInterests ? (
                 <>
