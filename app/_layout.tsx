@@ -60,9 +60,6 @@ function ThemedStack() {
         {/* Main tabs — disable swipe back to prevent returning to onboarding */}
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
-        {/* Create Event multi-step flow */}
-        <Stack.Screen name="(create-event)" />
-
         {/* View All events screen */}
         <Stack.Screen name="view-all" />
 
