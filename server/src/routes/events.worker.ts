@@ -1083,6 +1083,61 @@ eventRoutes.delete('/:id/rsvp', async (c) => {
   return c.json({ ok: true });
 });
 
+// Faces shown in the attendee stack on the event detail screen. The row only
+// has space for a few; `count` carries the real total so the label stays
+// accurate without shipping every attendee to the client.
+const ATTENDEE_PREVIEW_LIMIT = 5;
+
+// GET /events/:id/attendees -- auth-gated preview of who has RSVP'd, plus the
+// total. Auth-gated because it names people: an attendee list is exactly the
+// kind of thing that shouldn't be readable by anyone with an event URL.
+//
+// Counts from event_rsvps rather than events.rsvp_count so a drifted
+// denormalized counter can't disagree with the faces beside it.
+eventRoutes.get('/:id/attendees', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  const totalRow = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM event_rsvps WHERE event_id = ?',
+  )
+    .bind(eventId)
+    .first<{ count: number }>();
+
+  // Newest RSVPs first, so the faces change as an event fills up rather than
+  // freezing on whoever happened to RSVP first.
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.first_name, u.last_name, u.avatar
+       FROM event_rsvps r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.event_id = ?
+      ORDER BY r.created_at DESC, u.id DESC
+      LIMIT ?`,
+  )
+    .bind(eventId, ATTENDEE_PREVIEW_LIMIT)
+    .all();
+
+  return c.json({
+    attendees: results.map((u: any) => ({
+      id: u.id as number,
+      first_name: (u.first_name as string) ?? '',
+      last_name: (u.last_name as string) ?? '',
+      avatar: (u.avatar as number | null) ?? null,
+    })),
+    count: totalRow?.count ?? 0,
+  });
+});
+
 // POST /events/:id/view -- auth-gated, idempotent view signal. Deduped per
 // user (one row per user/event), so view_count tracks distinct viewers.
 eventRoutes.post('/:id/view', async (c) => {
