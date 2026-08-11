@@ -8,8 +8,8 @@ import {
   validateSocialUrl,
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { MAX_BIO, normalizeBio } from '../../../shared/bio';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
-import { MAX_INTERESTS } from '../../../shared/taxonomy';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_TABS,
@@ -20,9 +20,6 @@ import {
 import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
-
-/** Bio cap shown by the Edit Profile counter ("44 / 150"). */
-const MAX_BIO = 150;
 
 /**
  * users.unique_classification is written by the onboarding upsert as a JSON
@@ -167,11 +164,7 @@ userRoutes.post('/me/profile', async (c) => {
     }
   }
 
-  // Replace tags. Onboarding is capped too, so a user can't arrive at the
-  // profile already over the limit and be unable to save.
-  if (Array.isArray(tags) && tags.length > MAX_INTERESTS) {
-    return c.json({ error: 'TOO_MANY_INTERESTS', max: MAX_INTERESTS }, 400);
-  }
+  // Replace tags. No cap — the user may pick as many interests as they like.
   await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
   if (tags && Array.isArray(tags)) {
     for (const tag of tags) {
@@ -273,8 +266,9 @@ userRoutes.patch('/me/profile', async (c) => {
   }
   if (bio !== undefined && bio !== null) {
     if (typeof bio !== 'string') return c.json({ error: 'INVALID_BIO' }, 400);
-    // 150 is the cap the Edit Profile counter shows ("44 / 150"). Keep this in
-    // step with MAX_BIO in app/profile/edit.tsx.
+    // Checked against the raw value: normalizing only ever shortens, so a
+    // client that ignores maxLength shouldn't be able to sneak past the cap by
+    // padding with whitespace.
     if (bio.length > MAX_BIO) return c.json({ error: 'BIO_TOO_LONG', max: MAX_BIO }, 400);
   }
 
@@ -299,7 +293,7 @@ userRoutes.patch('/me/profile', async (c) => {
   }
   if (bio !== undefined) {
     sets.push('bio = ?');
-    binds.push(bio === null ? null : (bio as string).trim());
+    binds.push(normalizeBio(bio as string | null));
   }
   if (unique_classification !== undefined) {
     if (!Array.isArray(unique_classification)) {
@@ -322,12 +316,6 @@ userRoutes.patch('/me/profile', async (c) => {
   // a bio can't wipe either of them.
   if (tags !== undefined) {
     if (!Array.isArray(tags)) return c.json({ error: 'INVALID_TAGS' }, 400);
-    // Cap enforced on write only. Rows saved before the cap existed still read
-    // back fine — the user is asked to trim the next time they save rather
-    // than being locked out of their own profile.
-    if (tags.length > MAX_INTERESTS) {
-      return c.json({ error: 'TOO_MANY_INTERESTS', max: MAX_INTERESTS }, 400);
-    }
     await c.env.DB.prepare('DELETE FROM user_tags WHERE user_id = ?').bind(userId).run();
     for (const tag of tags) {
       await c.env.DB.prepare(
