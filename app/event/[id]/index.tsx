@@ -1,6 +1,6 @@
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
-// share is still mocked pending backend support.
+// the share button opens the platform share sheet (app/lib/shareEvent.ts).
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
@@ -17,6 +17,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
+import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -145,7 +146,15 @@ interface AttendeesResponse {
 // Faces + count for everyone who has RSVP'd, from GET /events/:id/attendees.
 // The endpoint is auth-gated, so signed-out viewers get the section without a
 // count rather than a failed request.
-function AttendeesRow({ eventId, token }: { eventId: string; token: string | null }) {
+function AttendeesRow({
+  eventId,
+  token,
+  onShare,
+}: {
+  eventId: string;
+  token: string | null;
+  onShare: () => void;
+}) {
   const colors = useThemeColors();
 
   const { data, isLoading } = useQuery({
@@ -216,9 +225,11 @@ function AttendeesRow({ eventId, token }: { eventId: string; token: string | nul
         </Text>
       </View>
 
-      {/* TODO: wire up share intent. */}
       <TouchableOpacity
-        disabled
+        accessibilityRole="button"
+        accessibilityLabel="Share this event"
+        onPress={onShare}
+        hitSlop={8}
         style={{
           width: 36,
           height: 36,
@@ -226,7 +237,6 @@ function AttendeesRow({ eventId, token }: { eventId: string; token: string | nul
           backgroundColor: colors.brand,
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: 0.9,
         }}
       >
         <ShareIcon width={16} height={18} />
@@ -252,6 +262,9 @@ export default function EventDetailScreen() {
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  // Transient pill for the share fallbacks. Native share sheets report their
+  // own result, so this only ever fires on web (clipboard copy or failure).
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   // Fetch the event.
   const eventQuery = useQuery({
@@ -310,6 +323,21 @@ export default function EventDetailScreen() {
     if (!token || !event) return;
     toggleSave.mutate(isSaved);
   };
+
+  // Sharing is deliberately not auth-gated: a signed-out viewer can still pass
+  // an event along, which is the cheapest way we get new users.
+  const handleShare = async () => {
+    if (!event) return;
+    const outcome = await shareEvent(event);
+    if (outcome === 'copied') setShareNotice('Link copied');
+    else if (outcome === 'failed') setShareNotice('Couldn\u2019t share this event');
+  };
+
+  useEffect(() => {
+    if (!shareNotice) return;
+    const timer = setTimeout(() => setShareNotice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
 
   // Seed isRsvped from the event response once it resolves.
   useEffect(() => {
@@ -528,7 +556,7 @@ export default function EventDetailScreen() {
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
           <Text style={styles.sectionHeader}>Attendees</Text>
-          <AttendeesRow eventId={String(id)} token={token} />
+          <AttendeesRow eventId={String(id)} token={token} onShare={handleShare} />
 
           <TouchableOpacity
             onPress={() => router.push(`/event/${id}/report`)}
@@ -604,6 +632,12 @@ export default function EventDetailScreen() {
         onPrimary={confirmCancel}
         onSecondary={() => setShowCancelModal(false)}
       />
+
+      {shareNotice ? (
+        <View pointerEvents="none" style={styles.sharePill}>
+          <Text style={styles.sharePillText}>{shareNotice}</Text>
+        </View>
+      ) : null}
 
       <RsvpSuccessToast
         visible={showToast}
@@ -733,5 +767,22 @@ const makeStyles = (c: ThemeColors) => ({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700' as const,
+  },
+  sharePill: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    bottom: 96,
+    alignItems: 'center' as const,
+  },
+  sharePillText: {
+    backgroundColor: c.ink,
+    color: c.surface,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    borderRadius: 999,
+    overflow: 'hidden' as const,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
 });
