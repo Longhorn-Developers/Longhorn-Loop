@@ -8,6 +8,7 @@ import {
   validateSocialUrl,
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { MAX_BIO, normalizeBio } from '../../../shared/bio';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
 import {
   PROFILE_EVENT_FILTERS,
@@ -19,9 +20,6 @@ import {
 import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
-
-/** Bio cap shown by the Edit Profile counter ("44 / 150"). */
-const MAX_BIO = 150;
 
 /**
  * users.unique_classification is written by the onboarding upsert as a JSON
@@ -268,8 +266,9 @@ userRoutes.patch('/me/profile', async (c) => {
   }
   if (bio !== undefined && bio !== null) {
     if (typeof bio !== 'string') return c.json({ error: 'INVALID_BIO' }, 400);
-    // 150 is the cap the Edit Profile counter shows ("44 / 150"). Keep this in
-    // step with MAX_BIO in app/profile/edit.tsx.
+    // Checked against the raw value: normalizing only ever shortens, so a
+    // client that ignores maxLength shouldn't be able to sneak past the cap by
+    // padding with whitespace.
     if (bio.length > MAX_BIO) return c.json({ error: 'BIO_TOO_LONG', max: MAX_BIO }, 400);
   }
 
@@ -294,7 +293,7 @@ userRoutes.patch('/me/profile', async (c) => {
   }
   if (bio !== undefined) {
     sets.push('bio = ?');
-    binds.push(bio === null ? null : (bio as string).trim());
+    binds.push(normalizeBio(bio as string | null));
   }
   if (unique_classification !== undefined) {
     if (!Array.isArray(unique_classification)) {

@@ -55,12 +55,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { BIO_WARN_REMAINING, MAX_BIO, normalizeBio } from '@/shared/bio';
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
 const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
-/** The frame's counter reads "44 / 150". */
-const MAX_BIO = 150;
 const MAX_NAME = 50;
 const MAX_SOCIALS = 3;
 
@@ -159,7 +158,7 @@ export default function EditProfileScreen() {
       firstName.trim() !== (loaded.first_name ?? '') ||
       lastName.trim() !== (loaded.last_name ?? '') ||
       year !== (loaded.year_classification ?? '') ||
-      bio.trim() !== (loaded.bio ?? '') ||
+      (normalizeBio(bio) ?? '') !== (loaded.bio ?? '') ||
       !sameSet(majors, loaded.majors ?? []) ||
       !sameSet(uniqueClass, loaded.unique_classification ?? []) ||
       !sameSet(tags, loaded.tags ?? [])
@@ -175,7 +174,7 @@ export default function EditProfileScreen() {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           year_classification: year || null,
-          bio: bio.trim() || null,
+          bio: normalizeBio(bio),
           majors,
           unique_classification: uniqueClass,
           tags,
@@ -444,14 +443,24 @@ export default function EditProfileScreen() {
                 <TextInput
                   value={bio}
                   onChangeText={setBio}
-                  placeholder="Tell people a bit about you"
+                  placeholder={'Tell people a bit about you.\nLine breaks are kept.'}
                   placeholderTextColor={colors.inkSecondary}
                   multiline
                   maxLength={MAX_BIO}
-                  className="font-['Roboto-Flex'] h-[64px] text-[13px] text-lhlInk"
+                  // Grows with the bio instead of scrolling inside 64px, so all
+                  // 150 characters are visible while they're being written.
+                  className="font-['Roboto-Flex'] min-h-[64px] text-[13px] text-lhlInk"
                   style={{ textAlignVertical: 'top' }}
                 />
-                <Text className="font-['Roboto-Flex'] text-right text-[10px] text-lhlSecondaryTextGrey">
+                <Text
+                  className="font-['Roboto-Flex'] text-right text-[10px]"
+                  style={{
+                    color:
+                      MAX_BIO - bio.length <= BIO_WARN_REMAINING
+                        ? colors.destructive
+                        : colors.inkSecondary,
+                  }}
+                >
                   {bio.length} / {MAX_BIO}
                 </Text>
               </View>
