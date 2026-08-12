@@ -76,6 +76,8 @@ function ThemedStack() {
         <Stack.Screen name="settings/index" />
         <Stack.Screen name="settings/preferences" />
         <Stack.Screen name="settings/feedback" />
+        {/* Delete Account code confirmation (LOOP-131). */}
+        <Stack.Screen name="settings/delete-account" />
 
         {/* Event detail + nested screens */}
         <Stack.Screen name="event/[id]/index" />

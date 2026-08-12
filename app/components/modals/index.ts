@@ -17,3 +17,7 @@ export type { ChooseApplicationModalProps } from './ChooseApplicationModal';
 
 export { default as AddSocialUrlModal } from './AddSocialUrlModal';
 export type { AddSocialUrlModalProps } from './AddSocialUrlModal';
+
+// Account actions (LOOP-131).
+export { default as DeleteAccountModal } from './DeleteAccountModal';
+export type { DeleteAccountModalProps } from './DeleteAccountModal';
