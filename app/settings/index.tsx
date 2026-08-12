@@ -123,9 +123,12 @@ export default function SettingsEntryScreen() {
                   </View>
 
                   <View className="mt-[10px] flex-row gap-[8px]">
+                    {/* "Manage" beside an event count means "manage these
+                        events", so it opens the console on the Events tab
+                        (LOOP-136) rather than the Members default. */}
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => router.push(`/org/${o.id}`)}
+                      onPress={() => router.push(`/org/${o.id}?tab=events`)}
                       className="flex-1 items-center rounded-full border border-lhlMutedBorder bg-lhlSurface py-[7px]"
                     >
                       <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">

@@ -1,13 +1,19 @@
-// Organization Management console (LOOP-183).
+// Organization Management console (LOOP-183, Events tab LOOP-136).
 //
 // Figma: "Organization Management" frame, reviewed 2026-06-08.
 //
 // Shared header (avatar, name, role badge + verified check, follower counts,
 // Views/Going/Saved tiles) plus the Events / Members / Analytics tab bar.
 //
-// Scope: this ticket owns Members and Analytics. The Events tab is LOOP-136 —
-// it renders a placeholder here rather than a half-built list, so LOOP-136 can
-// drop in without unpicking anything.
+// All three tabs are now real. Members and Analytics live inline below because
+// they are mostly markup over one query each; the Events tab is
+// components/org/OrgEventsTab, which owns its own query, three filter controls
+// and an edit overlay, and would have doubled the length of this file.
+//
+// The screen accepts an initial-tab param (`/org/123?tab=events`) so entry
+// points can land on the tab they promised — "Manage" from the org list means
+// "manage this org's events". Anything unrecognised falls back to Members,
+// which is where the console opened before this existed.
 //
 // Permissions are mirrored from the server, never invented here: the API
 // returns `can_manage`, and every management control is gated on it. The
@@ -17,6 +23,7 @@ import EngagementChart, {
   buildWeeklySeries,
   type WeeklyRow,
 } from '@/app/components/org/EngagementChart';
+import OrgEventsTab from '@/app/components/org/OrgEventsTab';
 import InviteEditorModal from '@/app/components/modals/InviteEditorModal';
 import ProfileModal, { ModalAction } from '@/app/components/modals/ProfileModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
@@ -30,7 +37,12 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
-type Tab = 'events' | 'members' | 'analytics';
+const TABS = ['events', 'members', 'analytics'] as const;
+type Tab = (typeof TABS)[number];
+
+function isTab(value: string | undefined): value is Tab {
+  return !!value && (TABS as readonly string[]).includes(value);
+}
 
 interface OrgHeaderResponse {
   org: {
@@ -105,14 +117,16 @@ function RoleBadge({ role }: { role: 'admin' | 'editor' }) {
 
 export default function OrgConsoleScreen() {
   const colors = useThemeColors();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const orgId = Number(id);
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
   const queryClient = useQueryClient();
 
-  const [tab, setTab] = useState<Tab>('members');
+  // Read once, as the initial value: the param seeds where the console opens,
+  // it does not pin it, so tapping another tab still works.
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : 'members');
   const [showInvite, setShowInvite] = useState(false);
   const [eventFilter, setEventFilter] = useState<'all' | number>('all');
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -265,7 +279,7 @@ export default function OrgConsoleScreen() {
 
           {/* --- Tabs --- */}
           <View className="mt-[18px] flex-row gap-[8px]">
-            {(['events', 'members', 'analytics'] as Tab[]).map((key) => {
+            {TABS.map((key) => {
               const isActive = tab === key;
               return (
                 <Pressable
@@ -298,17 +312,7 @@ export default function OrgConsoleScreen() {
           ) : null}
 
           {/* --- Events tab (LOOP-136) --- */}
-          {tab === 'events' ? (
-            <View className="mt-[24px] items-center">
-              <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
-                The Events tab is LOOP-136.
-              </Text>
-              <Text className="font-['Roboto-Flex'] mt-[4px] text-center text-[12px] text-lhlSecondaryTextGrey">
-                This org has {org?.event_count ?? 0} event
-                {(org?.event_count ?? 0) === 1 ? '' : 's'}.
-              </Text>
-            </View>
-          ) : null}
+          {tab === 'events' ? <OrgEventsTab orgId={orgId} token={token} /> : null}
 
           {/* --- Members tab --- */}
           {tab === 'members' ? (

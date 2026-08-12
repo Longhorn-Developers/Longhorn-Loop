@@ -51,8 +51,17 @@ export const org = {
   mine: () => [...org.all, 'mine'] as const,
   detail: (id: number | string) => [...org.all, 'detail', String(id)] as const,
   members: (id: number | string) => [...org.all, 'members', String(id)] as const,
+  // Events tab (LOOP-136). Search/filter/sort are part of the key so each
+  // combination caches separately; eventsAll() is the prefix to invalidate
+  // after an edit, which has to refresh every one of them.
+  eventsAll: (id: number | string) => [...org.all, 'events', String(id)] as const,
+  events: (id: number | string, params: Record<string, string>) =>
+    [...org.eventsAll(id), params] as const,
+  // analyticsAll() is the prefix across every event-filter selection, so an
+  // edit that renames an event can refresh all of them at once.
+  analyticsAll: (id: number | string) => [...org.all, 'analytics', String(id)] as const,
   analytics: (id: number | string, eventFilter = 'all') =>
-    [...org.all, 'analytics', String(id), eventFilter] as const,
+    [...org.analyticsAll(id), eventFilter] as const,
   notificationSettings: (id: number | string) =>
     [...org.all, 'notification-settings', String(id)] as const,
 };
