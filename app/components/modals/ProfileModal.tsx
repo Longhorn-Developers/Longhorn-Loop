@@ -19,7 +19,7 @@
 import React from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 
-export type ModalActionVariant = 'outline' | 'ink' | 'brand';
+export type ModalActionVariant = 'outline' | 'ink' | 'brand' | 'destructive';
 
 interface ModalActionProps {
   label: string;
@@ -32,16 +32,28 @@ interface ModalActionProps {
   size?: 'default' | 'large';
 }
 
+// `destructive` is the "Yes, Delete" button (LOOP-131).
+//
+// Figma draws it as solid red with a white label. It ships as a red-on-tint
+// button instead, because solid red cannot survive dark mode: --lhl-destructive
+// lightens to #FF6B63 there so it stays legible AS TEXT, and white on #FF6B63
+// is 2.8:1 — well under AA, on the one button in the app you least want
+// misread. Red on its own tint is 5.9:1 in light and 5.2:1 in dark, and
+// test_theme_tokens pins both. Still unmistakably the destructive action next
+// to an outline Cancel; the alternative was a fourth red token existing only
+// to carry white text.
 const CONTAINER_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'bg-lhlSurface border border-lhlMutedBorder',
   ink: 'bg-lhlInk border border-lhlInk',
   brand: 'bg-lhlBurntOrange border border-lhlBurntOrange',
+  destructive: 'bg-lhlDestructiveSoft border border-lhlDestructiveRed',
 };
 
 const TEXT_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'text-lhlInk',
   ink: 'text-white',
   brand: 'text-white',
+  destructive: 'text-lhlDestructiveRed',
 };
 
 /** Pill button used inside ProfileModal. */

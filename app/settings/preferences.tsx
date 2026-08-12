@@ -11,10 +11,15 @@
 //
 // Notification rows here coordinate with LOOP-125: that ticket owns when each
 // notification fires, these are the stored preferences behind it.
-// Log Out / Delete Account behaviour is LOOP-131 — the rows and the styling
-// live here, the destructive flows land there.
+//
+// Account actions (LOOP-131). Log Out is a local teardown and finishes in the
+// modal at the bottom of this file. Delete Account cannot: it is irreversible
+// and needs proof the person holding the session also holds the mailbox, so
+// this screen only opens the confirm dialog and requests an emailed code. The
+// code entry and the delete itself are app/settings/delete-account.tsx.
 
 import ProfileModal, { ModalAction } from '@/app/components/modals/ProfileModal';
+import DeleteAccountModal from '@/app/components/modals/DeleteAccountModal';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
@@ -113,6 +118,7 @@ export default function SettingsPreferencesScreen() {
   });
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -172,6 +178,9 @@ export default function SettingsPreferencesScreen() {
         break;
       case 'logout':
         setConfirmLogout(true);
+        break;
+      case 'delete':
+        setConfirmDelete(true);
         break;
       default:
         // Help Center, What's New and Terms & Privacy need real destinations
@@ -404,7 +413,7 @@ export default function SettingsPreferencesScreen() {
         </View>
       </ProfileModal>
 
-      {/* Log Out confirm. Full account-deletion flow is LOOP-131. */}
+      {/* Log Out confirm. */}
       <ProfileModal
         visible={confirmLogout}
         onDismiss={() => setConfirmLogout(false)}
@@ -425,6 +434,35 @@ export default function SettingsPreferencesScreen() {
             />
           </>
         }
+      />
+
+      {/* Delete Account confirm (LOOP-131). Confirming only requests the
+          emailed code — the delete itself happens on /settings/delete-account
+          once that code is entered. */}
+      <DeleteAccountModal
+        visible={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          try {
+            await api.post('/users/me/delete/request', { token });
+          } catch (err) {
+            // ApiError.message is the raw server code (RESEND_TOO_SOON);
+            // the human sentence is in the body. Translate here so the modal
+            // can stay a plain Error consumer, like InviteEditorModal.
+            const body =
+              err instanceof ApiError ? (err.body as Record<string, unknown> | null) : null;
+            throw new Error(
+              (body?.message as string) ??
+                (err instanceof ApiError && err.isNetworkError
+                  ? err.message
+                  : 'Could not start that. Try again.'),
+            );
+          }
+          setConfirmDelete(false);
+          // push, not replace: backing out of the code screen should land on
+          // Settings rather than dumping the user out of the app.
+          router.push('/settings/delete-account');
+        }}
       />
     </SafeAreaView>
   );
