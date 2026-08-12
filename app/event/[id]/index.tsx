@@ -1,6 +1,6 @@
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
-// falls back to `event_url`. Attendees, share, and report are mocked
-// pending backend support.
+// falls back to `event_url`. Attendees come from GET /events/:id/attendees;
+// the share button opens the platform share sheet (app/lib/shareEvent.ts).
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
@@ -11,11 +11,13 @@ import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
+import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
+import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -129,11 +131,47 @@ function MetaRow({ event }: { event: ApiEvent }) {
   );
 }
 
-// TODO: replace mock data with a real attendees endpoint once backend supports RSVPs.
-function AttendeesRow() {
+interface Attendee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  avatar: number | null;
+}
+
+interface AttendeesResponse {
+  attendees: Attendee[];
+  count: number;
+}
+
+// Faces + count for everyone who has RSVP'd, from GET /events/:id/attendees.
+// The endpoint is auth-gated, so signed-out viewers get the section without a
+// count rather than a failed request.
+function AttendeesRow({
+  eventId,
+  token,
+  onShare,
+}: {
+  eventId: string;
+  token: string | null;
+  onShare: () => void;
+}) {
   const colors = useThemeColors();
-  const mockAvatars = ['#F06292', '#81C784', '#FFB74D']; // theme-exempt: placeholder avatar fills, stand-in for real user images
-  const mockCount = 142;
+
+  const { data, isLoading } = useQuery({
+    queryKey: eventsKeys.attendees(eventId),
+    queryFn: () => api.get<AttendeesResponse>(`/events/${eventId}/attendees`, { token }),
+    enabled: !!token,
+  });
+
+  const attendees = data?.attendees ?? [];
+  const count = data?.count ?? 0;
+
+  // Nobody has RSVP'd yet — say so rather than showing an empty face stack.
+  const label = isLoading
+    ? '—'
+    : count === 0
+      ? 'Be the first to RSVP'
+      : `${count} ${count === 1 ? 'student' : 'students'}`;
 
   return (
     <View
@@ -146,36 +184,52 @@ function AttendeesRow() {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row' }}>
-          {mockAvatars.map((color, i) => (
-            <View
-              key={i}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: color,
-                borderWidth: 2,
-                borderColor: colors.surface,
-                marginLeft: i === 0 ? 0 : -8,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {/* theme-exempt: initial sits on the placeholder avatar fill above */}
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                {String.fromCharCode(65 + i)}
-              </Text>
-            </View>
-          ))}
+          {attendees.map((attendee, i) => {
+            const avatarSource = getAvatarSource(attendee.avatar ?? undefined);
+            return (
+              <View
+                key={attendee.id}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  backgroundColor: colors.brand,
+                  borderWidth: 2,
+                  borderColor: colors.surface,
+                  marginLeft: i === 0 ? 0 : -8,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {avatarSource ? (
+                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
+                ) : (
+                  // theme-exempt: initial sits on the brand-coloured fill above
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
-        <Text style={{ marginLeft: 10, fontSize: 14, color: colors.ink }}>
-          {mockCount} students
+        <Text
+          style={{
+            marginLeft: attendees.length > 0 ? 10 : 0,
+            fontSize: 14,
+            color: colors.ink,
+          }}
+        >
+          {label}
         </Text>
       </View>
 
-      {/* TODO: wire up share intent. */}
       <TouchableOpacity
-        disabled
+        accessibilityRole="button"
+        accessibilityLabel="Share this event"
+        onPress={onShare}
+        hitSlop={8}
         style={{
           width: 36,
           height: 36,
@@ -183,7 +237,6 @@ function AttendeesRow() {
           backgroundColor: colors.brand,
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: 0.9,
         }}
       >
         <ShareIcon width={16} height={18} />
@@ -209,6 +262,9 @@ export default function EventDetailScreen() {
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  // Transient pill for the share fallbacks. Native share sheets report their
+  // own result, so this only ever fires on web (clipboard copy or failure).
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   // Fetch the event.
   const eventQuery = useQuery({
@@ -268,6 +324,21 @@ export default function EventDetailScreen() {
     toggleSave.mutate(isSaved);
   };
 
+  // Sharing is deliberately not auth-gated: a signed-out viewer can still pass
+  // an event along, which is the cheapest way we get new users.
+  const handleShare = async () => {
+    if (!event) return;
+    const outcome = await shareEvent(event);
+    if (outcome === 'copied') setShareNotice('Link copied');
+    else if (outcome === 'failed') setShareNotice('Couldn\u2019t share this event');
+  };
+
+  useEffect(() => {
+    if (!shareNotice) return;
+    const timer = setTimeout(() => setShareNotice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
+
   // Seed isRsvped from the event response once it resolves.
   useEffect(() => {
     if (event?.is_rsvped !== undefined) {
@@ -310,6 +381,8 @@ export default function EventDetailScreen() {
     await addRsvp(event.id, token);
     setIsRsvped(true);
     setShowToast(true);
+    // The caller has just joined the list they're looking at.
+    queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
 
   const confirmCancel = async () => {
@@ -317,6 +390,7 @@ export default function EventDetailScreen() {
     await removeRsvp(event.id, token);
     setIsRsvped(false);
     setShowCancelModal(false);
+    queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
 
   const openExternalRsvp = async () => {
@@ -482,7 +556,7 @@ export default function EventDetailScreen() {
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
           <Text style={styles.sectionHeader}>Attendees</Text>
-          <AttendeesRow />
+          <AttendeesRow eventId={String(id)} token={token} onShare={handleShare} />
 
           <TouchableOpacity
             onPress={() => router.push(`/event/${id}/report`)}
@@ -558,6 +632,12 @@ export default function EventDetailScreen() {
         onPrimary={confirmCancel}
         onSecondary={() => setShowCancelModal(false)}
       />
+
+      {shareNotice ? (
+        <View pointerEvents="none" style={styles.sharePill}>
+          <Text style={styles.sharePillText}>{shareNotice}</Text>
+        </View>
+      ) : null}
 
       <RsvpSuccessToast
         visible={showToast}
@@ -687,5 +767,22 @@ const makeStyles = (c: ThemeColors) => ({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700' as const,
+  },
+  sharePill: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    bottom: 96,
+    alignItems: 'center' as const,
+  },
+  sharePillText: {
+    backgroundColor: c.ink,
+    color: c.surface,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    borderRadius: 999,
+    overflow: 'hidden' as const,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
 });

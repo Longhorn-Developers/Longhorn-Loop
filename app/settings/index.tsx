@@ -134,7 +134,7 @@ export default function SettingsEntryScreen() {
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => router.push('/(create-event)/WhosPosting')}
+                      onPress={() => router.push('/(tabs)/create')}
                       className="flex-1 items-center rounded-full bg-lhlBurntOrange py-[7px]"
                     >
                       <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">

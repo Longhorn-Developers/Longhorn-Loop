@@ -32,7 +32,6 @@ import AvatarPickerModal, { getAvatarSource } from '@/app/components/profile/Ava
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { ALL_INTEREST_TAGS, INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
-import { MAX_INTERESTS } from '@/shared/taxonomy';
 import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
@@ -56,12 +55,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { BIO_WARN_REMAINING, MAX_BIO, normalizeBio } from '@/shared/bio';
 
 const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
 const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
-/** The frame's counter reads "44 / 150". */
-const MAX_BIO = 150;
 const MAX_NAME = 50;
 const MAX_SOCIALS = 3;
 
@@ -118,7 +116,6 @@ export default function EditProfileScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [isEditingInterests, setIsEditingInterests] = useState(false);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [interestCapHit, setInterestCapHit] = useState(false);
   const [showNameError, setShowNameError] = useState(false);
 
   // --- Modal state ---------------------------------------------------------
@@ -147,7 +144,6 @@ export default function EditProfileScreen() {
   const socials = loaded?.socials ?? [];
   const connected = socials.map((s) => s.platform);
   const avatarSource = getAvatarSource(loaded?.avatar);
-  const isOverInterestCap = tags.length > MAX_INTERESTS;
 
   const isNameValid =
     firstName.trim().length > 0 &&
@@ -162,7 +158,7 @@ export default function EditProfileScreen() {
       firstName.trim() !== (loaded.first_name ?? '') ||
       lastName.trim() !== (loaded.last_name ?? '') ||
       year !== (loaded.year_classification ?? '') ||
-      bio.trim() !== (loaded.bio ?? '') ||
+      (normalizeBio(bio) ?? '') !== (loaded.bio ?? '') ||
       !sameSet(majors, loaded.majors ?? []) ||
       !sameSet(uniqueClass, loaded.unique_classification ?? []) ||
       !sameSet(tags, loaded.tags ?? [])
@@ -178,7 +174,7 @@ export default function EditProfileScreen() {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           year_classification: year || null,
-          bio: bio.trim() || null,
+          bio: normalizeBio(bio),
           majors,
           unique_classification: uniqueClass,
           tags,
@@ -218,12 +214,6 @@ export default function EditProfileScreen() {
       setShowNameError(true);
       return;
     }
-    // Legacy rows can hold more than the cap; the server rejects the write, so
-    // stop here and point at the section rather than surfacing a 400.
-    if (isOverInterestCap) {
-      setIsEditingInterests(true);
-      return;
-    }
     await saveProfile.mutateAsync();
     router.back();
   };
@@ -245,18 +235,10 @@ export default function EditProfileScreen() {
     }
   };
 
-  /**
-   * Cap enforcement lives here rather than inside the pill components, which
-   * both just append on select. Removing is always allowed — otherwise
-   * someone already at (or over) the cap could never change their mind.
-   */
+  // No cap on interests — the Worker accepts any number, so the pill
+  // components' append-on-select behaviour needs no gate here.
   const applyTagSelection = (next: string[]) => {
-    if (next.length <= tags.length || next.length <= MAX_INTERESTS) {
-      setTags(next);
-      setInterestCapHit(false);
-      return;
-    }
-    setInterestCapHit(true);
+    setTags(next);
   };
 
   if (!token) {
@@ -461,14 +443,24 @@ export default function EditProfileScreen() {
                 <TextInput
                   value={bio}
                   onChangeText={setBio}
-                  placeholder="Tell people a bit about you"
+                  placeholder={'Tell people a bit about you.\nLine breaks are kept.'}
                   placeholderTextColor={colors.inkSecondary}
                   multiline
                   maxLength={MAX_BIO}
-                  className="font-['Roboto-Flex'] h-[64px] text-[13px] text-lhlInk"
+                  // Grows with the bio instead of scrolling inside 64px, so all
+                  // 150 characters are visible while they're being written.
+                  className="font-['Roboto-Flex'] min-h-[64px] text-[13px] text-lhlInk"
                   style={{ textAlignVertical: 'top' }}
                 />
-                <Text className="font-['Roboto-Flex'] text-right text-[10px] text-lhlSecondaryTextGrey">
+                <Text
+                  className="font-['Roboto-Flex'] text-right text-[10px]"
+                  style={{
+                    color:
+                      MAX_BIO - bio.length <= BIO_WARN_REMAINING
+                        ? colors.destructive
+                        : colors.inkSecondary,
+                  }}
+                >
                   {bio.length} / {MAX_BIO}
                 </Text>
               </View>
@@ -565,12 +557,8 @@ export default function EditProfileScreen() {
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-baseline gap-[6px]">
                   <FieldLabel>Interests</FieldLabel>
-                  <Text
-                    className={`font-['Roboto-Flex'] mb-[6px] text-[11px] ${
-                      isOverInterestCap ? 'text-lhlDestructiveRed' : 'text-lhlSecondaryTextGrey'
-                    }`}
-                  >
-                    {tags.length} / {MAX_INTERESTS}
+                  <Text className="font-['Roboto-Flex'] mb-[6px] text-[11px] text-lhlSecondaryTextGrey">
+                    {tags.length} selected
                   </Text>
                 </View>
                 <Pressable
@@ -582,21 +570,6 @@ export default function EditProfileScreen() {
                   </Text>
                 </Pressable>
               </View>
-
-              {interestCapHit && !isOverInterestCap ? (
-                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlSecondaryTextGrey">
-                  That&apos;s {MAX_INTERESTS} — remove one to swap it out.
-                </Text>
-              ) : null}
-
-              {isOverInterestCap ? (
-                // Reachable by anyone who onboarded before the cap existed.
-                // Reads never reject, so they keep their interests until they
-                // next save — at which point they have to trim.
-                <Text className="font-['Roboto-Flex'] mb-[8px] text-[11px] text-lhlDestructiveRed">
-                  Pick your top {MAX_INTERESTS} — remove {tags.length - MAX_INTERESTS} to save.
-                </Text>
-              ) : null}
 
               {isEditingInterests ? (
                 <>

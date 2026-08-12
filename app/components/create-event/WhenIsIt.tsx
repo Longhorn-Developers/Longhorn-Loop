@@ -4,7 +4,6 @@ import type { DateMode } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
@@ -64,10 +63,9 @@ function withTime(existingIso: string | null, picked: Date): string {
 }
 
 export default function WhenIsIt() {
-  const router = useRouter();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update } = useCreateEvent();
+  const { data, update, goNext, goBack } = useCreateEvent();
   const [picker, setPicker] = useState<PickerTarget>(null);
 
   const canContinue =
@@ -118,7 +116,7 @@ export default function WhenIsIt() {
 
   const onContinue = () => {
     if (!canContinue) return;
-    router.push('/(create-event)/OptionalExtras');
+    goNext();
   };
 
   return (
@@ -129,7 +127,7 @@ export default function WhenIsIt() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+          <TouchableOpacity onPress={goBack} hitSlop={12}>
             <Text style={styles.backArrow}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create an Event</Text>

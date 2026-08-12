@@ -6,7 +6,12 @@
 
 import { Hono } from 'hono';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
-import { rankEvents, type ScorableEvent, type UserInterest } from '../lib/scoring';
+import {
+  rankEvents,
+  type ScorableEvent,
+  type ScorableTag,
+  type UserInterest,
+} from '../lib/scoring';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
 
@@ -60,6 +65,7 @@ async function queryByEventIds(
 // arrays the app expects, plus is_saved/is_rsvped and the scoring fields.
 type FeedEvent = Record<string, unknown> &
   ScorableEvent & {
+    tags: string[]; // app-facing tag names (scoredTags carries scores for ranking)
     categories: { id: string; name: string }[];
     benefits: string[];
     is_saved: boolean;
@@ -93,7 +99,12 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
        LEFT JOIN organizations o ON e.host_organization_id = o.id
        WHERE e.status = 'active'
          AND e.is_archived = 0
-         AND e.end_datetime > datetime('now')
+         -- COALESCE, not a bare end_datetime compare. end_datetime is nullable
+         -- (EventInput.endDatetime is string | null) and in SQL, NULL > x is
+         -- NULL, so every event a scraper could not find an end time for was
+         -- silently dropped from all three feeds -- while still appearing under
+         -- Profile > My Events, which already coalesces.
+         AND COALESCE(e.end_datetime, e.start_datetime) > datetime('now')
          ${visibilitySql}
        ORDER BY e.start_datetime ASC
        LIMIT ?`,
@@ -109,7 +120,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
   // Batch-fetch the per-event arrays for the whole pool. D1 caps bound params
   // at 100 per statement, so IN-list queries are chunked (see queryByEventIds).
   const [tagRows, catRows, benefitRows, savedRows, rsvpRows] = await Promise.all([
-    queryByEventIds(db, 'SELECT event_id, bucket_id, tag FROM event_tags', ids),
+    queryByEventIds(db, 'SELECT event_id, bucket_id, tag, score FROM event_tags', ids),
     queryByEventIds(db, 'SELECT event_id, category_id, category_name FROM event_categories', ids),
     queryByEventIds(db, 'SELECT event_id, benefit_name FROM event_benefits', ids),
     userId === null
@@ -120,13 +131,18 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
       : queryByEventIds(db, 'SELECT event_id FROM event_rsvps', ids, userId),
   ]);
 
-  // Index the arrays by event_id.
+  // Index the arrays by event_id. We keep two tag shapes: `tags` (plain names)
+  // for the app response, and `scoredTags` (name + confidence) for the ranker.
   const tagsByEvent = new Map<number, string[]>();
+  const scoredTagsByEvent = new Map<number, ScorableTag[]>();
   const bucketsByEvent = new Map<number, Set<string>>();
   for (const r of tagRows as any[]) {
     const eid = r.event_id as number;
+    const tag = r.tag as string;
     if (!tagsByEvent.has(eid)) tagsByEvent.set(eid, []);
-    tagsByEvent.get(eid)!.push(r.tag as string);
+    tagsByEvent.get(eid)!.push(tag);
+    if (!scoredTagsByEvent.has(eid)) scoredTagsByEvent.set(eid, []);
+    scoredTagsByEvent.get(eid)!.push({ tag, score: (r.score as number | null) ?? null });
     if (!bucketsByEvent.has(eid)) bucketsByEvent.set(eid, new Set());
     bucketsByEvent.get(eid)!.add(r.bucket_id as string);
   }
@@ -148,7 +164,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
   const savedSet = new Set((savedRows as any[]).map((r) => r.event_id as number));
   const rsvpSet = new Set((rsvpRows as any[]).map((r) => r.event_id as number));
 
-  return events.map((e) => {
+  const enriched: FeedEvent[] = events.map((e) => {
     const id = e.id as number;
     return {
       ...e,
@@ -159,6 +175,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
       rsvp_count: (e.rsvp_count as number) ?? 0,
       view_count: (e.view_count as number) ?? 0,
       tags: tagsByEvent.get(id) ?? [],
+      scoredTags: scoredTagsByEvent.get(id) ?? [],
       bucketIds: Array.from(bucketsByEvent.get(id) ?? []),
       categories: catsByEvent.get(id) ?? [],
       benefits: benefitsByEvent.get(id) ?? [],
@@ -167,6 +184,34 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
       org_profile_picture: (e.org_profile_picture as string | null) ?? null,
     };
   });
+
+  return dedupeRecurring(enriched);
+}
+
+/**
+ * Collapse recurring series to their next-upcoming occurrence.
+ *
+ * Scrapers emit each occurrence of a recurring event as its own row (e.g.
+ * "Bowden Fellows Speaker Series" 7x). Key on title + host org: same title AND
+ * org is a series we collapse; same title across DIFFERENT orgs (four clubs'
+ * "General Meeting") stays distinct. Input is sorted soonest-first, so the
+ * first occurrence per key is the next upcoming.
+ */
+function dedupeRecurring(events: FeedEvent[]): FeedEvent[] {
+  const seen = new Set<string>();
+  const out: FeedEvent[] = [];
+  for (const e of events) {
+    const title = ((e.title as string) ?? '').trim().toLowerCase();
+    const org = ((e.host_organization_name as string) ?? '').trim().toLowerCase();
+    // Only dedup when we can key on a real (title, org) pair; otherwise keep.
+    const key = title && org ? `${title} ${org}` : null;
+    if (key !== null) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(e);
+  }
+  return out;
 }
 
 /** Build the caller's interest profile from user_tags + derived buckets. */

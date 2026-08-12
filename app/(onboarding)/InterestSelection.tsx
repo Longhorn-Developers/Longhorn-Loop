@@ -1,6 +1,5 @@
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { INTEREST_CATEGORIES, ALL_INTEREST_TAGS } from '@/app/lib/interestCategories';
-import { MAX_INTERESTS } from '@/shared/taxonomy';
 import { useThemeColors } from '@/app/lib/themeColors';
 import SearchIcon from '@/assets/images/search_icon_create_acc.svg';
 import { useRouter } from 'expo-router';
@@ -22,18 +21,11 @@ export default function CategorySelectorScreen() {
   const [inlineError, setInlineError] = useState('');
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [capHit, setCapHit] = useState(false);
 
-  // Same cap Edit Profile enforces. Without it users pick 20 tags here and
-  // then can't save their profile later, because the Worker rejects the write.
-  // Removing is always allowed so nobody gets stuck at the limit.
+  // No cap: the Worker accepts any number of interests, so onboarding and Edit
+  // Profile both let the user take as many as they want.
   const applyTagSelection = (next: string[]) => {
-    if (next.length <= selectedTags.length || next.length <= MAX_INTERESTS) {
-      setSelectedTags(next);
-      setCapHit(false);
-      return;
-    }
-    setCapHit(true);
+    setSelectedTags(next);
   };
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -80,12 +72,10 @@ export default function CategorySelectorScreen() {
 
       <View className="mt-[16px] flex-row items-center justify-between">
         <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
-          {capHit
-            ? `That's ${MAX_INTERESTS} — remove one to swap it out.`
-            : 'Pick up to ' + MAX_INTERESTS}
+          Pick as many as you like
         </Text>
         <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-lhlSecondaryTextGrey">
-          {selectedTags.length} / {MAX_INTERESTS}
+          {selectedTags.length} selected
         </Text>
       </View>
 

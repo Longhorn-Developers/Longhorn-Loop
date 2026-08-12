@@ -22,89 +22,37 @@ export type TaxonomyBucket = {
   tags: string[];
 };
 
-/**
- * Most interests a user may select.
- *
- * The taxonomy has 100 tags; without a cap the profile's interest row becomes
- * an unreadable wall and the feed signal degrades into "everything". Enforced
- * at every write point — onboarding, Edit Profile, and the Worker — so the
- * three can't disagree.
- *
- * Rows written before this cap existed may hold more; reads never reject, only
- * writes do, so an existing user is asked to trim rather than locked out of
- * their profile.
- */
-export const MAX_INTERESTS = 5;
-
 export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
-  {
-    id: 'music',
-    label: 'Music',
-    description: 'Concerts, DJ sets, & live performances',
-    tags: [
-      'Rock & Alternative',
-      'Hip Hop & Rap',
-      'Country & Folk',
-      'Jazz & Blues',
-      'Pop',
-      'R&B & Soul',
-      'Indie & Underground',
-      'Latin & Reggaeton',
-      'K-Pop & J-Pop',
-    ],
-  },
   {
     id: 'performing',
     label: 'Performing Arts',
-    description: 'Comedy, theater, dance, & live shows',
+    description: 'Comedy, music, theater, & live shows',
     tags: [
       'Comedy',
-      'Theater & Musicals',
+      'Music',
+      'Theater',
       'Classical & Opera',
       'Dance Performances',
-      'Circus & Magic',
       'Poetry & Spoken Word',
-    ],
-  },
-  {
-    id: 'spirituality',
-    label: 'Spirituality & Religion',
-    description: 'Services, fellowship, & meditation groups',
-    tags: [
-      'Meditation & Mindfulness',
-      'Interfaith Events',
-      'Buddhism',
-      'Hinduism',
-      'Christianity',
-      'Judaism',
-      'Islam',
     ],
   },
   {
     id: 'arts',
     label: 'Arts & Culture',
-    description: 'Film, galleries, festivals, & pop culture',
-    tags: [
-      'Film & Cinema',
-      'Anime',
-      'Pop Culture',
-      'Visual Arts & Galleries',
-      'Cultural Festivals',
-      'Museum Tours',
-    ],
+    description: 'Film, galleries, museums, & pop culture',
+    tags: ['Film & Cinema', 'Anime', 'Pop Culture', 'Visual Arts & Galleries', 'Museum Tours'],
   },
   {
     id: 'sports',
     label: 'Sports & Fitness',
-    description: 'Team sports, fitness classes, & outdoor activities',
+    description: 'Team sports, fitness, & outdoor activities',
     tags: [
       'Team Sports',
-      'Racquet Sports',
-      'Running & Endurance',
+      'Watch Parties & Game Day',
+      'Gym & Fitness Classes',
+      'Nutrition & Diet',
       'Cycling & Water Sports',
-      'Yoga & Fitness Classes',
       'Combat Sports',
-      'Golf',
       'Extreme & Adventure Sports',
     ],
   },
@@ -138,29 +86,18 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
     ],
   },
   {
-    id: 'science',
-    label: 'Science & Academia',
-    description: 'Physics, biology, research, & academic talks',
-    tags: [
-      'Physics & Astronomy',
-      'Biology & Life Sciences',
-      'Chemistry & Mathematics',
-      'Psychology & Social Sciences',
-      'Philosophy',
-      'Academic Research',
-    ],
-  },
-  {
     id: 'education',
     label: 'Education & Career',
-    description: 'Career fairs, workshops, & study groups',
+    description: 'Career fairs, workshops, research, & networking',
     tags: [
       'Career Fairs',
       'Workshops & Seminars',
-      'Personal Development',
-      'History & Archaeology',
-      'Book Clubs & Study Groups',
-      'Lectures & Online Courses',
+      'Talks & Speaker Series',
+      'Academic Research',
+      'Personal/Leadership Development',
+      'Study Groups',
+      'Networking & Conferences',
+      'Finance & Investing',
     ],
   },
   {
@@ -172,80 +109,51 @@ export const TAXONOMY_BUCKETS: TaxonomyBucket[] = [
       'Camping',
       'Rock Climbing',
       'Kayaking & Canoeing',
-      'Wildlife & Bird Watching',
       'Gardening & Fishing',
     ],
   },
   {
     id: 'gaming',
     label: 'Gaming & Entertainment',
-    description: 'Esports, game nights, & tabletop',
-    tags: [
-      'Video Gaming',
-      'Board Games',
-      'Esports & Competitive Gaming',
-      'VR & Immersive Gaming',
-      'Role-Playing Games (RPG)',
-      'Trivia Nights',
-      'Escape Rooms',
-    ],
+    description: 'Esports, game nights, & trivia',
+    tags: ['Video Gaming', 'Board Games', 'Trivia Nights'],
   },
   {
     id: 'social',
     label: 'Social & Networking',
-    description: 'Mixers, meetups, & social clubs',
+    description: 'Mixers, meetups, & community events',
     tags: [
       'Meetups & Mixers',
       'Singles & Dating',
       'LGBTQ+ Events',
       'Community Service',
       'Cultural Exchange',
-      'Social Clubs',
-    ],
-  },
-  {
-    id: 'health',
-    label: 'Health & Wellness',
-    description: 'Wellness, therapy, gym, & mindfulness',
-    tags: [
-      'Mental Health & Therapy',
-      'Gym',
-      'Nutrition & Diet',
-      'Mindfulness Practice',
-      'Spa, Retreats & Relaxation',
-    ],
-  },
-  {
-    id: 'business',
-    label: 'Business & Professional',
-    description: 'Case comps, networking, & conferences',
-    tags: [
-      'Case Competitions',
-      'Networking & Conferences',
-      'Leadership Development',
-      'Sales & Marketing',
-      'Finance & Investing',
-      'Real Estate',
-      'Project Management',
     ],
   },
   {
     id: 'travel',
     label: 'Travel & Adventure',
-    description: 'Study abroad, road trips, & travel meetups',
-    tags: ['Road Trips', 'Budget Travel', 'Travel Photography', 'Study Abroad'],
+    description: 'Study abroad, road trips, & budget travel',
+    tags: ['Road Trips', 'Budget Travel', 'Study Abroad'],
   },
   {
     id: 'nightlife',
     label: 'Nightlife & Parties',
     description: 'Bars, clubs, karaoke, & late-night events',
+    tags: ['Clubs & Live DJ Sets', 'Karaoke', 'Themed Parties', 'Raves', 'Happy Hour Events'],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality & Religion',
+    description: 'Services, fellowship, & meditation groups',
     tags: [
-      'Clubs & Live DJ Sets',
-      'Karaoke',
-      'Themed Parties',
-      'Raves & Electronic Music',
-      'Happy Hour Events',
-      'Silent Discos',
+      'Meditation & Mindfulness',
+      'Interfaith Events',
+      'Buddhism',
+      'Hinduism',
+      'Christianity',
+      'Judaism',
+      'Islam',
     ],
   },
 ];

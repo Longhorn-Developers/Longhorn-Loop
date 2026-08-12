@@ -12,10 +12,12 @@ import type { Env } from '../worker';
 import { run as runCockrell, scrapeCockrell } from './cockrell';
 import { run as runFineArts, scrapeFineArts } from './finearts';
 import { run as runCns } from './cns';
-import { run as runHornsLink, scrapeHornsLink } from './hornslink';
+// disabled to remove noisy events
+// import { run as runHornsLink, scrapeHornsLink } from './hornslink';
 import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
+import { run as runMoody, scrapeMoody } from './moody';
 import { run as runPharmacy } from './pharmacy';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
@@ -28,9 +30,11 @@ export interface ScraperEntry {
 }
 
 export const SCRAPERS: ScraperEntry[] = [
-  { name: 'hornslink', run: runHornsLink, manual: scrapeHornsLink },
+  // disabled to remove noisy events
+  // { name: 'hornslink', run: runHornsLink, manual: scrapeHornsLink },
   { name: 'texasToday', run: runTexasToday },
   { name: 'mccombs', run: runMccombs, manual: scrapeMccombs },
+  { name: 'moody', run: runMoody, manual: scrapeMoody },
   { name: 'texasGlobal', run: runTexasGlobal, manual: scrapeTexasGlobal },
   { name: 'lawSchool', run: runLawSchool, manual: scrapeLawSchool },
   { name: 'cola', run: runLiberalArts, manual: scrapeLiberalArts },

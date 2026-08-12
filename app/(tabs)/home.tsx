@@ -4,8 +4,9 @@ import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventPostedModal from '@/app/components/EventPostedModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { feed as feedKeys, saved as savedKeys } from '@/app/lib/queryKeys';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { feed as feedKeys } from '@/app/lib/queryKeys';
+import { useSavedEvents } from '@/app/lib/useSavedEvents';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -36,7 +37,6 @@ type FeedSection = {
   events: ApiEvent[];
 };
 type FeedHomeResponse = { sections: FeedSection[] };
-type SavedListResponse = { events: ApiEvent[] };
 
 function CarouselSection({
   section,
@@ -90,7 +90,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
-  const queryClient = useQueryClient();
+
+  // Bookmark state + toggle, shared with Explore, View All, the event detail
+  // screen and the profile grid so one save updates all of them.
+  const { savedIds, toggleSave: handleToggleSave } = useSavedEvents(token);
 
   // Success modal after posting an event. Router sets ?justPostedEvent=1
   // on redirect from OptionalExtras. We mirror it to local state so the
@@ -115,61 +118,6 @@ export default function HomeScreen() {
 
   const firstName = data.firstName || 'User';
   const sections = feedQuery.data?.sections ?? [];
-
-  // Saved IDs — only run when signed in.
-  const savedQuery = useQuery({
-    queryKey: savedKeys.list(),
-    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
-    enabled: !!token,
-  });
-
-  const savedIds = React.useMemo(
-    () => new Set((savedQuery.data?.events ?? []).map((e: ApiEvent) => e.id)),
-    [savedQuery.data],
-  );
-
-  // Toggle save with optimistic UI.
-  const toggleSave = useMutation<
-    void,
-    unknown,
-    { eventId: number; wasSaved: boolean },
-    { previous?: SavedListResponse }
-  >({
-    mutationFn: async ({ eventId, wasSaved }) => {
-      if (wasSaved) {
-        await api.delete(`/saved/${eventId}`, { token });
-      } else {
-        await api.post(`/saved/${eventId}`, { token });
-      }
-    },
-    onMutate: async ({ eventId, wasSaved }) => {
-      await queryClient.cancelQueries({ queryKey: savedKeys.list() });
-      const previous = queryClient.getQueryData<SavedListResponse>(savedKeys.list());
-      queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
-        const list = old?.events ?? [];
-        if (wasSaved) {
-          return { events: list.filter((e: ApiEvent) => e.id !== eventId) };
-        }
-        return {
-          events: [...list, { id: eventId } as ApiEvent],
-        };
-      });
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(savedKeys.list(), context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: savedKeys.list() });
-    },
-  });
-
-  const handleToggleSave = (eventId: number) => {
-    if (!token) return;
-    toggleSave.mutate({ eventId, wasSaved: savedIds.has(eventId) });
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>

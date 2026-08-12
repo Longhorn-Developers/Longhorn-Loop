@@ -2,7 +2,8 @@
 
 import type { IngestResult, NormalizedEvent } from './types';
 import type { Env } from '../worker';
-import { classifyEvent, writeEventTags } from '../lib/classifier';
+import { writeEventTags } from '../lib/classifier';
+import { classifyEventsBatch } from '../lib/semanticTags';
 
 // LOOP-150 retention window. Purge job uses expires_at.
 const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -173,18 +174,28 @@ async function replaceCategoriesAndBenefits(
 }
 
 // Per-event errors are isolated so one bad row doesn't sink the batch.
-// Takes the whole env (not just db) so tagging can reach bindings beyond D1.
+// Takes the whole env (not just db) because tagging now needs the AI +
+// Vectorize bindings for semantic classification.
 export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise<IngestResult> {
   const db = env.DB;
   const result: IngestResult = { inserted: 0, updated: 0, errors: [] };
 
-  for (const event of events) {
+  // Classify ALL events up front in one batched pass. Embedding per-event in the
+  // loop below would exhaust the Workers AI per-invocation cap after a handful
+  // of events, silently dropping the rest to keyword. tagsByIndex[i] lines up
+  // with events[i].
+  const tagsByIndex = await classifyEventsBatch(
+    env,
+    events.map((e) => ({ title: e.title, description: e.description })),
+  );
+
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
     try {
       await upsertOrganization(db, event);
       const { eventId, isNew } = await upsertEvent(db, event);
       await replaceCategoriesAndBenefits(db, eventId, event);
-      const tags = classifyEvent(event.title, event.description);
-      await writeEventTags(db, eventId, tags);
+      await writeEventTags(db, eventId, tagsByIndex[i]);
       if (isNew) result.inserted++;
       else result.updated++;
     } catch (err) {

@@ -3,8 +3,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as NativeSplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import SplashScreen from './components/SplashScreen';
+import { useEffect } from 'react';
 import { OnboardingProvider } from './context/OnboardingContext';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';
 import { useThemeColors } from './lib/themeColors';
@@ -61,9 +60,6 @@ function ThemedStack() {
         {/* Main tabs — disable swipe back to prevent returning to onboarding */}
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
-        {/* Create Event multi-step flow */}
-        <Stack.Screen name="(create-event)" />
-
         {/* View All events screen */}
         <Stack.Screen name="view-all" />
 
@@ -91,11 +87,15 @@ function ThemedStack() {
 }
 
 export default function RootLayout() {
-  const [splashDone, setSplashDone] = useState(false);
-
-  // Load the Roboto Flex variable font file
+  // Each weight is a separate static file with its own family name. React
+  // Native can't pick a weight off a single variable font, so a shared family
+  // collides and renders one weight everywhere. tailwind maps font-roboto-*
+  // onto these.
   const [fontsLoaded, fontError] = useFonts({
     'Roboto-Flex': require('../assets/fonts/RobotoFlex-VariableFont.ttf'),
+    'Roboto-Flex-Medium': require('../assets/fonts/RobotoFlex-Medium.ttf'),
+    'Roboto-Flex-SemiBold': require('../assets/fonts/RobotoFlex-SemiBold.ttf'),
+    'Roboto-Flex-Bold': require('../assets/fonts/RobotoFlex-Bold.ttf'),
   });
 
   // Hide the native splash screen once the font is loaded (or fails)
@@ -115,8 +115,6 @@ export default function RootLayout() {
       <OnboardingProvider>
         <ThemeProvider>
           <ThemedStack />
-
-          {!splashDone && <SplashScreen onFinish={() => setSplashDone(true)} />}
         </ThemeProvider>
       </OnboardingProvider>
     </QueryClientProvider>

@@ -1,8 +1,9 @@
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { events as eventsKeys, feed as feedKeys, saved as savedKeys } from '@/app/lib/queryKeys';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
+import { useSavedEvents } from '@/app/lib/useSavedEvents';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
@@ -10,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 type EventsListResponse = { events: ApiEvent[] };
-type SavedListResponse = { events: ApiEvent[] };
 
 export default function ViewAllScreen() {
   const colors = useThemeColors();
@@ -24,7 +24,7 @@ export default function ViewAllScreen() {
   }>();
   const { data } = useOnboarding();
   const token = data.token || null;
-  const queryClient = useQueryClient();
+  const { savedIds, toggleSave: handleToggleSave } = useSavedEvents(token);
 
   const eventsQuery = useQuery({
     queryKey: bucketId
@@ -36,35 +36,6 @@ export default function ViewAllScreen() {
         : api.get<EventsListResponse>(`/events?${search}&limit=50`, { token }),
     staleTime: 30_000,
   });
-
-  const savedQuery = useQuery({
-    queryKey: savedKeys.list(),
-    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
-    enabled: !!token,
-  });
-
-  const savedIds = React.useMemo(
-    () => new Set((savedQuery.data?.events ?? []).map((e: ApiEvent) => e.id)),
-    [savedQuery.data],
-  );
-
-  const toggleSave = useMutation({
-    mutationFn: async ({ eventId, wasSaved }: { eventId: number; wasSaved: boolean }) => {
-      if (wasSaved) {
-        await api.delete(`/saved/${eventId}`, { token });
-      } else {
-        await api.post(`/saved/${eventId}`, { token });
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: savedKeys.list() });
-    },
-  });
-
-  const handleToggleSave = (eventId: number) => {
-    if (!token) return;
-    toggleSave.mutate({ eventId, wasSaved: savedIds.has(eventId) });
-  };
 
   const events = eventsQuery.data?.events ?? [];
 

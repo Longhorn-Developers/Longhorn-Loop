@@ -17,13 +17,15 @@
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
 import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
 import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
-import { events as eventsKeys, user as userKeys } from '@/app/lib/queryKeys';
+import { user as userKeys } from '@/app/lib/queryKeys';
+import { useSavedEvents } from '@/app/lib/useSavedEvents';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import type { ApiEvent } from '@/app/components/EventCard';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
@@ -33,7 +35,7 @@ import {
   type ProfileEventFilter,
   type ProfileEventTab,
 } from '@/shared/profileEventFilters';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
@@ -74,7 +76,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
   const token = onboarding.token || null;
-  const queryClient = useQueryClient();
+  const { toggleSave } = useSavedEvents(token);
 
   const openLink = useOpenLinkGuard();
 
@@ -102,15 +104,6 @@ export default function ProfileScreen() {
       return api.get<MyEventsResponse>(`/users/me/events?${params.toString()}`, { token });
     },
     enabled: !!token,
-  });
-
-  const toggleSave = useMutation({
-    mutationFn: async ({ eventId, saved }: { eventId: number; saved: boolean }) =>
-      saved ? api.delete(`/saved/${eventId}`, { token }) : api.post(`/saved/${eventId}`, { token }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userKeys.myEventsAll() });
-      queryClient.invalidateQueries({ queryKey: eventsKeys.all });
-    },
   });
 
   const profile = profileQuery.data?.user;
@@ -261,11 +254,7 @@ export default function ProfileScreen() {
               })}
             </View>
 
-            {profile?.bio ? (
-              <Text className="font-['Roboto-Flex'] mt-[12px] text-center text-[12px] leading-[18px] text-lhlInk">
-                {profile.bio}
-              </Text>
-            ) : null}
+            <ProfileBio bio={profile?.bio} editable />
           </View>
 
           {/* --- Metadata ---
@@ -437,9 +426,7 @@ export default function ProfileScreen() {
                     <ProfileEventCard
                       key={event.id}
                       event={event}
-                      onToggleSave={(eventId) =>
-                        toggleSave.mutate({ eventId, saved: !!event.is_saved })
-                      }
+                      onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
                     />
                   ))
                 )}

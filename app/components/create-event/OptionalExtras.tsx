@@ -126,7 +126,7 @@ export default function OptionalExtras() {
   const router = useRouter();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update, reset } = useCreateEvent();
+  const { data, update, reset, goBack } = useCreateEvent();
   const { data: onboarding } = useOnboarding();
   const queryClient = useQueryClient();
   const token = onboarding.token || null;
@@ -215,7 +215,7 @@ export default function OptionalExtras() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+            <TouchableOpacity onPress={goBack} hitSlop={12}>
               <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Create an Event</Text>

@@ -10,6 +10,8 @@ export const events = {
   list: (params: Record<string, string | undefined> = {}) => [...events.lists(), params] as const,
   details: () => [...events.all, 'detail'] as const,
   detail: (id: string | number) => [...events.details(), String(id)] as const,
+  // Hangs off detail(id) so invalidating one event refreshes its attendees too.
+  attendees: (id: string | number) => [...events.detail(id), 'attendees'] as const,
 };
 
 export const saved = {
