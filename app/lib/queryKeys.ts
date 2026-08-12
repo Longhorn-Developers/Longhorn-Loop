@@ -64,6 +64,10 @@ export const org = {
     [...org.analyticsAll(id), eventFilter] as const,
   notificationSettings: (id: number | string) =>
     [...org.all, 'notification-settings', String(id)] as const,
+  // "Find your organization" on the registration form (LOOP-141). The
+  // DEBOUNCED query is part of the key, so each settled query caches on its
+  // own and backspacing to a previous one is instant instead of a refetch.
+  search: (query: string) => [...org.all, 'search', query] as const,
 };
 
 // Phase 3 personalized feed endpoints (/feed/*).

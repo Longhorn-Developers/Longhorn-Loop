@@ -24,6 +24,13 @@ import {
 } from '../../../shared/profileEventFilters';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
+import {
+  ORG_SEARCH_LIMIT,
+  ORG_SEARCH_MAX_LIMIT,
+  ORG_SEARCH_MIN_QUERY,
+  isOrgCategory,
+  type OrgClaimState,
+} from '../../../shared/orgRegistration';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -99,15 +106,174 @@ orgRoutes.get('/mine', async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-// Organization registration — verification tail (LOOP-185)
+// Organization registration — search + claim (LOOP-141), verification tail
+// (LOOP-185)
 // ---------------------------------------------------------------------------
 //
-// Owns the president-email check and the code confirmation. The earlier
-// search/claim steps are LOOP-141; generic UT email verification is LOOP-134.
+// The whole flow now lives here: find the org, check it is still claimable,
+// check the president's email, confirm the code. Generic UT email verification
+// is still LOOP-134.
 //
 // These are registered above /:orgId for the same reason /mine is: Hono
-// matches in definition order and "register" would otherwise be read as an
-// org id.
+// matches in definition order and "search" / "register" would otherwise be
+// read as an org id.
+
+/**
+ * Escape a user-typed string for use inside a LIKE pattern.
+ *
+ * Without this, a query of "100%" matches every org and "a_b" matches "axb" —
+ * the two LIKE wildcards are ordinary characters in an org name. Paired with
+ * ESCAPE '\' in the query below.
+ */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * Collapse the claim signals into the state the UI shows.
+ *
+ * Order matters. `verified` wins outright because only a human approval sets
+ * it. Then pending_review, because after a successful /register/confirm BOTH
+ * that status and an admin row exist, and "awaiting our team's review" is the
+ * more useful thing to tell someone than "already claimed". An admin row on
+ * its own still counts: someone who accepted an admin invite controls the org
+ * without verification_status ever moving.
+ */
+function claimStateOf(row: {
+  verified: unknown;
+  verification_status: unknown;
+  admin_count: unknown;
+}): OrgClaimState {
+  if (Number(row.verified) === 1) return 'claimed';
+  if (String(row.verification_status ?? '') === 'pending_review') return 'pending_review';
+  if (Number(row.admin_count ?? 0) > 0) return 'claimed';
+  // 'rejected' lands here deliberately — see OrgClaimState.
+  return 'available';
+}
+
+// GET /orgs/search?q=&limit= -- "Find your organization" (LOOP-141).
+//
+// MUST stay above /:orgId (see above).
+//
+// KNOWN LIMITATION, and the reason the "skip for now" affordance on the client
+// is a real branch rather than decoration: `organizations` is populated as a
+// side effect of event ingestion (src/events/ingest.ts), so an org that has
+// never posted an event is not in the table and cannot be found here. This
+// endpoint searches what we have; it is not a HornsLink directory lookup.
+orgRoutes.get('/search', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const q = (c.req.query('q') ?? '').trim();
+
+  // Nothing rather than everything: the field is empty on first paint, and a
+  // bare "" must not return the directory. See ORG_SEARCH_MIN_QUERY.
+  if (q.length < ORG_SEARCH_MIN_QUERY) return c.json({ query: q, organizations: [] });
+
+  const rawLimit = Number(c.req.query('limit'));
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(Math.trunc(rawLimit), 1), ORG_SEARCH_MAX_LIMIT)
+    : ORG_SEARCH_LIMIT;
+
+  const lowered = q.toLowerCase();
+  const needle = escapeLike(lowered);
+
+  // lower() on both sides rather than relying on LIKE's default ASCII
+  // case-folding, so the exact-match and prefix comparisons in ORDER BY use
+  // the same rule as the WHERE clause.
+  //
+  // Ranking: exact name, then names that START with the query, then anything
+  // containing it. Shortest first inside a tier, because "Texas Rowing" is a
+  // better answer for "rowing" than "Texas Rowing Alumni Social Committee".
+  const { results } = await c.env.DB.prepare(
+    `SELECT o.id, o.name, o.profile_picture, o.category, o.verified, o.verification_status,
+            (SELECT COUNT(*) FROM org_members m
+              WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count
+       FROM organizations o
+      WHERE lower(o.name) LIKE ? ESCAPE '\\'
+      ORDER BY CASE
+                 WHEN lower(o.name) = ?               THEN 0
+                 WHEN lower(o.name) LIKE ? ESCAPE '\\' THEN 1
+                 ELSE 2
+               END,
+               length(o.name) ASC,
+               o.name COLLATE NOCASE ASC
+      LIMIT ?`,
+  )
+    .bind(`%${needle}%`, lowered, `${needle}%`, limit)
+    .all();
+
+  return c.json({
+    query: q,
+    organizations: (results as Record<string, unknown>[]).map((o) => {
+      const claim_state = claimStateOf(
+        o as { verified: unknown; verification_status: unknown; admin_count: unknown },
+      );
+      return {
+        id: o.id,
+        name: o.name,
+        profile_picture: o.profile_picture,
+        category: o.category,
+        verified: Number(o.verified) === 1,
+        verification_status: o.verification_status,
+        claim_state,
+        // The client disables Send Email on this; the two register routes
+        // below enforce it again, because a disabled button is not a check.
+        claimable: claim_state === 'available',
+      };
+    }),
+  });
+});
+
+/**
+ * Refuse a claim on an org somebody else already holds.
+ *
+ * Returns null when `userId` may proceed. The caller's own admin row is an
+ * explicit early exit rather than something the state machine has to reason
+ * about: an admin who re-enters the flow on an org they already run is not
+ * being blocked by a stranger, and telling them "already claimed" about their
+ * own org would be nonsense.
+ */
+async function claimBlockedFor(
+  db: Env['DB'],
+  orgId: number,
+  userId: number,
+): Promise<{ error: string; message: string } | null> {
+  const row = await db
+    .prepare(
+      `SELECT o.verified, o.verification_status,
+              (SELECT COUNT(*) FROM org_members m
+                WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count,
+              (SELECT COUNT(*) FROM org_members m
+                WHERE m.org_id = o.id AND m.role = 'admin' AND m.user_id = ?) AS mine
+         FROM organizations o
+        WHERE o.id = ?`,
+    )
+    .bind(userId, orgId)
+    .first();
+
+  // A missing org is the caller's ORG_NOT_FOUND to report, not this helper's.
+  if (!row) return null;
+  if (Number(row.mine ?? 0) > 0) return null;
+
+  const state = claimStateOf(
+    row as { verified: unknown; verification_status: unknown; admin_count: unknown },
+  );
+
+  if (state === 'pending_review') {
+    return {
+      error: 'ORG_PENDING_REVIEW',
+      message: 'This organization is already awaiting verification by our team.',
+    };
+  }
+  if (state === 'claimed') {
+    return {
+      error: 'ORG_ALREADY_CLAIMED',
+      message: 'This organization has already been claimed. Ask an admin to invite you.',
+    };
+  }
+  return null;
+}
 
 /**
  * A 4-digit code, as the Figma frame specifies.
@@ -155,6 +321,14 @@ orgRoutes.post('/register/verify-president', async (c) => {
     .first();
   if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
 
+  // LOOP-141: an org somebody already holds is not claimable, and the check
+  // belongs here rather than only on the search response — the client picks
+  // from a list that may be seconds stale, and a disabled button is not a
+  // check. Runs before the president lookup so we never email a code for a
+  // claim that cannot complete.
+  const blocked = await claimBlockedFor(c.env.DB, orgId, userId);
+  if (blocked) return c.json(blocked, 409);
+
   const onFile = typeof org.president_email === 'string' ? org.president_email.toLowerCase() : null;
 
   // Build step 3. If we have no president on file we cannot confirm anyone, so
@@ -199,8 +373,13 @@ orgRoutes.post('/register/verify-president', async (c) => {
 
 // POST /orgs/register/confirm
 //
-// Body: { org_id, code }. On success the caller becomes an admin of the org
-// and the org is flagged as awaiting review.
+// Body: { org_id, code, category? }. On success the caller becomes an admin of
+// the org and the org is flagged as awaiting review.
+//
+// `category` (LOOP-141) is collected on the FIRST screen but only written
+// here, once the code proves the submitter is the president. Writing it at
+// verify-president time would let anyone who knows a president's address
+// relabel a public org without ever holding a code.
 orgRoutes.post('/register/confirm', async (c) => {
   const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
   if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -211,9 +390,13 @@ orgRoutes.post('/register/confirm', async (c) => {
   const body = await c.req.json().catch(() => null);
   const orgId = body && Number.isFinite(Number(body.org_id)) ? Number(body.org_id) : null;
   const code = body && typeof body.code === 'string' ? body.code.trim() : '';
+  const category = body && typeof body.category === 'string' ? body.category.trim() : '';
 
   if (orgId === null) return c.json({ error: 'INVALID_ORG_ID' }, 400);
   if (!/^\d{4}$/.test(code)) return c.json({ error: 'INVALID_CODE' }, 400);
+  // Omitted is fine (the column is nullable); a value we don't recognise is
+  // not, because it would be persisted and then rendered back as a label.
+  if (category && !isOrgCategory(category)) return c.json({ error: 'INVALID_CATEGORY' }, 400);
 
   const org = await c.env.DB.prepare('SELECT president_email FROM organizations WHERE id = ?')
     .bind(orgId)
@@ -221,6 +404,9 @@ orgRoutes.post('/register/confirm', async (c) => {
   if (!org || typeof org.president_email !== 'string') {
     return c.json({ error: 'ORG_NOT_FOUND' }, 404);
   }
+
+  const blocked = await claimBlockedFor(c.env.DB, orgId, userId);
+  if (blocked) return c.json(blocked, 409);
 
   const key = orgVerificationKey(orgId, org.president_email.toLowerCase());
   const row = await c.env.DB.prepare('SELECT * FROM verification_codes WHERE email = ?')
@@ -255,13 +441,19 @@ orgRoutes.post('/register/confirm', async (c) => {
     .bind(orgId, userId)
     .run();
 
+  // COALESCE, not a plain assignment: a claimant who skipped the dropdown
+  // must not blank a category the org already has.
   await c.env.DB.prepare(
-    "UPDATE organizations SET verification_status = 'pending_review', updated_at = datetime('now') WHERE id = ?",
+    `UPDATE organizations
+        SET verification_status = 'pending_review',
+            category            = COALESCE(?, category),
+            updated_at          = datetime('now')
+      WHERE id = ?`,
   )
-    .bind(orgId)
+    .bind(category || null, orgId)
     .run();
 
-  return c.json({ verified: true, status: 'pending_review' });
+  return c.json({ verified: true, status: 'pending_review', category: category || null });
 });
 
 // GET /orgs/:orgId -- console header: identity, role, follower counts, tiles.
