@@ -1,10 +1,14 @@
-// Organization management console routes (LOOP-183).
+// Organization management console routes (LOOP-183, Events tab LOOP-136).
 //
-// Covers the Members and Analytics tabs plus the shared console header. The
-// Events tab is LOOP-136 and per-event engagement counters are LOOP-129 —
-// this file deliberately reads the denormalized counters those tickets
-// maintain (events.view_count / rsvp_count / save_count) rather than
-// recomputing them.
+// Covers all three console tabs plus the shared header. Per-event engagement
+// counters are LOOP-129 — this file deliberately reads the denormalized
+// counters that ticket maintains (events.view_count / rsvp_count /
+// save_count) rather than recomputing them.
+//
+// One boundary worth naming: the Events tab READS from here but WRITES through
+// PATCH /events/:id in events.worker.ts. Editing an event is an event
+// operation that happens to have been reached from an org screen, and putting
+// it here would mean a second copy of the create path's validators.
 //
 // Authorization model, applied by requireOrgRole below:
 //   admin  — manage roles, remove editors, invite, edit notification settings
@@ -13,6 +17,11 @@
 // another, so every handler resolves the caller's role for the org in the URL.
 
 import { Hono } from 'hono';
+import {
+  bucketsForFilter,
+  isProfileEventFilter,
+  PROFILE_EVENT_FILTERS,
+} from '../../../shared/profileEventFilters';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
 
@@ -512,6 +521,114 @@ orgRoutes.post('/:orgId/leave', async (c) => {
     .run();
 
   return c.json({ left: true });
+});
+
+// GET /orgs/:orgId/events -- Events tab (LOOP-136).
+//
+// Query params mirror the profile's My Events section so the two chip rows
+// behave identically and share shared/profileEventFilters.ts:
+//   q      free-text over title / description / location
+//   filter all | general | academic | social
+//   sort   date | recent   (default date)
+//
+// Unlike the profile grid this does NOT hide past events. A console exists to
+// fix things, and the event most likely to need fixing is the one that just
+// happened. `date` therefore sorts upcoming-soonest-first and lets past events
+// fall below in reverse-chronological order, so the top of the list is always
+// the next thing out the door.
+//
+// Archived events stay hidden: is_archived is the cleanup job's soft delete
+// (LOOP-150), not something a manager can act on.
+orgRoutes.get('/:orgId/events', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+
+  const rawFilter = c.req.query('filter') ?? 'all';
+  if (!isProfileEventFilter(rawFilter)) {
+    return c.json({ error: 'INVALID_FILTER', valid: PROFILE_EVENT_FILTERS }, 400);
+  }
+
+  const sort = c.req.query('sort') === 'recent' ? 'recent' : 'date';
+  const search = (c.req.query('q') ?? '').trim();
+
+  const binds: unknown[] = [member.orgId];
+
+  let searchClause = '';
+  if (search) {
+    // Escape LIKE wildcards, same as /users/me/events: searching for "50%"
+    // should not match everything.
+    const escaped = search.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    searchClause = ` AND (e.title LIKE ? ESCAPE '\\'
+                          OR e.description LIKE ? ESCAPE '\\'
+                          OR e.location_full LIKE ? ESCAPE '\\')`;
+    binds.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`);
+  }
+
+  const buckets = bucketsForFilter(rawFilter);
+  let bucketClause = '';
+  if (buckets.length > 0) {
+    bucketClause = ` AND EXISTS (
+                       SELECT 1 FROM event_tags t
+                       WHERE t.event_id = e.id
+                         AND t.bucket_id IN (${buckets.map(() => '?').join(', ')})
+                     )`;
+    binds.push(...buckets);
+  }
+
+  const orderBy =
+    sort === 'recent'
+      ? 'e.created_at DESC, e.id DESC'
+      : `CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN 0 ELSE 1 END ASC,
+         CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN e.start_datetime END ASC,
+         e.start_datetime DESC`;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
+            e.location_short, e.location_full, e.image_url, e.theme,
+            e.view_count, e.rsvp_count, e.save_count,
+            -- The bucket the edit overlay's tag picker should open on. A
+            -- user-created event has exactly one; a scraped one may carry
+            -- several from the classifier, so the bucket holding the most of
+            -- its tags wins (alphabetical tiebreak keeps the answer stable).
+            -- Counted rather than read off event_tags.score because score
+            -- arrives in migration 0012 and is not in schema.sql, which the
+            -- test suite builds from.
+            (SELECT t.bucket_id FROM event_tags t
+              WHERE t.event_id = e.id
+              GROUP BY t.bucket_id
+              ORDER BY COUNT(*) DESC, t.bucket_id ASC
+              LIMIT 1) AS discovery_bucket
+       FROM events e
+      WHERE e.host_organization_id = ?
+        AND e.is_archived = 0
+        ${searchClause}
+        ${bucketClause}
+      ORDER BY ${orderBy}
+      LIMIT 100`,
+  )
+    .bind(...binds)
+    .all();
+
+  // Interest tags per event, so the overlay opens with the current selection
+  // already ticked instead of looking like the event has none.
+  const events = [];
+  for (const event of results as Record<string, unknown>[]) {
+    const { results: tags } = await c.env.DB.prepare(
+      'SELECT DISTINCT tag FROM event_tags WHERE event_id = ? ORDER BY tag',
+    )
+      .bind(event.id)
+      .all();
+    events.push({ ...event, tags: (tags as { tag: string }[]).map((t) => t.tag) });
+  }
+
+  return c.json({
+    events,
+    role: member.role,
+    // Both roles manage events — schema.sql: an editor "can post/manage
+    // events, cannot manage people". This is deliberately NOT role === 'admin'
+    // the way the Members tab's can_manage is.
+    can_manage: member.role === 'admin' || member.role === 'editor',
+  });
 });
 
 // GET /orgs/:orgId/analytics -- Analytics tab.
