@@ -86,6 +86,11 @@ CREATE TABLE IF NOT EXISTS organizations (
   -- unverified | pending_review | rejected. Distinct from `verified`,
   -- which only a human approval flips.
   verification_status TEXT NOT NULL DEFAULT 'unverified',
+  -- "What best describes this organization?" from the registration form
+  -- (LOOP-141). One of shared/orgRegistration.ts ORG_CATEGORIES; NULL means
+  -- unanswered, which is every scraped row. Written only once a claim's code
+  -- is confirmed, so an unverified stranger can't relabel a public org.
+  category TEXT,
   source TEXT NOT NULL DEFAULT 'hornslink',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
