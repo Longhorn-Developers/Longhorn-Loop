@@ -18,6 +18,34 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
   }
+
+  /** True when the request never reached the server at all. */
+  get isNetworkError(): boolean {
+    return this.status === 0;
+  }
+}
+
+/**
+ * React Native reports every unreachable-server case -- wrong host, server not
+ * running, phone on a different Wi-Fi network, no connectivity -- as the same
+ * opaque `TypeError: Network request failed`, with no mention of the URL it
+ * tried. That is what made "it works in the browser but not on my phone" so
+ * hard to pin down. Wrap it in an ApiError that at least names the target.
+ *
+ * status 0 means "never got a response", which is distinct from any real HTTP
+ * status and is what `isNetworkError` keys off.
+ */
+function toNetworkError(err: unknown): ApiError {
+  const hint = __DEV__
+    ? ` Could not reach ${API_BASE_URL} — check that the Worker is running (\`npm run dev:lan\` in /server) and that this device is on the same network as the dev machine.`
+    : ' Check your internet connection and try again.';
+
+  return new ApiError(0, err, `Network request failed.${hint}`);
+}
+
+/** Aborts are the caller's own doing, so they pass through untouched. */
+function isAbort(err: unknown): boolean {
+  return (err as { name?: string } | null)?.name === 'AbortError';
 }
 
 interface RequestOptions {
@@ -63,12 +91,18 @@ async function request<T>(
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
+    });
+  } catch (err) {
+    if (isAbort(err)) throw err;
+    throw toNetworkError(err);
+  }
 
   return parseResponse<T>(res);
 }
@@ -82,12 +116,18 @@ async function requestForm<T>(
   const headers: Record<string, string> = {};
   if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: form,
-    signal: opts.signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      body: form,
+      signal: opts.signal,
+    });
+  } catch (err) {
+    if (isAbort(err)) throw err;
+    throw toNetworkError(err);
+  }
 
   return parseResponse<T>(res);
 }
