@@ -869,7 +869,8 @@ eventRoutes.get('/', async (c) => {
     LEFT JOIN organizations o ON e.host_organization_id = o.id
     WHERE e.status = 'active'
       AND e.is_archived = 0
-      AND e.end_datetime > datetime('now')
+      -- Nullable end_datetime: see the same filter in feed.worker.ts.
+      AND COALESCE(e.end_datetime, e.start_datetime) > datetime('now')
       ${visibility.sql}
   `;
   const params: any[] = [...visibility.params];
