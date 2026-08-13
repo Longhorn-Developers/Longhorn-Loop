@@ -486,8 +486,16 @@ const MY_EVENT_TABS = {
 
 type MyEventTab = keyof typeof MY_EVENT_TABS;
 
-/** Not ended, and not archived by the cleanup job. */
-const UPCOMING_CONDITION = `(e.is_archived = 0 AND COALESCE(e.end_datetime, e.start_datetime) >= datetime('now'))`;
+/**
+ * Not ended, and not archived by the cleanup job.
+ *
+ * Exported for the org console's Events tab (LOOP-240), which groups its list
+ * into Upcoming and Past. Nothing about "when is an event over" is specific to
+ * the profile, and a second copy would be a copy that drifts — the nullable
+ * end_datetime fallback below is exactly the kind of detail one side would
+ * quietly get wrong. The SQL assumes the events table is aliased `e`.
+ */
+export const UPCOMING_CONDITION = `(e.is_archived = 0 AND COALESCE(e.end_datetime, e.start_datetime) >= datetime('now'))`;
 
 // GET /users/me/events -- the My Events section of the profile.
 //
@@ -658,8 +666,13 @@ userRoutes.delete('/:userId/follow', async (c) => {
  * end_datetime is nullable on scraped events, so fall back to start_datetime
  * rather than treating a NULL end as "never ends" — otherwise a scraped event
  * with no end time would never appear in history.
+ *
+ * Exported for the same reason as UPCOMING_CONDITION above (LOOP-240). Note
+ * the two are exact complements, so a caller that has already excluded
+ * archived rows — the org console does — gets "has ended" out of this and
+ * loses nothing. The SQL assumes the events table is aliased `e`.
  */
-const PAST_EVENT_CONDITION = `(e.is_archived = 1 OR COALESCE(e.end_datetime, e.start_datetime) < datetime('now'))`;
+export const PAST_EVENT_CONDITION = `(e.is_archived = 1 OR COALESCE(e.end_datetime, e.start_datetime) < datetime('now'))`;
 
 /**
  * The three relationships that make an event part of a user's history. Each

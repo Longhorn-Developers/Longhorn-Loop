@@ -23,6 +23,10 @@ import {
   PROFILE_EVENT_FILTERS,
 } from '../../../shared/profileEventFilters';
 import { getAuthUser, getUserId } from '../lib/utils';
+// "Has this event ended?" is answered in exactly one place in the codebase.
+// These are SQL fragments assuming the events table is aliased `e`; they were
+// module-private until LOOP-240 needed the same answer over here.
+import { PAST_EVENT_CONDITION, UPCOMING_CONDITION } from './users.worker';
 import type { Env } from '../worker';
 import {
   ORG_SEARCH_LIMIT,
@@ -715,13 +719,19 @@ orgRoutes.post('/:orgId/leave', async (c) => {
   return c.json({ left: true });
 });
 
-// GET /orgs/:orgId/events -- Events tab (LOOP-136).
+// GET /orgs/:orgId/events -- Events tab (LOOP-136, list completed in LOOP-240).
 //
 // Query params mirror the profile's My Events section so the two chip rows
 // behave identically and share shared/profileEventFilters.ts:
 //   q      free-text over title / description / location
 //   filter all | general | academic | social
-//   sort   date | recent   (default date)
+//   sort   date | alpha    (default date)
+//
+// `alpha` replaced an earlier `recent` (created_at DESC) in LOOP-240: the
+// signed-off Figma frame toggles Date <-> A-Z, and a console with a search
+// field is a place you go looking for one named event. Newest-posted-first was
+// never in the design. The client's label moved in the same change; the two
+// only make sense together.
 //
 // Unlike the profile grid this does NOT hide past events. A console exists to
 // fix things, and the event most likely to need fixing is the one that just
@@ -729,8 +739,16 @@ orgRoutes.post('/:orgId/leave', async (c) => {
 // fall below in reverse-chronological order, so the top of the list is always
 // the next thing out the door.
 //
+// Each row carries is_past so the client can split the list into Upcoming and
+// Past sections (LOOP-132) without re-deriving "has this ended" in JavaScript
+// — the fallback for a NULL end_datetime is the sort of detail that would
+// drift the moment it existed twice. It is computed from PAST_EVENT_CONDITION,
+// the same predicate the profile's history screen uses.
+//
 // Archived events stay hidden: is_archived is the cleanup job's soft delete
-// (LOOP-150), not something a manager can act on.
+// (LOOP-150), not something a manager can act on. That means is_past reduces
+// to "has ended" here, and an archived event lands in NEITHER section rather
+// than silently falling into Past.
 orgRoutes.get('/:orgId/events', async (c) => {
   const member = await resolveMembership(c);
   if (!member.ok) return c.json({ error: member.error }, member.status);
@@ -740,7 +758,7 @@ orgRoutes.get('/:orgId/events', async (c) => {
     return c.json({ error: 'INVALID_FILTER', valid: PROFILE_EVENT_FILTERS }, 400);
   }
 
-  const sort = c.req.query('sort') === 'recent' ? 'recent' : 'date';
+  const sort = c.req.query('sort') === 'alpha' ? 'alpha' : 'date';
   const search = (c.req.query('q') ?? '').trim();
 
   const binds: unknown[] = [member.orgId];
@@ -767,17 +785,26 @@ orgRoutes.get('/:orgId/events', async (c) => {
     binds.push(...buckets);
   }
 
+  // A-Z is a flat ordering on purpose: the client still splits the result into
+  // Upcoming and Past, so each section reads alphabetically. Sorting upcoming
+  // ahead of past here as well would be invisible in the UI and would make the
+  // raw endpoint lie about what "alpha" means.
+  //
+  // COLLATE NOCASE so "apex" doesn't land after "Zeta" — SQLite's default
+  // BINARY compare puts every uppercase letter before every lowercase one. The
+  // id tiebreak keeps duplicate titles in a stable order across requests.
   const orderBy =
-    sort === 'recent'
-      ? 'e.created_at DESC, e.id DESC'
-      : `CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN 0 ELSE 1 END ASC,
-         CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN e.start_datetime END ASC,
+    sort === 'alpha'
+      ? 'e.title COLLATE NOCASE ASC, e.id ASC'
+      : `CASE WHEN ${UPCOMING_CONDITION} THEN 0 ELSE 1 END ASC,
+         CASE WHEN ${UPCOMING_CONDITION} THEN e.start_datetime END ASC,
          e.start_datetime DESC`;
 
   const { results } = await c.env.DB.prepare(
     `SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
             e.location_short, e.location_full, e.image_url, e.theme,
             e.view_count, e.rsvp_count, e.save_count,
+            CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END AS is_past,
             -- The bucket the edit overlay's tag picker should open on. A
             -- user-created event has exactly one; a scraped one may carry
             -- several from the classifier, so the bucket holding the most of
@@ -810,7 +837,13 @@ orgRoutes.get('/:orgId/events', async (c) => {
     )
       .bind(event.id)
       .all();
-    events.push({ ...event, tags: (tags as { tag: string }[]).map((t) => t.tag) });
+    events.push({
+      ...event,
+      // SQLite has no boolean, and the client branches on this to pick a
+      // section — send a real boolean rather than a 0/1 that reads as truthy.
+      is_past: Number(event.is_past) === 1,
+      tags: (tags as { tag: string }[]).map((t) => t.tag),
+    });
   }
 
   return c.json({

@@ -362,6 +362,232 @@ describeOrSkip('org console SQL (LOOP-183)', () => {
     });
   });
 
+  // The Upcoming/Past split and the Date <-> A-Z sort (LOOP-240).
+  //
+  // The suite above proves the listing scopes and filters correctly, but every
+  // event it seeds sits on the same side of "now" — so nothing in it would
+  // notice if the two orderings were swapped, if the A-Z compare were
+  // case-sensitive, or if an event currently in progress were filed under
+  // Past. This block seeds a dataset that straddles now and pins those.
+  //
+  // Its events live under their own org so the counts the header tests assert
+  // stay put, and every timestamp is relative to datetime('now') — absolute
+  // dates in a test about "has this ended yet" go stale on their own.
+  describe('upcoming / past split and sorting', () => {
+    const SPLIT_ORG = 300;
+
+    // Copied from routes/users.worker.ts, where both are now exported and the
+    // org route imports them. Duplicated here for the same reason the other
+    // queries in this file are: the route builds SQL against a D1 binding that
+    // only exists in the Worker runtime.
+    const UPCOMING_CONDITION = `(e.is_archived = 0 AND COALESCE(e.end_datetime, e.start_datetime) >= datetime('now'))`;
+    const PAST_EVENT_CONDITION = `(e.is_archived = 1 OR COALESCE(e.end_datetime, e.start_datetime) < datetime('now'))`;
+
+    const DATE_ORDER = `CASE WHEN ${UPCOMING_CONDITION} THEN 0 ELSE 1 END ASC,
+                        CASE WHEN ${UPCOMING_CONDITION} THEN e.start_datetime END ASC,
+                        e.start_datetime DESC`;
+    const ALPHA_ORDER = 'e.title COLLATE NOCASE ASC, e.id ASC';
+
+    const listSql = (orderBy: string, search = false) => `
+      SELECT e.id, e.title,
+             CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END AS is_past
+        FROM events e
+       WHERE e.host_organization_id = ?
+         AND e.is_archived = 0
+         ${search ? `AND e.title LIKE ? ESCAPE '\\'` : ''}
+       ORDER BY ${orderBy}`;
+
+    /** What the client does with the response: partition, preserving order. */
+    const sections = (rows: any[]) => ({
+      upcoming: rows.filter((r) => r.is_past === 0).map((r) => r.title),
+      past: rows.filter((r) => r.is_past === 1).map((r) => r.title),
+    });
+
+    beforeAll(() => {
+      db.exec(`INSERT INTO organizations (id, name) VALUES (${SPLIT_ORG}, 'Straddle Org')`);
+      db.exec(`INSERT INTO org_members (org_id, user_id, role) VALUES
+        (${SPLIT_ORG}, ${ADMIN}, 'admin')`);
+
+      db.exec(`INSERT INTO events
+        (id, source, source_event_id, title, start_datetime, end_datetime,
+         host_organization_id, is_archived, created_at)
+        VALUES
+        -- Two clearly upcoming, seeded out of both date and alphabetical order
+        -- so neither ordering can pass by accident.
+        (30,'test','e30','Zeta Kickoff',   datetime('now','+5 days'), datetime('now','+5 days','+2 hours'), ${SPLIT_ORG}, 0, datetime('now','-9 days')),
+        (31,'test','e31','apex Workshop',  datetime('now','+2 days'), datetime('now','+2 days','+2 hours'), ${SPLIT_ORG}, 0, datetime('now','-1 days')),
+        -- Two clearly past.
+        (32,'test','e32','Banquet',        datetime('now','-10 days'), datetime('now','-10 days','+2 hours'), ${SPLIT_ORG}, 0, datetime('now','-30 days')),
+        (33,'test','e33','Midterm Review', datetime('now','-2 days'),  datetime('now','-2 days','+2 hours'),  ${SPLIT_ORG}, 0, datetime('now','-20 days')),
+        -- Started an hour ago, ends in three. The case a naive
+        -- start_datetime < now would file under Past while it is happening.
+        (34,'test','e34','Ongoing Retreat', datetime('now','-1 hours'), datetime('now','+3 hours'), ${SPLIT_ORG}, 0, datetime('now','-4 days')),
+        -- Scraped event with no end time: falls back to start, so it is past.
+        (35,'test','e35','Null End Social', datetime('now','-3 days'), NULL, ${SPLIT_ORG}, 0, datetime('now','-15 days')),
+        -- Soft-deleted by the cleanup job, and still in the future.
+        (36,'test','e36','Archived Party',  datetime('now','+1 days'), datetime('now','+1 days','+2 hours'), ${SPLIT_ORG}, 1, datetime('now','-2 days'))`);
+    });
+
+    describe('which section a row lands in', () => {
+      it('files an event that has started but not ended under Upcoming', () => {
+        // The regression this exists for: "past" is about the END of an event.
+        const row = db
+          .prepare(listSql(DATE_ORDER))
+          .all(SPLIT_ORG)
+          .find((r: any) => r.id === 34);
+        expect(row.is_past).toBe(0);
+      });
+
+      it('files a NULL end_datetime by its start rather than treating it as never-ending', () => {
+        const row = db
+          .prepare(listSql(DATE_ORDER))
+          .all(SPLIT_ORG)
+          .find((r: any) => r.id === 35);
+        expect(row.is_past).toBe(1);
+      });
+
+      it('puts an archived event in NEITHER section', () => {
+        // PAST_EVENT_CONDITION would happily call it past, but the console's
+        // WHERE drops it first. A soft-deleted event must not resurface as
+        // history the org can still see.
+        const ids = db
+          .prepare(listSql(DATE_ORDER))
+          .all(SPLIT_ORG)
+          .map((r: any) => r.id);
+        expect(ids).not.toContain(36);
+      });
+
+      it('splits the list with nothing lost or double counted', () => {
+        const rows = db.prepare(listSql(DATE_ORDER)).all(SPLIT_ORG);
+        const { upcoming, past } = sections(rows);
+        expect(upcoming).toHaveLength(3);
+        expect(past).toHaveLength(3);
+        expect(upcoming.length + past.length).toBe(rows.length);
+      });
+    });
+
+    describe('date ordering', () => {
+      it('runs upcoming soonest-first, then past newest-first', () => {
+        const rows = db.prepare(listSql(DATE_ORDER)).all(SPLIT_ORG);
+        expect(rows.map((r: any) => r.title)).toEqual([
+          'Ongoing Retreat', // started an hour ago
+          'apex Workshop', // +2 days
+          'Zeta Kickoff', // +5 days
+          'Midterm Review', // -2 days
+          'Null End Social', // -3 days
+          'Banquet', // -10 days
+        ]);
+      });
+
+      it('does not simply sort every event by start_datetime ascending', () => {
+        // That is the shape this ordering is easiest to collapse into, and it
+        // would bury the next event out the door under a year of history.
+        const titles = db
+          .prepare(listSql(DATE_ORDER))
+          .all(SPLIT_ORG)
+          .map((r: any) => r.title);
+        const ascending = db
+          .prepare(
+            `SELECT e.title FROM events e
+              WHERE e.host_organization_id = ? AND e.is_archived = 0
+              ORDER BY e.start_datetime ASC`,
+          )
+          .all(SPLIT_ORG)
+          .map((r: any) => r.title);
+        expect(titles).not.toEqual(ascending);
+      });
+    });
+
+    describe('A-Z ordering', () => {
+      it('sorts by title, case-insensitively', () => {
+        const rows = db.prepare(listSql(ALPHA_ORDER)).all(SPLIT_ORG);
+        expect(rows.map((r: any) => r.title)).toEqual([
+          'apex Workshop',
+          'Banquet',
+          'Midterm Review',
+          'Null End Social',
+          'Ongoing Retreat',
+          'Zeta Kickoff',
+        ]);
+      });
+
+      it('would put lowercase last without COLLATE NOCASE', () => {
+        // SQLite's default BINARY compare orders every uppercase letter ahead
+        // of every lowercase one, so "apex" would sort after "Zeta" — the
+        // whole reason the collation is spelled out in the route.
+        const binary = db
+          .prepare(
+            `SELECT e.title FROM events e
+              WHERE e.host_organization_id = ? AND e.is_archived = 0
+              ORDER BY e.title ASC`,
+          )
+          .all(SPLIT_ORG)
+          .map((r: any) => r.title);
+        expect(binary[binary.length - 1]).toBe('apex Workshop');
+      });
+
+      it('ignores the upcoming/past split entirely', () => {
+        // A-Z is one flat ordering: the client still sections the result, so
+        // each section reads alphabetically without the endpoint pretending
+        // "alpha" means "alpha within upcoming, then within past".
+        const rows = db.prepare(listSql(ALPHA_ORDER)).all(SPLIT_ORG);
+        expect(rows.map((r: any) => r.is_past)).toEqual([0, 1, 1, 1, 0, 0]);
+
+        // And each section is still alphabetical once partitioned.
+        const { upcoming, past } = sections(rows);
+        expect(upcoming).toEqual(['apex Workshop', 'Ongoing Retreat', 'Zeta Kickoff']);
+        expect(past).toEqual(['Banquet', 'Midterm Review', 'Null End Social']);
+      });
+
+      it('is a different order from date, not an alias for it', () => {
+        const byDate = db
+          .prepare(listSql(DATE_ORDER))
+          .all(SPLIT_ORG)
+          .map((r: any) => r.title);
+        const byAlpha = db
+          .prepare(listSql(ALPHA_ORDER))
+          .all(SPLIT_ORG)
+          .map((r: any) => r.title);
+        expect(byAlpha).not.toEqual(byDate);
+      });
+    });
+
+    describe('filtering across both sections', () => {
+      it('leaves one section empty rather than dropping the filter', () => {
+        // "an" matches only past titles. The client renders no Upcoming header
+        // at all in this case — the assertion is that the empty side is empty,
+        // not that the search silently widened to keep it populated.
+        const { upcoming, past } = sections(
+          db.prepare(listSql(DATE_ORDER, true)).all(SPLIT_ORG, '%an%'),
+        );
+        expect(upcoming).toEqual([]);
+        expect(past).toEqual(['Banquet']);
+      });
+
+      it('can empty the past side instead', () => {
+        const { upcoming, past } = sections(
+          db.prepare(listSql(DATE_ORDER, true)).all(SPLIT_ORG, '%Kickoff%'),
+        );
+        expect(upcoming).toEqual(['Zeta Kickoff']);
+        expect(past).toEqual([]);
+      });
+
+      it('can empty both, which is the no-results state rather than two headers', () => {
+        const rows = db.prepare(listSql(DATE_ORDER, true)).all(SPLIT_ORG, '%nothing matches me%');
+        expect(rows).toEqual([]);
+      });
+
+      it('never lets another org’s events into either section', () => {
+        const ids = db
+          .prepare(listSql(DATE_ORDER))
+          .all(ORG)
+          .map((r: any) => r.id);
+        expect(ids).not.toContain(30);
+        expect(ids).not.toContain(32);
+      });
+    });
+  });
+
   describe('cascade behaviour', () => {
     it('drops membership rows when the org is deleted', () => {
       db.exec('PRAGMA foreign_keys = ON');
