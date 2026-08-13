@@ -12,6 +12,7 @@ import {
   type ScorableTag,
   type UserInterest,
 } from '../lib/scoring';
+import { blockedAuthorFilter } from '../lib/blocks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
 
@@ -91,6 +92,15 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
     `;
     params.push(userId);
   }
+
+  // Blocking (LOOP-180) hides a blocked user's events from the feed in BOTH
+  // directions. Applied to the candidate pool rather than after ranking, so a
+  // blocked author's event can't occupy a slot in a carousel and then be
+  // filtered out, leaving the row short. Scraped events (created_by_user_id
+  // NULL) belong to no user and are never hidden.
+  const blocked = blockedAuthorFilter(userId);
+  visibilitySql += blocked.sql;
+  params.push(...blocked.params);
 
   const rows = await db
     .prepare(

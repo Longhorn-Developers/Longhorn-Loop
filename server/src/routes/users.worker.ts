@@ -25,10 +25,18 @@ import { getSocialPlatform } from '../../../shared/socialPlatforms';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_TABS,
+  PUBLIC_PROFILE_TABS,
   bucketsForFilter,
   isProfileEventFilter,
   isProfileEventTab,
+  isPublicProfileTab,
 } from '../../../shared/profileEventFilters';
+import {
+  blockStatements,
+  blockedAuthorFilter,
+  blockedUserFilter,
+  isBlockedBetween,
+} from '../lib/blocks';
 import type { Env } from '../worker';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
@@ -58,23 +66,37 @@ function parseUniqueClassification(value: unknown): string[] {
  * orgs as well as people — reporting only user follows would show 0 for a
  * student who follows twenty orgs and nobody. Followers is users only,
  * because an org can't follow a person.
+ *
+ * Blocked relationships are excluded (LOOP-180), keyed on `userId`'s own
+ * blocks so the same numbers serve both the owner's profile and a visitor's
+ * view of it. Blocking already deletes the follow rows in both directions, so
+ * in a consistent database this filter subtracts nothing — it is here because
+ * a counter that silently re-counts a blocked person the moment some other
+ * code path re-creates a row is the kind of leak nobody would notice, and the
+ * cost is one NOT EXISTS against a two-column primary key.
  */
 async function getFollowCounts(
   db: D1Database,
   userId: number,
 ): Promise<{ follower_count: number; following_count: number }> {
+  const notBlockedFollower = blockedUserFilter(userId, 'f.follower_user_id');
   const followers = await db
-    .prepare('SELECT COUNT(*) AS c FROM user_follows WHERE followed_user_id = ?')
-    .bind(userId)
+    .prepare(
+      `SELECT COUNT(*) AS c FROM user_follows f
+        WHERE f.followed_user_id = ?${notBlockedFollower.sql}`,
+    )
+    .bind(userId, ...notBlockedFollower.params)
     .first();
 
+  const notBlockedFollowed = blockedUserFilter(userId, 'f.followed_user_id');
   const following = await db
     .prepare(
       `SELECT
-         (SELECT COUNT(*) FROM user_follows WHERE follower_user_id = ?1)
-       + (SELECT COUNT(*) FROM org_followers WHERE user_id = ?1) AS c`,
+         (SELECT COUNT(*) FROM user_follows f
+           WHERE f.follower_user_id = ?${notBlockedFollowed.sql})
+       + (SELECT COUNT(*) FROM org_followers WHERE user_id = ?) AS c`,
     )
-    .bind(userId)
+    .bind(userId, ...notBlockedFollowed.params, userId)
     .first();
 
   return {
@@ -558,6 +580,19 @@ userRoutes.get('/me/events', async (c) => {
     binds.push(...buckets);
   }
 
+  // Blocking (LOOP-180). Your OWN collections are filtered too, which is worth
+  // spelling out because it is the least obvious of the block's read paths:
+  // the Going and Saved tabs list events you already had a relationship with,
+  // so without this a person you blocked keeps appearing in your own profile
+  // via an event you saved before you blocked them. Mutual invisibility has to
+  // mean the screens you look at most, not only the ones that name them.
+  //
+  // The rows are not deleted on block — a saved_events or event_rsvps row is
+  // yours, and un-blocking should put the event back rather than having
+  // silently discarded it.
+  const blocked = blockedAuthorFilter(userId);
+  binds.push(...blocked.params);
+
   const orderBy =
     sort === 'recent' ? 'e.created_at DESC' : 'COALESCE(e.start_datetime, e.end_datetime) ASC';
 
@@ -575,6 +610,7 @@ userRoutes.get('/me/events', async (c) => {
        AND ${UPCOMING_CONDITION}
        ${searchClause}
        ${bucketClause}
+       ${blocked.sql}
      ORDER BY ${orderBy}
      LIMIT 100`,
   )
@@ -586,11 +622,13 @@ userRoutes.get('/me/events', async (c) => {
   const counts: Record<string, number> = {};
   for (const key of PROFILE_EVENT_TABS) {
     const t = MY_EVENT_TABS[key as MyEventTab];
+    // Same block filter as the list. A count that includes events the list
+    // below refuses to show reads as a bug — "Saved (3)" over two cards.
     const row = await c.env.DB.prepare(
       `SELECT COUNT(*) AS c FROM events e ${t.join}
-       WHERE ${t.where} AND ${UPCOMING_CONDITION}`,
+       WHERE ${t.where} AND ${UPCOMING_CONDITION} ${blocked.sql}`,
     )
-      .bind(userId)
+      .bind(userId, ...blocked.params)
       .first();
     counts[key] = (row?.c as number) ?? 0;
   }
@@ -624,6 +662,17 @@ userRoutes.post('/:userId/follow', async (c) => {
 
   const target = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(targetId).first();
   if (!target) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  // A block prevents re-following in BOTH directions (LOOP-180). Reported as
+  // 404 rather than 403 for the direction where the target blocked the caller:
+  // the caller cannot see that profile at all, so acknowledging that it exists
+  // and is refusing them would be the leak the block exists to prevent. The
+  // caller's own block is a 409 they can act on — unblock, then follow.
+  const block = await isBlockedBetween(c.env.DB, followerId, targetId);
+  if (block.iBlockedThem) {
+    return c.json({ error: 'BLOCKED', message: 'Unblock this person before following them.' }, 409);
+  }
+  if (block.theyBlockedMe) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   await c.env.DB.prepare(
     `INSERT INTO user_follows (follower_user_id, followed_user_id) VALUES (?, ?)
@@ -704,6 +753,12 @@ const PAST_GROUP_NAMES = Object.keys(PAST_GROUPS) as PastGroup[];
 async function fetchPastEvents(db: D1Database, userId: number, group: PastGroup, limit: number) {
   const { join, where } = PAST_GROUPS[group];
 
+  // Blocked authors are hidden here as well as on the live collections
+  // (LOOP-180). History is exactly where a partial block shows through: the
+  // Past view is the one screen that still holds events from before the block
+  // was placed.
+  const blocked = blockedAuthorFilter(userId);
+
   const { results } = await db
     .prepare(
       `SELECT e.*, o.profile_picture as org_profile_picture
@@ -712,10 +767,11 @@ async function fetchPastEvents(db: D1Database, userId: number, group: PastGroup,
        LEFT JOIN organizations o ON e.host_organization_id = o.id
        WHERE ${where}
          AND ${PAST_EVENT_CONDITION}
+         ${blocked.sql}
        ORDER BY COALESCE(e.end_datetime, e.start_datetime) DESC
        LIMIT ?`,
     )
-    .bind(userId, limit)
+    .bind(userId, ...blocked.params, limit)
     .all();
 
   return results;
@@ -951,4 +1007,223 @@ userRoutes.post('/me/delete/confirm', async (c) => {
   // resolves the caller through getUserId(), which now returns null — so the
   // token can no longer reach anything. The client drops it on success.
   return c.json({ deleted: true });
+});
+
+// ---------------------------------------------------------------------------
+// Public profiles — somebody else's profile (LOOP-180)
+// ---------------------------------------------------------------------------
+//
+// Figma: "Profile Main" frame, public user profile ("Not Todd Jenkins"),
+// reviewed 2026-06-08. The read-only counterpart to app/(tabs)/profile.tsx:
+// same header and card components, Follow + Block where Edit Profile was, and
+// an Upcoming / Past toggle where Going / Saved / Posted was.
+//
+// Registered at the bottom of the file so every literal /me/... route is
+// declared first. Hono matches in definition order (the same reason
+// orgs.worker.ts pins /mine and /search above /:orgId), and while none of the
+// paths below actually collide with a /me route today, "/:userId/..." declared
+// above them is one new /me/<something> away from swallowing it. As a
+// consequence GET /users/me/profile — which does not exist; the self profile
+// is GET /users/me — falls through to /:userId/profile and answers
+// INVALID_USER_ID rather than 404ing on an unrouted path.
+//
+// AUTH IS REQUIRED on all four. A profile names a person, carries their bio
+// and links out to their socials, and the same reasoning that auth-gates
+// GET /events/:id/attendees applies with more force here. It is also what
+// makes blocking enforceable: with no caller there is no pair to test.
+
+/** The subset of a user row a stranger may see. Notably not `email`. */
+const PUBLIC_USER_COLUMNS =
+  'id, first_name, last_name, avatar, bio, year_classification, unique_classification';
+
+// GET /users/:userId/profile
+//
+// Returns { user, is_following, is_self, blocked }. A block in EITHER
+// direction answers 404 USER_NOT_FOUND: mutual invisibility means the blocked
+// party must not be able to tell a block from a deleted account, and the
+// blocker should not have to look at a profile they blocked either.
+userRoutes.get('/:userId/profile', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+
+  const dbUser = await c.env.DB.prepare(`SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE id = ?`)
+    .bind(targetId)
+    .first();
+  if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const block = await isBlockedBetween(c.env.DB, viewerId, targetId);
+  if (block.blocked) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const [majors, tags, socials] = await Promise.all([
+    c.env.DB.prepare('SELECT major FROM user_majors WHERE user_id = ?').bind(targetId).all(),
+    c.env.DB.prepare('SELECT tag FROM user_tags WHERE user_id = ?').bind(targetId).all(),
+    c.env.DB.prepare(
+      'SELECT platform, url FROM user_socials WHERE user_id = ? ORDER BY created_at ASC, platform ASC',
+    )
+      .bind(targetId)
+      .all(),
+  ]);
+
+  const counts = await getFollowCounts(c.env.DB, targetId);
+
+  const following = await c.env.DB.prepare(
+    'SELECT 1 FROM user_follows WHERE follower_user_id = ? AND followed_user_id = ?',
+  )
+    .bind(viewerId, targetId)
+    .first();
+
+  return c.json({
+    user: {
+      ...dbUser,
+      unique_classification: parseUniqueClassification(dbUser.unique_classification),
+      majors: majors.results.map((r) => r.major),
+      tags: tags.results.map((r) => r.tag),
+      socials: socials.results,
+      ...counts,
+    },
+    is_following: !!following,
+    // The client redirects to the owner's own profile on this rather than
+    // rendering a Follow button pointed at yourself.
+    is_self: targetId === viewerId,
+    // Always false on a 200 — a real block 404s above. Present so the client
+    // has one field to read after an unblock refetch.
+    blocked: false,
+  });
+});
+
+// GET /users/:userId/profile/events?tab=upcoming|past
+//
+// The "Not Todd Events" grid. Returns { tab, events, counts }, counts covering
+// both tabs so the segmented toggle can label itself in one round trip.
+//
+// SCOPE: events this person POSTED. Not what they RSVP'd to or saved — those
+// are the Going and Saved collections on the owner's own profile, and a
+// visitor seeing them would turn a private bookmark into a public statement
+// about where somebody is going to be. See PublicProfileTab in
+// shared/profileEventFilters.ts.
+userRoutes.get('/:userId/profile/events', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+
+  const rawTab = c.req.query('tab') ?? 'upcoming';
+  if (!isPublicProfileTab(rawTab)) {
+    return c.json({ error: 'INVALID_TAB', valid: PUBLIC_PROFILE_TABS }, 400);
+  }
+
+  const target = await c.env.DB.prepare('SELECT 1 FROM users WHERE id = ?').bind(targetId).first();
+  if (!target) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  // Checked here as well as on the profile fetch. The two endpoints are
+  // independently reachable, and an events list that answers while the profile
+  // 404s is a complete bypass of the block.
+  const block = await isBlockedBetween(c.env.DB, viewerId, targetId);
+  if (block.blocked) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const condition = rawTab === 'past' ? PAST_EVENT_CONDITION : UPCOMING_CONDITION;
+  // Soonest-first for Upcoming, most-recent-first for Past: in both cases the
+  // event nearest to now is the one worth showing at the top.
+  const order = rawTab === 'past' ? 'DESC' : 'ASC';
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.*,
+            o.profile_picture AS org_profile_picture,
+            o.verified        AS org_verified
+       FROM events e
+       LEFT JOIN organizations o ON e.host_organization_id = o.id
+      WHERE e.created_by_user_id = ?
+        AND ${condition}
+      ORDER BY COALESCE(e.start_datetime, e.end_datetime) ${order}
+      LIMIT 100`,
+  )
+    .bind(targetId)
+    .all();
+
+  const countRow = await c.env.DB.prepare(
+    `SELECT
+       SUM(CASE WHEN ${UPCOMING_CONDITION} THEN 1 ELSE 0 END) AS upcoming,
+       SUM(CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END) AS past
+     FROM events e
+     WHERE e.created_by_user_id = ?`,
+  )
+    .bind(targetId)
+    .first();
+
+  return c.json({
+    tab: rawTab,
+    events: (results as Record<string, unknown>[]).map((e) => ({
+      ...e,
+      org_verified: Number(e.org_verified) === 1,
+    })),
+    counts: {
+      upcoming: Number(countRow?.upcoming ?? 0),
+      past: Number(countRow?.past ?? 0),
+    },
+  });
+});
+
+// POST /users/:userId/block -- the Block action on the Follow control.
+//
+// Idempotent, and destructive on purpose: it drops the follow relationship in
+// BOTH directions. See lib/blocks.ts for why the statements live there and why
+// they go through batch().
+userRoutes.post('/:userId/block', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const blockerId = await getUserId(c.env.DB, auth.email);
+  if (!blockerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+  if (targetId === blockerId) return c.json({ error: 'CANNOT_BLOCK_SELF' }, 400);
+
+  const target = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(targetId).first();
+  if (!target) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const statements = blockStatements(blockerId, targetId);
+  await c.env.DB.batch(statements.map((s) => c.env.DB.prepare(s.sql).bind(...s.binds)));
+
+  // following is reported as false because the block just made it so — the
+  // client's Follow button has to fall back to its unfollowed state even
+  // though nobody pressed it.
+  return c.json({ blocked: true, following: false });
+});
+
+// DELETE /users/:userId/block -- unblock. Idempotent.
+//
+// Does NOT restore the follows the block dropped. They were deleted, not
+// suspended, and silently re-following someone you blocked would be a
+// surprising thing for an unblock to do.
+userRoutes.delete('/:userId/block', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const blockerId = await getUserId(c.env.DB, auth.email);
+  if (!blockerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const targetId = parseInt(c.req.param('userId'), 10);
+  if (Number.isNaN(targetId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+
+  // Scoped to the caller's OWN block row. A DELETE that matched either column
+  // order would let the blocked party lift the block placed on them, which is
+  // the single worst bug this feature could have.
+  await c.env.DB.prepare(
+    'DELETE FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?',
+  )
+    .bind(blockerId, targetId)
+    .run();
+
+  return c.json({ blocked: false });
 });

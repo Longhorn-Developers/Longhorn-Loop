@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
+import { blockedAuthorFilter, blockedUserFilter, isBlockedBetween } from '../lib/blocks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
@@ -648,7 +649,8 @@ async function getCreatedEvent(
 }
 
 // Returns a SQL fragment + params that hide events the caller already
-// reported and any event over the global threshold.
+// reported, any event over the global threshold, and (LOOP-180) any event
+// posted by someone the caller has blocked or who has blocked the caller.
 function buildVisibilityFilter(userId: number | null): {
   sql: string;
   params: any[];
@@ -668,6 +670,11 @@ function buildVisibilityFilter(userId: number | null): {
     `;
     params.push(userId);
   }
+
+  const blocked = blockedAuthorFilter(userId);
+  sql += blocked.sql;
+  params.push(...blocked.params);
+
   return { sql, params };
 }
 
@@ -1282,6 +1289,17 @@ eventRoutes.get('/:id', async (c) => {
     if (reportedByMe) {
       return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
     }
+
+    // Blocking (LOOP-180). The list endpoints filter this in SQL; a single
+    // event is fetched by id with no WHERE to hang the filter off, so it is
+    // checked here instead. Without it a blocked author's event is one deep
+    // link away — from a notification, a share sheet, or the report screen —
+    // and the feed filter would be decoration.
+    const author = event.created_by_user_id as number | null;
+    if (author !== null) {
+      const block = await isBlockedBetween(c.env.DB, userId, author);
+      if (block.blocked) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+    }
   }
 
   const categories = await c.env.DB.prepare(
@@ -1407,16 +1425,25 @@ eventRoutes.get('/:id/attendees', async (c) => {
     return c.json({ error: 'INVALID_EVENT_ID' }, 400);
   }
 
+  const viewerId = await getUserId(c.env.DB, auth.email);
+
   const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
     .bind(eventId)
     .first();
   if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
 
+  // `count` is deliberately NOT block-filtered (LOOP-180). It is an aggregate
+  // about the event — "23 going" — not a disclosure about any particular
+  // person, and subtracting blocked attendees from it would tell the blocker
+  // exactly when a blocked person RSVP'd by making the number move. The FACES
+  // below are filtered, because those are the part that names someone.
   const totalRow = await c.env.DB.prepare(
     'SELECT COUNT(*) AS count FROM event_rsvps WHERE event_id = ?',
   )
     .bind(eventId)
     .first<{ count: number }>();
+
+  const notBlocked = blockedUserFilter(viewerId, 'r.user_id');
 
   // Newest RSVPs first, so the faces change as an event fills up rather than
   // freezing on whoever happened to RSVP first.
@@ -1425,10 +1452,11 @@ eventRoutes.get('/:id/attendees', async (c) => {
        FROM event_rsvps r
        JOIN users u ON u.id = r.user_id
       WHERE r.event_id = ?
+        ${notBlocked.sql}
       ORDER BY r.created_at DESC, u.id DESC
       LIMIT ?`,
   )
-    .bind(eventId, ATTENDEE_PREVIEW_LIMIT)
+    .bind(eventId, ...notBlocked.params, ATTENDEE_PREVIEW_LIMIT)
     .all();
 
   return c.json({

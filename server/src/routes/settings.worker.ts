@@ -129,6 +129,112 @@ settingsRoutes.patch('/', async (c) => {
   return c.json({ settings: shapeSettings(row as Record<string, unknown> | null) });
 });
 
+// ---------------------------------------------------------------------------
+// Followed-org notifications (LOOP-180, Figma Frame 471)
+// ---------------------------------------------------------------------------
+//
+// Three switches — Pause all followed orgs, New event posts, Event detail
+// changes — that apply across EVERY org the caller follows. Global, not
+// per-org: the signed-off frame shows three switches and no org list, so
+// inventing one would have been designing rather than building.
+//
+// Per-org muting is the obvious extension. The shape it would take is an
+// (org_id, user_id) table with these same three columns falling back to this
+// row, which is why the storage is its own table rather than three more
+// columns on user_settings — the fallback needs somewhere to live.
+//
+// Registered above nothing in particular: '/followed-orgs' is a literal and
+// settingsRoutes has no parameterised paths to shadow it.
+
+const FOLLOWED_ORG_SETTINGS = [
+  // Off by default: following an org is asking to hear from it.
+  ['paused', false],
+  ['new_event_posts', true],
+  ['event_detail_changes', true],
+] as const;
+
+type FollowedOrgSettingKey = (typeof FOLLOWED_ORG_SETTINGS)[number][0];
+
+function shapeFollowedOrgSettings(row: Record<string, unknown> | null) {
+  const out: Record<FollowedOrgSettingKey, boolean> = {} as Record<FollowedOrgSettingKey, boolean>;
+  for (const [key, fallback] of FOLLOWED_ORG_SETTINGS) {
+    out[key] = row ? Number(row[key]) === 1 : fallback;
+  }
+  return out;
+}
+
+// GET /settings/followed-orgs
+//
+// No row means nobody has touched the defaults; return them rather than
+// writing on a read, the same lazy-creation rule user_settings follows.
+settingsRoutes.get('/followed-orgs', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const row = await c.env.DB.prepare(
+    'SELECT * FROM followed_org_notification_settings WHERE user_id = ?',
+  )
+    .bind(userId)
+    .first();
+
+  return c.json({ settings: shapeFollowedOrgSettings(row as Record<string, unknown> | null) });
+});
+
+// PATCH /settings/followed-orgs -- partial update; returns the merged row.
+//
+// `paused` is stored alongside the other two rather than derived from them, so
+// that un-pausing restores whatever the user had picked instead of resetting
+// both switches to on. The client greys the other two while paused; nothing
+// here forces them off, because that would destroy that state.
+settingsRoutes.patch('/followed-orgs', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'INVALID_BODY' }, 400);
+  const patch = body as Record<string, unknown>;
+
+  const existing = await c.env.DB.prepare(
+    'SELECT * FROM followed_org_notification_settings WHERE user_id = ?',
+  )
+    .bind(userId)
+    .first();
+  const current = shapeFollowedOrgSettings(existing as Record<string, unknown> | null);
+
+  // Merge over the current values (or the defaults) so a PATCH of one switch
+  // can't silently reset the other two.
+  const merged: Record<string, number> = {};
+  for (const [key] of FOLLOWED_ORG_SETTINGS) {
+    const supplied = patch[key];
+    merged[key] = (typeof supplied === 'boolean' ? supplied : current[key]) ? 1 : 0;
+  }
+
+  const columns = FOLLOWED_ORG_SETTINGS.map(([k]) => k);
+
+  await c.env.DB.prepare(
+    `INSERT INTO followed_org_notification_settings (user_id, ${columns.join(', ')}, updated_at)
+     VALUES (?, ${columns.map(() => '?').join(', ')}, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET
+       ${columns.map((col) => `${col} = excluded.${col}`).join(', ')},
+       updated_at = datetime('now')`,
+  )
+    .bind(userId, ...columns.map((col) => merged[col]))
+    .run();
+
+  return c.json({
+    settings: Object.fromEntries(columns.map((key) => [key, merged[key] === 1])) as Record<
+      FollowedOrgSettingKey,
+      boolean
+    >,
+  });
+});
+
 // POST /settings/feedback -- the Settings feedback form and Report a Bug.
 //
 // Body: { message, kind?, context? }

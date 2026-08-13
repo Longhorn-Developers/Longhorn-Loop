@@ -46,6 +46,25 @@ CREATE TABLE IF NOT EXISTS user_follows (
 
 CREATE INDEX IF NOT EXISTS idx_user_follows_followed ON user_follows(followed_user_id);
 
+-- Blocks (LOOP-180). A block means MUTUAL invisibility: neither side sees the
+-- other's profile or events, and neither can follow the other. Blocking also
+-- deletes any existing follow in both directions, which the route does rather
+-- than a trigger, so the destructive part is visible in the handler.
+--
+-- The row is directional even though the effect is symmetric, so that A
+-- unblocking B cannot silently lift a block B placed on A.
+CREATE TABLE IF NOT EXISTS user_blocks (
+  blocker_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (blocker_user_id, blocked_user_id),
+  CHECK (blocker_user_id <> blocked_user_id)
+);
+
+-- The primary key answers "did I block them?"; every enforcement point also
+-- asks the mirror question, which leads on the blocked column.
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_user_id);
+
 -- User majors -- supports multiple majors per user
 CREATE TABLE IF NOT EXISTS user_majors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +110,10 @@ CREATE TABLE IF NOT EXISTS organizations (
   -- unanswered, which is every scraped row. Written only once a claim's code
   -- is confirmed, so an unverified stranger can't relabel a public org.
   category TEXT,
+  -- Org-framed bio shown on the public org profile (LOOP-180). Nullable, and
+  -- NULL on every row today: nothing writes it yet -- the org console has no
+  -- edit-profile screen -- so this is the read side only.
+  bio TEXT,
   source TEXT NOT NULL DEFAULT 'hornslink',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -264,6 +287,24 @@ CREATE TABLE IF NOT EXISTS org_notification_settings (
   event_reports     INTEGER NOT NULL DEFAULT 1,
   org_team_invites  INTEGER NOT NULL DEFAULT 1,
   updated_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Notification toggles for the orgs a user follows (LOOP-180, Figma Frame
+-- 471). GLOBAL, not per-org: one row per user, applying across every org they
+-- follow, because the frame shows three switches and no per-org list. Per-org
+-- muting is the obvious extension -- an (org_id, user_id) table with the same
+-- three columns, falling back to this row.
+--
+-- The mirror image of org_notification_settings above: that one is what an
+-- org's admins hear about their own org, this is what a follower hears about
+-- the orgs they follow. Created lazily; no row means all defaults.
+CREATE TABLE IF NOT EXISTS followed_org_notification_settings (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  -- Master switch. Off by default: following an org is asking to hear from it.
+  paused               INTEGER NOT NULL DEFAULT 0,
+  new_event_posts      INTEGER NOT NULL DEFAULT 1,
+  event_detail_changes INTEGER NOT NULL DEFAULT 1,
+  updated_at           TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Event categories -- many-to-many
