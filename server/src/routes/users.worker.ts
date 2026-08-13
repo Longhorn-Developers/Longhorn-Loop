@@ -8,6 +8,18 @@ import {
   validateSocialUrl,
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
+import {
+  DELETE_CODE_LENGTH,
+  DELETE_CODE_RESEND_COOLDOWN_MS,
+  DELETE_CODE_TTL_MS,
+  type DeletionCodeRecord,
+  ORG_SUCCESSION_QUERY,
+  type OrgAdminSuccession,
+  accountDeletionStatements,
+  checkDeletionCode,
+  deleteAccountCodeKey,
+  hashCode,
+} from '../lib/accountDeletion';
 import { MAX_BIO, normalizeBio } from '../../../shared/bio';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
 import {
@@ -727,4 +739,203 @@ userRoutes.get('/me/past-events', async (c) => {
   );
 
   return c.json({ created, attended, saved });
+});
+
+// ---------------------------------------------------------------------------
+// Delete Account (LOOP-131)
+// ---------------------------------------------------------------------------
+//
+// Two steps, because the delete is irreversible and a single authenticated
+// POST is one mis-tap (or one unlocked phone) away from destroying somebody's
+// account: /delete/request emails a code, /delete/confirm spends it and runs
+// the cascade.
+//
+// DEVIATION FROM THE TICKET, agreed with the product owner. The acceptance
+// criteria ask for a password field. This app has no passwords — the only
+// credential anyone has is an emailed verification code (see auth.worker.ts),
+// so "re-enter your password" is unimplementable as written. An emailed code
+// is the same control the criteria were reaching for: proof that the person
+// holding the session also holds the mailbox.
+//
+// The cascade itself lives in lib/accountDeletion.ts so the test suite can run
+// the shipped statements against a real database; see the header there.
+
+/**
+ * Deliberately its own sender rather than a call into auth.worker.ts's
+ * verification email: the copy has to say what is about to happen. A message
+ * that reads "your verification code" gives someone whose session was hijacked
+ * no reason to react, which is the one case this email exists to catch.
+ *
+ * Dev mode mirrors auth.worker.ts — log instead of sending, so the flow is
+ * testable before Resend has a verified sending domain.
+ */
+async function deliverDeletionCode(email: string, code: string, env: Env): Promise<void> {
+  if (env.RESEND_DEV_MODE === 'true') {
+    console.log(`[delete-account] code for ${email}: ${code}`);
+    return;
+  }
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'Longhorn Loop <onboarding@resend.dev>',
+      to: [email],
+      subject: 'Confirm deleting your Longhorn Loop account',
+      html: `
+        <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #BF5700;">Longhorn Loop</h2>
+          <p>Someone asked to permanently delete the account for ${email}. To confirm, enter this code in the app:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">
+            ${code}
+          </div>
+          <p style="color: #666; font-size: 14px;">This code expires in 10 minutes. <strong>If this wasn't you, do not enter it</strong> — your account is untouched until the code is used, but you should sign out on any device you don't recognize.</p>
+        </div>
+      `,
+    }),
+  });
+
+  if (!res.ok) {
+    console.error('Resend error (delete-account):', await res.text());
+    throw new Error('Failed to send deletion code');
+  }
+}
+
+// POST /users/me/delete/request -- email a confirmation code.
+//
+// Returns { sent: true, email }. 429 RESEND_TOO_SOON if one was sent within
+// the last minute, matching the cooldown on /auth/send-code.
+userRoutes.post('/me/delete/request', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const email = auth.email.trim().toLowerCase();
+  const key = deleteAccountCodeKey(email);
+
+  const existing = await c.env.DB.prepare(
+    'SELECT last_sent_at FROM verification_codes WHERE email = ?',
+  )
+    .bind(key)
+    .first();
+
+  if (existing && Date.now() - Number(existing.last_sent_at) < DELETE_CODE_RESEND_COOLDOWN_MS) {
+    return c.json(
+      {
+        error: 'RESEND_TOO_SOON',
+        message: 'We just sent a code. Check your email, then try again.',
+      },
+      429,
+    );
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+
+  await c.env.DB.prepare(
+    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, used_at, attempts, last_sent_at)
+     VALUES (?, ?, ?, 0, NULL, 0, ?)
+     ON CONFLICT(email) DO UPDATE SET
+       code_hash    = excluded.code_hash,
+       expires_at   = excluded.expires_at,
+       verified     = 0,
+       used_at      = NULL,
+       attempts     = 0,
+       last_sent_at = excluded.last_sent_at`,
+  )
+    .bind(key, await hashCode(code), Date.now() + DELETE_CODE_TTL_MS, Date.now())
+    .run();
+
+  try {
+    await deliverDeletionCode(email, code, c.env);
+  } catch {
+    // Roll the row back. The cooldown is keyed on last_sent_at, so leaving a
+    // row behind after a send that failed would lock the user out of retrying
+    // for a minute over an email they never received.
+    await c.env.DB.prepare('DELETE FROM verification_codes WHERE email = ?').bind(key).run();
+    return c.json(
+      { error: 'SEND_FAILED', message: 'We could not send that email. Try again.' },
+      502,
+    );
+  }
+
+  return c.json({ sent: true, email });
+});
+
+// POST /users/me/delete/confirm -- verify the code, then hard-delete.
+//
+// Body: { code }. Returns { deleted: true }. A wrong code deletes NOTHING and
+// burns an attempt; five wrong codes void the request entirely and the user
+// has to start over, which is what stops a stolen session from brute-forcing
+// six digits.
+userRoutes.post('/me/delete/confirm', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const body = await c.req.json().catch(() => null);
+  const code = body && typeof body.code === 'string' ? body.code.trim() : '';
+
+  const email = auth.email.trim().toLowerCase();
+  const key = deleteAccountCodeKey(email);
+
+  if (!new RegExp(`^\\d{${DELETE_CODE_LENGTH}}$`).test(code)) {
+    return c.json(
+      { error: 'INVALID_CODE', message: 'That code isn’t right. Check it and try again.' },
+      400,
+    );
+  }
+
+  const record: DeletionCodeRecord | null = await c.env.DB.prepare(
+    'SELECT code_hash, expires_at, attempts FROM verification_codes WHERE email = ?',
+  )
+    .bind(key)
+    .first();
+
+  const check = checkDeletionCode(record, await hashCode(code), Date.now());
+
+  if (!check.ok) {
+    if (check.voids) {
+      await c.env.DB.prepare('DELETE FROM verification_codes WHERE email = ?').bind(key).run();
+    }
+    if (check.countsAsAttempt) {
+      await c.env.DB.prepare(
+        'UPDATE verification_codes SET attempts = attempts + 1 WHERE email = ?',
+      )
+        .bind(key)
+        .run();
+    }
+    return c.json({ error: check.error, message: check.message }, check.status);
+  }
+
+  // Read membership BEFORE the cascade: once org_members is emptied there is
+  // no way to tell which orgs this user was the last admin of.
+  const { results } = await c.env.DB.prepare(ORG_SUCCESSION_QUERY)
+    .bind(userId, userId, userId)
+    .all();
+
+  const succession: OrgAdminSuccession[] = (results as Record<string, unknown>[]).map((row) => ({
+    orgId: Number(row.org_id),
+    otherAdmins: Number(row.other_admins),
+    successorUserId: row.successor_user_id === null ? null : Number(row.successor_user_id),
+  }));
+
+  const statements = accountDeletionStatements(userId, email, succession);
+
+  // batch() runs the whole cascade in one implicit transaction. A partial
+  // cascade is the failure that matters here: an orphaned user_settings row is
+  // harmless, but a deleted users row with live event_rsvps rows shows phantom
+  // attendees on somebody else's event forever.
+  await c.env.DB.batch(statements.map((s) => c.env.DB.prepare(s.sql).bind(...s.binds)));
+
+  // The JWT is stateless and stays valid until it expires, but every route
+  // resolves the caller through getUserId(), which now returns null — so the
+  // token can no longer reach anything. The client drops it on success.
+  return c.json({ deleted: true });
 });

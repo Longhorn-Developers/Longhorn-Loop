@@ -1,0 +1,18 @@
+-- Migration 0013: organization category (LOOP-141)
+--
+-- Backs "What best describes this organization?" on the registration form.
+--
+-- Why a column on `organizations` rather than the existing `categories` table:
+-- `categories` is a HornsLink category-id lookup (id TEXT, e.g. a scraped
+-- category key) joined to EVENTS through event_categories. Reusing it for an
+-- org descriptor would mean inventing ids in someone else's key space AND
+-- adding an org_categories join table to hold a value that is one-per-org by
+-- definition. A nullable column is the smallest change that keeps the user's
+-- answer, and the five allowed values live in shared/orgRegistration.ts so
+-- both the form and the Worker validate against the same list.
+--
+-- No CHECK constraint on purpose: the option list is product copy that will
+-- change, and widening a CHECK in SQLite means rebuilding the table.
+--
+-- NULL means unanswered, which is every row scraped before this shipped.
+ALTER TABLE organizations ADD COLUMN category TEXT;

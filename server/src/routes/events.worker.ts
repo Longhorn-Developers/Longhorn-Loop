@@ -110,6 +110,19 @@ function readStringField(body: CreateEventBody, keys: string[]): string | null {
   return null;
 }
 
+/**
+ * Whether the caller actually mentioned a field.
+ *
+ * PATCH needs this and POST does not: readStringField answers "is there a
+ * usable value here", which collapses "absent" and "present but empty" into
+ * the same null. A partial update has to tell those apart — omitting
+ * `description` must leave the column alone, while sending `description: ""`
+ * is a deliberate clear.
+ */
+function hasField(body: CreateEventBody, keys: string[]): boolean {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(body, key));
+}
+
 function readIntegerField(body: CreateEventBody, keys: string[]): number | null {
   for (const key of keys) {
     const value = body[key];
@@ -845,6 +858,296 @@ eventRoutes.post('/create', async (c) => {
 
   const event = await getCreatedEvent(c.env.DB, eventId);
   return c.json({ event }, 201);
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /events/:id -- edit an existing event (LOOP-136).
+// ---------------------------------------------------------------------------
+//
+// Backs the pencil affordance on the Events tab of the Org Management console.
+// Scope is the core fields the product owner signed off on: title, description,
+// start/end datetime, location, and category/interest tags. Image replacement
+// and recurrence are deliberately NOT here — see the header comment on
+// app/components/org/EditEventOverlay.tsx for why.
+//
+// Partial by contract: a key the caller omits is never written. That is what
+// makes this safe to call from an overlay that only knows about six fields —
+// it cannot clobber image_url, rsvp_url, the denormalized counters, or any
+// other column it has never heard of.
+//
+// Validation reuses the POST /events/create helpers rather than restating the
+// rules. A second validator would drift, and the first thing to drift would be
+// a length cap that the create form enforces and the edit form doesn't.
+//
+// Body (all optional; camelCase aliases accepted, same as create):
+//   title            string, 1..80
+//   description      string|null, <=500  (null / "" clears it)
+//   start_datetime   ISO 8601 with timezone
+//   end_datetime     ISO 8601 with timezone, or null to pin it to the start
+//   location         string, <=200  (also location_full / location_short)
+//   categories       string[] | {id,name}[], <=20   (also interestTags)
+//   discovery_bucket taxonomy bucket id; rewrites event_tags when sent
+//                    alongside categories
+//
+// Responses:
+//   200 { event }                        the updated row, shaped like create's
+//   400 { error: 'INVALID_EVENT_ID' }
+//   400 { error: 'INVALID_BODY' }
+//   400 { error: 'VALIDATION_ERROR', fields: {...} }
+//   401 { error: 'UNAUTHORIZED' | 'USER_NOT_FOUND' }
+//   403 { error: 'FORBIDDEN' }
+//   404 { error: 'EVENT_NOT_FOUND' }
+
+/** Every request key that means "the caller is changing where this happens". */
+const LOCATION_KEYS = [
+  'location',
+  'location_full',
+  'locationFull',
+  'location_short',
+  'locationShort',
+];
+
+const START_KEYS = ['start_datetime', 'startDatetime', 'datetime'];
+const END_KEYS = ['end_datetime', 'endDatetime'];
+const CATEGORY_KEYS = ['categories', 'interestTags', 'interest_tags'];
+
+/**
+ * May `userId` edit this event?
+ *
+ * Two independent grants, matching how events get into the system:
+ *   - the creator of a user-created event owns it outright;
+ *   - admins AND editors of the hosting org can manage that org's events —
+ *     schema.sql is explicit that an editor "can post/manage events, cannot
+ *     manage people", so this is deliberately looser than the admin-only gate
+ *     on the Members tab.
+ *
+ * Membership is org-scoped: being an editor of one org grants nothing over
+ * another org's events. That falls out of the org_id in the WHERE clause and
+ * is the case the tests pin hardest.
+ */
+async function canEditEvent(
+  db: D1Database,
+  event: { host_organization_id: number | null; created_by_user_id: number | null },
+  userId: number,
+): Promise<boolean> {
+  if (event.created_by_user_id !== null && event.created_by_user_id === userId) return true;
+  if (event.host_organization_id === null) return false;
+
+  const row = await db
+    .prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
+    .bind(event.host_organization_id, userId)
+    .first();
+
+  return row?.role === 'admin' || row?.role === 'editor';
+}
+
+eventRoutes.patch('/:id', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const user = await getUserByEmail(c.env.DB, auth.email);
+  if (!user) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'), 10);
+  if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id, start_datetime, end_datetime, host_organization_id, created_by_user_id
+       FROM events WHERE id = ?`,
+  )
+    .bind(eventId)
+    .first();
+  if (!existing) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  // Re-checked here on every call. The console hides the pencil for anyone who
+  // can't edit, but that is presentation: this is the check that counts.
+  const allowed = await canEditEvent(
+    c.env.DB,
+    {
+      host_organization_id: (existing.host_organization_id as number | null) ?? null,
+      created_by_user_id: (existing.created_by_user_id as number | null) ?? null,
+    },
+    user.id,
+  );
+  if (!allowed) return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const parsed = await c.req.json().catch(() => null);
+  if (!isRecord(parsed)) return c.json({ error: 'INVALID_BODY' }, 400);
+  const body = parsed as CreateEventBody;
+
+  const errors: ValidationErrors = {};
+  // Column name -> new value. Only what the caller actually sent lands here,
+  // and the keys are literals from this file, never strings off the request.
+  const updates: Record<string, unknown> = {};
+
+  if (hasField(body, ['title'])) {
+    const title = parseRequiredString(body, ['title'], 'title', MAX_TITLE_LENGTH, errors);
+    // Required-if-present: an event with a blank title is unusable in every
+    // list that renders it, so clearing the title is rejected rather than
+    // treated as a clear.
+    if (title) updates.title = title;
+  }
+
+  if (hasField(body, ['description'])) {
+    updates.description = parseOptionalString(
+      body,
+      ['description'],
+      'description',
+      MAX_DESCRIPTION_LENGTH,
+      errors,
+    );
+  }
+
+  // Datetimes are validated against each other, not just individually, so the
+  // effective pair is resolved first: whatever was sent, falling back to what
+  // is already stored. An event whose end_datetime is NULL reads as
+  // instantaneous, matching the COALESCE the feed queries use.
+  const patchesStart = hasField(body, START_KEYS);
+  const patchesEnd = hasField(body, END_KEYS);
+  let effectiveStart = existing.start_datetime as string;
+  let effectiveEnd = (existing.end_datetime as string | null) ?? effectiveStart;
+
+  if (patchesStart) {
+    const next = parseIsoDatetime(
+      readStringField(body, START_KEYS),
+      'start_datetime',
+      true,
+      errors,
+    );
+    if (next) {
+      effectiveStart = next;
+      updates.start_datetime = next;
+    }
+  }
+
+  if (patchesEnd) {
+    const raw = readStringField(body, END_KEYS);
+    // An explicitly emptied end means "single instant", which the create path
+    // spells as end = start. Storing that rather than NULL keeps the two paths
+    // producing the same row for the same user intent.
+    const next =
+      raw === null ? effectiveStart : parseIsoDatetime(raw, 'end_datetime', false, errors);
+    if (next) {
+      effectiveEnd = next;
+      updates.end_datetime = next;
+    }
+  }
+
+  if (new Date(effectiveEnd).getTime() < new Date(effectiveStart).getTime()) {
+    errors.end_datetime = 'Must be on or after start_datetime';
+  }
+
+  // expires_at is derived, so moving either endpoint has to move it too or the
+  // cleanup job (LOOP-150) purges a rescheduled event on its old schedule.
+  if (patchesStart || patchesEnd) {
+    updates.expires_at = computeExpiresAt(effectiveEnd, effectiveStart);
+  }
+
+  if (hasField(body, LOCATION_KEYS)) {
+    const locationObject = isRecord(body.location) ? body.location : null;
+    const locationFull =
+      parseOptionalString(
+        body,
+        ['location_full', 'locationFull'],
+        'location_full',
+        MAX_LOCATION_LENGTH,
+        errors,
+      ) ??
+      parseOptionalString(
+        locationObject ?? {},
+        ['full', 'full_name', 'fullName', 'name'],
+        'location_full',
+        MAX_LOCATION_LENGTH,
+        errors,
+      ) ??
+      parseOptionalString(body, ['location'], 'location', MAX_LOCATION_LENGTH, errors);
+    // Both columns move together. location_short is a display truncation of
+    // location_full, so leaving the old one behind would show the previous
+    // room next to the new address.
+    updates.location_full = locationFull;
+    updates.location_short =
+      parseOptionalString(
+        body,
+        ['location_short', 'locationShort'],
+        'location_short',
+        40,
+        errors,
+      ) ??
+      parseOptionalString(
+        locationObject ?? {},
+        ['short', 'short_name', 'shortName'],
+        'location_short',
+        40,
+        errors,
+      ) ??
+      truncateLocation(locationFull);
+  }
+
+  const patchesCategories = hasField(body, CATEGORY_KEYS);
+  const categories = patchesCategories ? normalizeCategories(body, errors) : [];
+
+  const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
+  if (discoveryBucket) {
+    // theme is a pure function of the bucket on the create path; recomputing it
+    // here keeps a re-bucketed event from keeping its old theme forever.
+    const theme = THEME_BY_DISCOVERY_BUCKET[discoveryBucket];
+    if (theme) updates.theme = theme;
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return c.json({ error: 'VALIDATION_ERROR', fields: errors }, 400);
+  }
+
+  const columns = Object.keys(updates);
+  if (columns.length > 0) {
+    await c.env.DB.prepare(
+      `UPDATE events
+          SET ${columns.map((column) => `${column} = ?`).join(', ')},
+              updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+      .bind(...columns.map((column) => updates[column]), eventId)
+      .run();
+  }
+
+  // Categories are a set, not a column, so "edit" is replace-all. Skipped
+  // entirely when the caller didn't mention them, which is the whole point of
+  // a partial patch.
+  if (patchesCategories) {
+    await c.env.DB.prepare('DELETE FROM event_categories WHERE event_id = ?').bind(eventId).run();
+    for (const category of categories) {
+      await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO event_categories (event_id, category_id, category_name)
+         VALUES (?, ?, ?)`,
+      )
+        .bind(eventId, category.id, category.name)
+        .run();
+    }
+  }
+
+  // event_tags drives feed ranking and is rewritten only when the caller sent
+  // BOTH a bucket and a tag list — i.e. actually edited the tag picker. Sending
+  // one alone would otherwise wipe the classifier's semantic tags on a scraped
+  // event as a side effect of, say, fixing a typo in the title.
+  if (patchesCategories && discoveryBucket && BUCKET_ID_SET.has(discoveryBucket)) {
+    const bucketTags = new Set(TAXONOMY_BUCKETS.find((b) => b.id === discoveryBucket)?.tags ?? []);
+    const { writeEventTags } = await import('../lib/classifier');
+    await writeEventTags(
+      c.env.DB,
+      eventId,
+      categories
+        .filter((cat) => cat.name && bucketTags.has(cat.name))
+        .map((cat) => ({
+          bucketId: discoveryBucket,
+          tag: cat.name as string,
+          source: 'user' as const,
+          score: 1,
+        })),
+    );
+  }
+
+  const event = await getCreatedEvent(c.env.DB, eventId);
+  return c.json({ event });
 });
 
 // GET /events -- list upcoming events with optional filters

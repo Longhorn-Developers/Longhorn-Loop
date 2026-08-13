@@ -296,6 +296,72 @@ describeOrSkip('org console SQL (LOOP-183)', () => {
     });
   });
 
+  // The Events tab list (LOOP-136). The interesting failure is the same one
+  // the analytics series has — a WHERE that lets another org's events through
+  // — plus the archived filter, which is easy to forget because a soft-deleted
+  // event still looks like a perfectly good row.
+  describe('events tab listing', () => {
+    const listSql = (search: boolean) => `
+      SELECT e.id, e.title
+        FROM events e
+       WHERE e.host_organization_id = ?
+         AND e.is_archived = 0
+         ${
+           search
+             ? `AND (e.title LIKE ? ESCAPE '\\'
+                     OR e.description LIKE ? ESCAPE '\\'
+                     OR e.location_full LIKE ? ESCAPE '\\')`
+             : ''
+         }
+       ORDER BY e.start_datetime ASC`;
+
+    it('lists only the caller org’s events', () => {
+      const rows = db.prepare(listSql(false)).all(ORG);
+      expect(rows.map((r: any) => r.id)).toEqual([10, 11]);
+    });
+
+    it('hides soft-deleted events', () => {
+      db.exec('UPDATE events SET is_archived = 1 WHERE id = 11');
+      expect(
+        db
+          .prepare(listSql(false))
+          .all(ORG)
+          .map((r: any) => r.id),
+      ).toEqual([10]);
+      db.exec('UPDATE events SET is_archived = 0 WHERE id = 11');
+    });
+
+    it('searches title, description and location together', () => {
+      const rows = db.prepare(listSql(true)).all(ORG, '%Hack%', '%Hack%', '%Hack%');
+      expect(rows.map((r: any) => r.title)).toEqual(['Hack Night']);
+    });
+
+    it('treats a literal % as text rather than a wildcard', () => {
+      // The route escapes \ % _ before interpolating. Without that, searching
+      // "%" would return every event the org has ever posted.
+      const rows = db.prepare(listSql(true)).all(ORG, '%\\%%', '%\\%%', '%\\%%');
+      expect(rows).toEqual([]);
+    });
+
+    it('picks the bucket holding the most of an event’s tags', () => {
+      db.exec(`INSERT INTO event_tags (event_id, bucket_id, tag) VALUES
+        (10, 'tech', 'Hackathons'), (10, 'tech', 'Coding'), (10, 'social', 'Mixers')`);
+
+      const bucket = db
+        .prepare(
+          `SELECT t.bucket_id FROM event_tags t
+            WHERE t.event_id = ?
+            GROUP BY t.bucket_id
+            ORDER BY COUNT(*) DESC, t.bucket_id ASC
+            LIMIT 1`,
+        )
+        .get(10).bucket_id;
+      expect(bucket).toBe('tech');
+
+      db.exec('DELETE FROM event_tags WHERE event_id = 10');
+    });
+  });
+
   describe('cascade behaviour', () => {
     it('drops membership rows when the org is deleted', () => {
       db.exec('PRAGMA foreign_keys = ON');
