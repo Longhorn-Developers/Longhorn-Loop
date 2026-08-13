@@ -72,12 +72,20 @@ function ThemedStack() {
         <Stack.Screen name="org/[id]/notifications" />
         <Stack.Screen name="org/register" />
 
+        {/* Public profiles — somebody else's, and an org's (LOOP-180). The
+            org one is a sibling of the console above, not a tab inside it:
+            different audience, different endpoints. */}
+        <Stack.Screen name="user/[id]" />
+        <Stack.Screen name="org/[id]/profile" />
+
         {/* Settings */}
         <Stack.Screen name="settings/index" />
         <Stack.Screen name="settings/preferences" />
         <Stack.Screen name="settings/feedback" />
         {/* Delete Account code confirmation (LOOP-131). */}
         <Stack.Screen name="settings/delete-account" />
+        {/* Followed-org notification toggles (LOOP-180, Frame 471). */}
+        <Stack.Screen name="settings/followed-orgs" />
 
         {/* Event detail + nested screens */}
         <Stack.Screen name="event/[id]/index" />

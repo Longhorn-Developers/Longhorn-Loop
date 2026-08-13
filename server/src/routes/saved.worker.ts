@@ -1,5 +1,6 @@
 // Saved-events (bookmark) routes for Cloudflare Worker
 import { Hono } from 'hono';
+import { blockedAuthorFilter } from '../lib/blocks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
 
@@ -13,15 +14,23 @@ savedRoutes.get('/', async (c) => {
   const userId = await getUserId(c.env.DB, authUser.email);
   if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
+  // Blocking (LOOP-180). An event saved before the block was placed is still
+  // in this table afterwards, so without the filter the bookmark list is a way
+  // back to a blocked person's event. The saved_events ROW is deliberately
+  // left alone — it's the caller's own bookmark, and un-blocking should
+  // restore the event rather than reveal that it was thrown away.
+  const blocked = blockedAuthorFilter(userId);
+
   const { results } = await c.env.DB.prepare(
     `SELECT e.*, o.profile_picture as org_profile_picture
      FROM saved_events s
      JOIN events e ON e.id = s.event_id
      LEFT JOIN organizations o ON e.host_organization_id = o.id
      WHERE s.user_id = ?
+     ${blocked.sql}
      ORDER BY e.start_datetime ASC`,
   )
-    .bind(userId)
+    .bind(userId, ...blocked.params)
     .all();
 
   return c.json({ events: results });

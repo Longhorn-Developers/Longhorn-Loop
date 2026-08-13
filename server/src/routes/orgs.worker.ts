@@ -20,9 +20,15 @@ import { Hono } from 'hono';
 import {
   bucketsForFilter,
   isProfileEventFilter,
+  isPublicProfileTab,
   PROFILE_EVENT_FILTERS,
+  PUBLIC_PROFILE_TABS,
 } from '../../../shared/profileEventFilters';
 import { getAuthUser, getUserId } from '../lib/utils';
+// "Has this event ended?" is answered in exactly one place in the codebase.
+// These are SQL fragments assuming the events table is aliased `e`; they were
+// module-private until LOOP-240 needed the same answer over here.
+import { PAST_EVENT_CONDITION, UPCOMING_CONDITION } from './users.worker';
 import type { Env } from '../worker';
 import {
   ORG_SEARCH_LIMIT,
@@ -715,13 +721,19 @@ orgRoutes.post('/:orgId/leave', async (c) => {
   return c.json({ left: true });
 });
 
-// GET /orgs/:orgId/events -- Events tab (LOOP-136).
+// GET /orgs/:orgId/events -- Events tab (LOOP-136, list completed in LOOP-240).
 //
 // Query params mirror the profile's My Events section so the two chip rows
 // behave identically and share shared/profileEventFilters.ts:
 //   q      free-text over title / description / location
 //   filter all | general | academic | social
-//   sort   date | recent   (default date)
+//   sort   date | alpha    (default date)
+//
+// `alpha` replaced an earlier `recent` (created_at DESC) in LOOP-240: the
+// signed-off Figma frame toggles Date <-> A-Z, and a console with a search
+// field is a place you go looking for one named event. Newest-posted-first was
+// never in the design. The client's label moved in the same change; the two
+// only make sense together.
 //
 // Unlike the profile grid this does NOT hide past events. A console exists to
 // fix things, and the event most likely to need fixing is the one that just
@@ -729,8 +741,16 @@ orgRoutes.post('/:orgId/leave', async (c) => {
 // fall below in reverse-chronological order, so the top of the list is always
 // the next thing out the door.
 //
+// Each row carries is_past so the client can split the list into Upcoming and
+// Past sections (LOOP-132) without re-deriving "has this ended" in JavaScript
+// — the fallback for a NULL end_datetime is the sort of detail that would
+// drift the moment it existed twice. It is computed from PAST_EVENT_CONDITION,
+// the same predicate the profile's history screen uses.
+//
 // Archived events stay hidden: is_archived is the cleanup job's soft delete
-// (LOOP-150), not something a manager can act on.
+// (LOOP-150), not something a manager can act on. That means is_past reduces
+// to "has ended" here, and an archived event lands in NEITHER section rather
+// than silently falling into Past.
 orgRoutes.get('/:orgId/events', async (c) => {
   const member = await resolveMembership(c);
   if (!member.ok) return c.json({ error: member.error }, member.status);
@@ -740,7 +760,7 @@ orgRoutes.get('/:orgId/events', async (c) => {
     return c.json({ error: 'INVALID_FILTER', valid: PROFILE_EVENT_FILTERS }, 400);
   }
 
-  const sort = c.req.query('sort') === 'recent' ? 'recent' : 'date';
+  const sort = c.req.query('sort') === 'alpha' ? 'alpha' : 'date';
   const search = (c.req.query('q') ?? '').trim();
 
   const binds: unknown[] = [member.orgId];
@@ -767,17 +787,26 @@ orgRoutes.get('/:orgId/events', async (c) => {
     binds.push(...buckets);
   }
 
+  // A-Z is a flat ordering on purpose: the client still splits the result into
+  // Upcoming and Past, so each section reads alphabetically. Sorting upcoming
+  // ahead of past here as well would be invisible in the UI and would make the
+  // raw endpoint lie about what "alpha" means.
+  //
+  // COLLATE NOCASE so "apex" doesn't land after "Zeta" — SQLite's default
+  // BINARY compare puts every uppercase letter before every lowercase one. The
+  // id tiebreak keeps duplicate titles in a stable order across requests.
   const orderBy =
-    sort === 'recent'
-      ? 'e.created_at DESC, e.id DESC'
-      : `CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN 0 ELSE 1 END ASC,
-         CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN e.start_datetime END ASC,
+    sort === 'alpha'
+      ? 'e.title COLLATE NOCASE ASC, e.id ASC'
+      : `CASE WHEN ${UPCOMING_CONDITION} THEN 0 ELSE 1 END ASC,
+         CASE WHEN ${UPCOMING_CONDITION} THEN e.start_datetime END ASC,
          e.start_datetime DESC`;
 
   const { results } = await c.env.DB.prepare(
     `SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
             e.location_short, e.location_full, e.image_url, e.theme,
             e.view_count, e.rsvp_count, e.save_count,
+            CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END AS is_past,
             -- The bucket the edit overlay's tag picker should open on. A
             -- user-created event has exactly one; a scraped one may carry
             -- several from the classifier, so the bucket holding the most of
@@ -810,7 +839,13 @@ orgRoutes.get('/:orgId/events', async (c) => {
     )
       .bind(event.id)
       .all();
-    events.push({ ...event, tags: (tags as { tag: string }[]).map((t) => t.tag) });
+    events.push({
+      ...event,
+      // SQLite has no boolean, and the client branches on this to pick a
+      // section — send a real boolean rather than a 0/1 that reads as truthy.
+      is_past: Number(event.is_past) === 1,
+      tags: (tags as { tag: string }[]).map((t) => t.tag),
+    });
   }
 
   return c.json({
@@ -962,4 +997,208 @@ orgRoutes.patch('/:orgId/notification-settings', async (c) => {
   return c.json({
     settings: Object.fromEntries(keys.map((key, i) => [key, merged[i] === 1])),
   });
+});
+
+// ---------------------------------------------------------------------------
+// Public org profile (LOOP-180)
+// ---------------------------------------------------------------------------
+//
+// Figma: "Profile Main" frame, Org account profile, reviewed 2026-06-08.
+//
+// NOT the console. Everything above this line is the management surface and
+// goes through resolveMembership(), which 403s a non-member — which is every
+// single person this section exists for. The two screens share an org and a
+// follower count and nothing else: one is "run this org", this is "look at
+// this org". Reusing GET /orgs/:orgId by relaxing its membership check would
+// have leaked the console's analytics totals to the public.
+//
+// Auth is still required, for symmetry with the public USER profile (which
+// needs a caller to enforce blocking) and so `is_following` has a subject.
+// Nothing here is user-to-user, so no block filter applies: blocks are between
+// people, and an org is not a person. Events an org hosts stay visible even if
+// a blocked person happens to have posted them, because on an org profile the
+// org is the author — see the commit message.
+//
+// Declared at the very bottom, below /mine, /search and /register/*, for the
+// route-ordering reason those carry in their own comments.
+
+// GET /orgs/:orgId/profile -- header for the public org page.
+orgRoutes.get('/:orgId/profile', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const orgId = parseInt(c.req.param('orgId'), 10);
+  if (Number.isNaN(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  const org = await c.env.DB.prepare(
+    `SELECT id, name, slug, profile_picture, verified, category, bio
+       FROM organizations WHERE id = ?`,
+  )
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  const followers = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS c FROM org_followers WHERE org_id = ?',
+  )
+    .bind(orgId)
+    .first();
+
+  const following = await c.env.DB.prepare('SELECT COUNT(*) AS c FROM org_follows WHERE org_id = ?')
+    .bind(orgId)
+    .first();
+
+  const isFollowing = await c.env.DB.prepare(
+    'SELECT 1 FROM org_followers WHERE org_id = ? AND user_id = ?',
+  )
+    .bind(orgId, viewerId)
+    .first();
+
+  // Members get a "Manage" affordance instead of being sent round to Settings
+  // to find the console. Deliberately not a permission — the console re-checks
+  // membership on every one of its own endpoints.
+  const membership = await c.env.DB.prepare(
+    'SELECT role FROM org_members WHERE org_id = ? AND user_id = ?',
+  )
+    .bind(orgId, viewerId)
+    .first();
+
+  return c.json({
+    org: {
+      ...org,
+      verified: Number(org.verified) === 1,
+      follower_count: (followers?.c as number) ?? 0,
+      following_count: (following?.c as number) ?? 0,
+    },
+    is_following: !!isFollowing,
+    is_member: !!membership,
+    role: (membership?.role as string) ?? null,
+  });
+});
+
+// GET /orgs/:orgId/profile/events?tab=upcoming|past
+//
+// The "Organization account" grid. Same shape as the public USER profile's
+// events endpoint so one client component renders both.
+//
+// Distinct from GET /orgs/:orgId/events, which is the console's list: that one
+// is member-gated, returns engagement counters and the tag selection an edit
+// overlay needs, and deliberately shows past events inline rather than behind
+// a toggle. This returns only what a poster tile draws.
+//
+// Archived events are excluded from BOTH tabs. is_archived is the cleanup
+// job's soft delete (LOOP-150), not history — the same call orgs' console
+// events list makes. Note this differs from the user profile grid, which
+// reuses PAST_EVENT_CONDITION as-is and therefore does surface archived events
+// under Past; that predicate is LOOP-200's definition of a user's own history
+// and is not this ticket's to redefine.
+orgRoutes.get('/:orgId/profile/events', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const orgId = parseInt(c.req.param('orgId'), 10);
+  if (Number.isNaN(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  const rawTab = c.req.query('tab') ?? 'upcoming';
+  if (!isPublicProfileTab(rawTab)) {
+    return c.json({ error: 'INVALID_TAB', valid: PUBLIC_PROFILE_TABS }, 400);
+  }
+
+  const org = await c.env.DB.prepare('SELECT 1 FROM organizations WHERE id = ?')
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  const condition = rawTab === 'past' ? PAST_EVENT_CONDITION : UPCOMING_CONDITION;
+  const order = rawTab === 'past' ? 'DESC' : 'ASC';
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.*,
+            o.profile_picture AS org_profile_picture,
+            o.verified        AS org_verified
+       FROM events e
+       LEFT JOIN organizations o ON e.host_organization_id = o.id
+      WHERE e.host_organization_id = ?
+        AND e.is_archived = 0
+        AND ${condition}
+      ORDER BY COALESCE(e.start_datetime, e.end_datetime) ${order}
+      LIMIT 100`,
+  )
+    .bind(orgId)
+    .all();
+
+  const countRow = await c.env.DB.prepare(
+    `SELECT
+       SUM(CASE WHEN ${UPCOMING_CONDITION} THEN 1 ELSE 0 END) AS upcoming,
+       SUM(CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END) AS past
+     FROM events e
+     WHERE e.host_organization_id = ? AND e.is_archived = 0`,
+  )
+    .bind(orgId)
+    .first();
+
+  return c.json({
+    tab: rawTab,
+    events: (results as Record<string, unknown>[]).map((e) => ({
+      ...e,
+      org_verified: Number(e.org_verified) === 1,
+    })),
+    counts: {
+      upcoming: Number(countRow?.upcoming ?? 0),
+      past: Number(countRow?.past ?? 0),
+    },
+  });
+});
+
+// POST /orgs/:orgId/follow -- the Follow button on the public org profile.
+//
+// org_followers has existed since migration 0008 and the console has been
+// reading a count off it, but nothing ever wrote a row: there was no screen
+// with a Follow button on it until this one. Idempotent.
+orgRoutes.post('/:orgId/follow', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const orgId = parseInt(c.req.param('orgId'), 10);
+  if (Number.isNaN(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  const org = await c.env.DB.prepare('SELECT 1 FROM organizations WHERE id = ?')
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  await c.env.DB.prepare(
+    `INSERT INTO org_followers (org_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+  )
+    .bind(orgId, userId)
+    .run();
+
+  return c.json({ following: true });
+});
+
+// DELETE /orgs/:orgId/follow -- unfollow. Idempotent.
+orgRoutes.delete('/:orgId/follow', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const orgId = parseInt(c.req.param('orgId'), 10);
+  if (Number.isNaN(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  await c.env.DB.prepare('DELETE FROM org_followers WHERE org_id = ? AND user_id = ?')
+    .bind(orgId, userId)
+    .run();
+
+  return c.json({ following: false });
 });

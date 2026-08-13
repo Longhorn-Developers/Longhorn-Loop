@@ -1,4 +1,5 @@
-// Organization Management console (LOOP-183, Events tab LOOP-136).
+// Organization Management console (LOOP-183; Events tab LOOP-136 design,
+// LOOP-240 build).
 //
 // Figma: "Organization Management" frame, reviewed 2026-06-08.
 //
@@ -7,8 +8,11 @@
 //
 // All three tabs are now real. Members and Analytics live inline below because
 // they are mostly markup over one query each; the Events tab is
-// components/org/OrgEventsTab, which owns its own query, three filter controls
-// and an edit overlay, and would have doubled the length of this file.
+// components/org/OrgEventsTab, which owns its own query, three filter controls,
+// the Upcoming/Past split from LOOP-132 and an edit overlay, and would have
+// doubled the length of this file. Managing an event still means editing it
+// only — nothing in the API deletes or archives one; OrgEventsTab's header
+// explains why that stayed unbuilt.
 //
 // The screen accepts an initial-tab param (`/org/123?tab=events`) so entry
 // points can land on the tab they promised — "Manage" from the org list means

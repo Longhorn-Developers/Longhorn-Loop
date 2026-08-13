@@ -78,6 +78,26 @@ export default function SettingsEntryScreen() {
           <Text className="font-['Roboto-Flex'] text-[18px] text-lhlSecondaryTextGrey">›</Text>
         </Pressable>
 
+        {/* Frame 471 (LOOP-180). Reachable from here as well as from the bell
+            on a public org profile: this is where someone goes looking when an
+            org they follow is being noisy, and they won't necessarily think to
+            open that org's page first. */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/settings/followed-orgs')}
+          className="mt-[10px] flex-row items-center justify-between rounded-[12px] border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[14px]"
+        >
+          <View>
+            <Text className="font-['Roboto-Flex'] text-[15px] font-semibold text-lhlInk">
+              Followed organizations
+            </Text>
+            <Text className="font-['Roboto-Flex'] mt-[2px] text-[11px] text-lhlSecondaryTextGrey">
+              Choose what the organizations you follow can notify you about.
+            </Text>
+          </View>
+          <Text className="font-['Roboto-Flex'] text-[18px] text-lhlSecondaryTextGrey">›</Text>
+        </Pressable>
+
         {/* --- Manage Organizations --- */}
         <Text className="font-['Roboto-Flex'] mt-[24px] text-[15px] font-semibold text-lhlInk">
           Manage Organizations

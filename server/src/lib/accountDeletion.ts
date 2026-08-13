@@ -264,6 +264,9 @@ const USER_OWNED_TABLES = [
   'user_majors',
   'user_tags',
   'user_settings',
+  // Frame 471's three toggles (LOOP-180). Keyed on user_id like user_settings
+  // and just as meaningless once the user is gone.
+  'followed_org_notification_settings',
   'org_followers',
   'org_members',
 ];
@@ -350,6 +353,16 @@ export function accountDeletionStatements(
   // people they followed AND the people who followed them.
   statements.push({
     sql: 'DELETE FROM user_follows WHERE follower_user_id = ? OR followed_user_id = ?',
+    binds: [userId, userId],
+  });
+
+  // Blocks, both directions, for the same reason (LOOP-180). The one worth
+  // stating: rows where this user is the BLOCKED party also go. A block row
+  // pointing at an id that no longer exists costs nothing but is checked on
+  // every profile and feed read, and users.id is AUTOINCREMENT so it can never
+  // be reissued to a different person.
+  statements.push({
+    sql: 'DELETE FROM user_blocks WHERE blocker_user_id = ? OR blocked_user_id = ?',
     binds: [userId, userId],
   });
 
