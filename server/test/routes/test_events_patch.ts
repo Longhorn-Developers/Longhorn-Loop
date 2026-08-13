@@ -159,16 +159,12 @@ describeOrSkip('PATCH /events/:id (LOOP-136)', () => {
 
   beforeEach(() => {
     db = new DatabaseSync!(':memory:');
+    // event_tags.source/score used to be missing from schema.sql -- they were
+    // added by migration 0012 and never mirrored back -- so this suite applied
+    // that one migration by hand on top. LOOP-239 fixed the drift at the
+    // source, so schema.sql alone now has the columns writeEventTags writes
+    // through, and test_schema_migration_parity.ts keeps it that way.
     db.exec(readFileSync(join(__dirname, '..', '..', 'schema.sql'), 'utf-8'));
-    // schema.sql predates migration 0012, which is what writeEventTags writes
-    // through. Applying it here keeps the tag-rewrite case honest rather than
-    // making the route dodge a column that exists in production.
-    db.exec(
-      readFileSync(
-        join(__dirname, '..', '..', 'migrations', '0012_add_event_tag_source_score.sql'),
-        'utf-8',
-      ),
-    );
 
     db.exec(`INSERT INTO users (id, email, first_name, last_name) VALUES
       (${ADMIN}, '${EMAIL[ADMIN]}', 'Ada', 'Admin'),

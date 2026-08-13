@@ -324,6 +324,13 @@ CREATE TABLE IF NOT EXISTS event_tags (
   event_id  INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   bucket_id TEXT    NOT NULL,
   tag       TEXT    NOT NULL,
+  -- How the tag was assigned: 'semantic' (a Vectorize match) or 'keyword'
+  -- (the classifier fallback). 'keyword' is truthful for every row written
+  -- before semantic tagging existed.
+  source    TEXT    NOT NULL DEFAULT 'keyword',
+  -- Cosine similarity for semantic tags; NULL for keyword tags, which have
+  -- no score to record.
+  score     REAL,
   PRIMARY KEY (event_id, bucket_id, tag)
 );
 CREATE INDEX IF NOT EXISTS idx_event_tags_event  ON event_tags(event_id);
@@ -342,6 +349,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   read_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- The only read this table has is "WHERE user_id = ? ORDER BY created_at
+-- DESC", so the index carries both halves of it.
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 
 -- Event reports -- user-submitted moderation reports. Once an event has
 -- REPORT_HIDE_THRESHOLD (5) reports it is filtered from feeds for everyone.

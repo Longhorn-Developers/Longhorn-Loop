@@ -1,0 +1,25 @@
+-- Migration 0015: add saved_events.reminder_sent_at (LOOP-239)
+--
+-- The reminder cron reads this column ("WHERE s.reminder_sent_at IS NULL") and
+-- writes it after sending, so without it every tick of sendEventReminders()
+-- fails. Like the notifications table in 0014, it existed only in schema.sql.
+--
+-- Why this one statement gets its own file:
+--
+-- D1/SQLite has no ALTER TABLE ... ADD COLUMN IF NOT EXISTS. On any database
+-- where somebody already added this column by hand -- production almost
+-- certainly, since the cron has been running there -- this statement errors
+-- with "duplicate column name". Wrangler applies a migration file as a unit
+-- and stops at the first failing statement, so had this been appended to 0014
+-- that one unavoidable error would have taken the notifications table down
+-- with it: the table would never be created, and the migration would never be
+-- recorded as applied, so every subsequent run would fail the same way.
+--
+-- Split, the blast radius is one file. If this errors on an environment that
+-- already has the column, that is the expected no-op outcome and it can be
+-- marked applied by hand; 0014 is already in and the rest of the sequence is
+-- unaffected. Everything else in this migration set is CREATE ... IF NOT
+-- EXISTS and re-runnable, which is exactly why this statement is the one that
+-- needed isolating.
+
+ALTER TABLE saved_events ADD COLUMN reminder_sent_at TEXT;
