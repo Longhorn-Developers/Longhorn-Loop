@@ -156,6 +156,10 @@ function AttendeesRow({
   onShare: () => void;
 }) {
   const colors = useThemeColors();
+  // Each face opens that person's public profile (LOOP-180). The attendee list
+  // is where you actually encounter a stranger in this app, so it is the entry
+  // point the profile screen was built for.
+  const router = useRouter();
 
   const { data, isLoading } = useQuery({
     queryKey: eventsKeys.attendees(eventId),
@@ -187,8 +191,11 @@ function AttendeesRow({
           {attendees.map((attendee, i) => {
             const avatarSource = getAvatarSource(attendee.avatar ?? undefined);
             return (
-              <View
+              <TouchableOpacity
                 key={attendee.id}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${attendee.first_name}’s profile`}
+                onPress={() => router.push(`/user/${attendee.id}`)}
                 style={{
                   width: 28,
                   height: 28,
@@ -210,7 +217,7 @@ function AttendeesRow({
                     {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
                   </Text>
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -525,7 +532,15 @@ export default function EventDetailScreen() {
 
           <View style={{ marginBottom: 18 }}>
             <Text style={styles.sectionHeader}>Hosted by</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Opens the org's PUBLIC profile (LOOP-180), never the management
+                console — most people tapping this are not members, and the
+                console 403s them. */}
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`View ${event.host_organization_name}`}
+              onPress={() => router.push(`/org/${event.host_organization_id}/profile`)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
               {event.org_profile_picture ? (
                 <Image
                   source={{ uri: event.org_profile_picture }}
@@ -550,7 +565,7 @@ export default function EventDetailScreen() {
               <Text style={{ fontSize: 14, color: colors.ink, flex: 1 }} numberOfLines={1}>
                 {event.host_organization_name}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />

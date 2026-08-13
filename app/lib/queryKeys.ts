@@ -36,12 +36,25 @@ export const user = {
   // prefix to invalidate after a save/RSVP changes any of them.
   myEventsAll: () => [...user.all, 'my-events'] as const,
   myEvents: (params: Record<string, string>) => [...user.myEventsAll(), params] as const,
+  // Somebody ELSE's profile (LOOP-180). Keyed by target id, so two public
+  // profiles cached at once don't collide, and hung off `user.all` so the
+  // existing "refresh everything about users" invalidate reaches them.
+  publicProfile: (id: number | string) => [...user.all, 'public', String(id)] as const,
+  // The Upcoming / Past grid. The tab is part of the key: switching tabs is a
+  // different query, and publicEventsAll() is the prefix to drop after a block
+  // makes the whole profile unreachable.
+  publicEventsAll: (id: number | string) => [...user.all, 'public-events', String(id)] as const,
+  publicEvents: (id: number | string, tab: string) => [...user.publicEventsAll(id), tab] as const,
 };
 
 // User settings (/settings). One row per user; `mine` is the whole thing.
 export const settings = {
   all: ['settings'] as const,
   mine: () => [...settings.all, 'mine'] as const,
+  // The three global toggles behind Frame 471 (LOOP-180). A sibling of
+  // `mine` rather than part of it: it is a separate row, a separate endpoint,
+  // and describes the orgs the user follows rather than their own account.
+  followedOrgs: () => [...settings.all, 'followed-orgs'] as const,
 };
 
 // Org Management console (/orgs/*). `mine` backs the Manage Organizations
@@ -64,6 +77,13 @@ export const org = {
     [...org.analyticsAll(id), eventFilter] as const,
   notificationSettings: (id: number | string) =>
     [...org.all, 'notification-settings', String(id)] as const,
+  // The PUBLIC org profile (LOOP-180) — what a non-member sees. Deliberately
+  // not `detail()`: that key holds the console header, which carries
+  // engagement totals a non-member must never be handed, and sharing a key
+  // would let one screen's cache satisfy the other's query.
+  publicProfile: (id: number | string) => [...org.all, 'public', String(id)] as const,
+  publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
+  publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
   // "Find your organization" on the registration form (LOOP-141). The
   // DEBOUNCED query is part of the key, so each settled query caches on its
   // own and backspacing to a previous one is instant instead of a refetch.

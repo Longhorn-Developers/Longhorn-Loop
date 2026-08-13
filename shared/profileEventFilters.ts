@@ -65,3 +65,26 @@ export const PROFILE_EVENT_TABS: ProfileEventTab[] = ['going', 'saved', 'posted'
 export function isProfileEventTab(value: string): value is ProfileEventTab {
   return (PROFILE_EVENT_TABS as string[]).includes(value);
 }
+
+/**
+ * The segmented toggle on a PUBLIC profile — someone else's, or an org's
+ * (LOOP-180).
+ *
+ * Deliberately a different axis from ProfileEventTab above. Going / Saved /
+ * Posted are three relationships the OWNER has to an event, and two of them
+ * are nobody else's business: showing a stranger what you have saved would
+ * turn a bookmark into a broadcast. A visitor gets the one collection that was
+ * already public — what this account posted — split by time instead.
+ */
+export type PublicProfileTab = 'upcoming' | 'past';
+
+export const PUBLIC_PROFILE_TABS: PublicProfileTab[] = ['upcoming', 'past'];
+
+export const PUBLIC_PROFILE_TAB_LABELS: Record<PublicProfileTab, string> = {
+  upcoming: 'Upcoming',
+  past: 'Past',
+};
+
+export function isPublicProfileTab(value: string): value is PublicProfileTab {
+  return (PUBLIC_PROFILE_TABS as string[]).includes(value);
+}
