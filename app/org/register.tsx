@@ -22,10 +22,14 @@
 //                          shows a notice and cannot be submitted (LOOP-141)
 //   - nothing found     -> the "skip for now" panel, which is a real branch,
 //                          not decoration: see the comment on it
-//   - email mismatch    -> red field border + "This email does not match the
-//                          president on file."  (step 'form', error set)
-//   - success           -> "Thank you for verifying!" + review-pending copy +
-//                          Exit
+//   - email mismatch    -> red field border + a panel explaining that the
+//                          address comes from HornsLink, with a "Check
+//                          HornsLink again" action (LOOP-243/244). Split into
+//                          two cases: no contact email on file at all, vs one
+//                          on file that doesn't match.
+//   - success           -> "Thank you for verifying!" + verified-now copy +
+//                          Exit. The org is verified on the spot (LOOP-242);
+//                          there is no review queue behind this screen.
 //
 // Generic UT email verification is still LOOP-134 and still not wired here.
 
@@ -37,7 +41,13 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
-import { ORG_CATEGORIES, ORG_SEARCH_MIN_QUERY, type OrgClaimState } from '@/shared/orgRegistration';
+import {
+  ORG_CATEGORIES,
+  ORG_EMAIL_MISMATCH,
+  ORG_EMAIL_NOT_ON_FILE,
+  ORG_SEARCH_MIN_QUERY,
+  type OrgClaimState,
+} from '@/shared/orgRegistration';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -190,6 +200,20 @@ export default function OrgRegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // --- refetch state (LOOP-244) -------------------------------------------
+  //
+  // Which of the two email failures we are looking at, held separately from
+  // `error` because the message text is not something to branch UI on. null
+  // means "no email failure", which is not the same as "no error" — a 409 on
+  // an org someone else just claimed sets `error` and leaves this null, and
+  // must not sprout a Retry button, because there is nothing on HornsLink the
+  // claimant could change to fix it.
+  const [emailFailure, setEmailFailure] = useState<
+    typeof ORG_EMAIL_NOT_ON_FILE | typeof ORG_EMAIL_MISMATCH | null
+  >(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
+
   const codeValue = code.join('');
 
   const debouncedQuery = useDebounced(query.trim(), SEARCH_DEBOUNCE_MS);
@@ -249,6 +273,18 @@ export default function OrgRegisterScreen() {
     return (body?.message as string) ?? fallback;
   };
 
+  /**
+   * The machine-readable `error` field, as opposed to the prose in `message`.
+   *
+   * Branching on the message text would break the moment someone edits copy,
+   * and the two email failures now render structurally different UI — one
+   * grows a Retry button — so the distinction has to come off the code.
+   */
+  const errorCodeOf = (err: unknown): string | null => {
+    const body = err instanceof ApiError ? (err.body as Record<string, unknown> | null) : null;
+    return typeof body?.error === 'string' ? body.error : null;
+  };
+
   const pickOrg = (org: OrgSearchResult) => {
     setSelectedOrg(org);
     setQuery(org.name);
@@ -264,17 +300,22 @@ export default function OrgRegisterScreen() {
     setError(null);
   };
 
-  // "Skip for now" — the acceptance criteria's escape hatch, and load-bearing
-  // here: `organizations` is populated as a side effect of event ingestion, so
-  // an org that has never posted an event genuinely cannot be found by the
-  // search above. Leaving on /settings rather than deeper into the flow,
-  // because there is nothing further to do without an org.
+  // "Skip for now" — the acceptance criteria's escape hatch. Less load-bearing
+  // than it was: before LOOP-241, `organizations` was only populated as a side
+  // effect of event ingestion, so an org that had never posted an event simply
+  // could not be found here. The directory scrape means most orgs are now
+  // present, and this is the exit for the ones that genuinely aren't — no
+  // HornsLink page, or one created since the last sync. Leaving on /settings
+  // rather than deeper into the flow, because there is nothing further to do
+  // without an org.
   const skipForNow = () => router.replace('/settings');
 
   const sendEmail = async () => {
     if (!isFormValid || isSubmitting || !selectedOrg) return;
     setIsSubmitting(true);
     setError(null);
+    setEmailFailure(null);
+    setRefreshNote(null);
     try {
       await api.post('/orgs/register/verify-president', {
         token,
@@ -282,13 +323,54 @@ export default function OrgRegisterScreen() {
       });
       setStep('code');
     } catch (err) {
-      // The mismatch case is the one the design calls out explicitly; the
-      // server returns PRESIDENT_EMAIL_MISMATCH with this exact copy. A 409
-      // (someone claimed the org between the search and this tap) arrives the
-      // same way, carrying its own message.
-      setError(describeError(err, 'This email does not match the president on file.'));
+      // LOOP-244. Three shapes arrive here and only two of them are fixable by
+      // the claimant on HornsLink:
+      //   NOT_ON_FILE — we hold no contact email for this org
+      //   MISMATCH    — we hold one and it isn't theirs (often a stale officer)
+      //   409         — someone else claimed the org between the search and
+      //                 this tap. Nothing to retry; it carries its own message.
+      // Only the first two get the Retry affordance.
+      const code = errorCodeOf(err);
+      if (code === ORG_EMAIL_NOT_ON_FILE || code === ORG_EMAIL_MISMATCH) setEmailFailure(code);
+      setError(describeError(err, 'We couldn’t verify that email. Check it and try again.'));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Re-read this org's contact email from HornsLink right now, instead of
+  // waiting for the nightly directory sweep. The whole point of the two error
+  // states above is that the claimant can go fix HornsLink and come straight
+  // back, so this has to be reachable from the error itself.
+  const refreshOrg = async () => {
+    if (!selectedOrg || isRefreshing) return;
+    setIsRefreshing(true);
+    setRefreshNote(null);
+    try {
+      const res = await api.post<{ found: boolean; changed: boolean; reason: string | null }>(
+        `/orgs/${selectedOrg.id}/refresh`,
+        { token },
+      );
+      if (res.found) {
+        // Clear the error rather than declaring success: we know HornsLink now
+        // lists an address, not that it is the one they typed. Sending the
+        // code is still the thing that decides.
+        setError(null);
+        setEmailFailure(null);
+        setRefreshNote('Found a contact email on HornsLink. Try sending the code again.');
+      } else if (res.reason === 'NO_SLUG') {
+        setRefreshNote(
+          'We don’t have a HornsLink page on file for this organization yet. It’ll be picked up in the next sync.',
+        );
+      } else {
+        setRefreshNote(
+          'Still no contact email on this organization’s HornsLink page. Add one under Contact Info, then try again.',
+        );
+      }
+    } catch (err) {
+      setRefreshNote(describeError(err, 'Couldn’t reach HornsLink just now. Try again shortly.'));
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -326,8 +408,8 @@ export default function OrgRegisterScreen() {
           </Text>
 
           <Text className="font-['Roboto-Flex'] mt-[10px] text-center text-[13px] leading-[19px] text-lhlSecondaryTextGrey">
-            Our team at Longhorn Loop will review the verification request and send a notification
-            with the result.
+            {orgName} is verified and you’re now an admin. You can post events and manage the
+            organization from your profile.
           </Text>
 
           <Pressable
@@ -457,8 +539,8 @@ export default function OrgRegisterScreen() {
                     No organizations match “{debouncedQuery}”.
                   </Text>
                   <Text className="font-['Roboto-Flex'] mt-[6px] text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
-                    Only organizations that have already posted an event on Longhorn Loop show up
-                    here. If yours hasn’t yet, you can skip this for now and register once it has.
+                    We list organizations from HornsLink. If yours has a HornsLink page and isn’t
+                    here yet, it’ll appear after the next sync — you can skip for now and come back.
                   </Text>
                   <Pressable
                     accessibilityRole="button"
@@ -524,6 +606,52 @@ export default function OrgRegisterScreen() {
               {error ? (
                 <Text className="font-['Roboto-Flex'] mt-[6px] text-[12px] text-lhlDestructiveRed">
                   {error}
+                </Text>
+              ) : null}
+
+              {/* LOOP-244. Both email failures are fixed in the same place —
+                  the org's HornsLink Contact Info — so the panel says where to
+                  go and then offers to re-read it immediately, rather than
+                  leaving the claimant to guess that a nightly sync exists. */}
+              {emailFailure ? (
+                <View className="mt-[10px] rounded-[8px] border border-lhlBorderColor bg-lhlSurface px-[12px] py-[12px]">
+                  <Text className="font-['Roboto-Flex'] text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
+                    {emailFailure === ORG_EMAIL_NOT_ON_FILE
+                      ? 'We read this from your organization’s HornsLink page, and there’s no contact email listed there yet. Add one under Contact Info on HornsLink, then check again.'
+                      : 'We check against the contact email on your organization’s HornsLink page. If that’s out of date — a past officer, say — update it on HornsLink and check again.'}
+                  </Text>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Check HornsLink again"
+                    accessibilityState={{ disabled: isRefreshing }}
+                    disabled={isRefreshing}
+                    onPress={refreshOrg}
+                    className="mt-[10px] self-start"
+                  >
+                    {isRefreshing ? (
+                      <ActivityIndicator color={colors.accent} />
+                    ) : (
+                      <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-lhlAccent">
+                        Check HornsLink again
+                      </Text>
+                    )}
+                  </Pressable>
+
+                  {refreshNote ? (
+                    <Text className="font-['Roboto-Flex'] mt-[8px] text-[12px] leading-[18px] text-lhlInk">
+                      {refreshNote}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* A successful re-read clears `emailFailure`, so the note it
+                  leaves behind ("try sending the code again") would vanish
+                  with the panel. Render it on its own out here too. */}
+              {!emailFailure && refreshNote ? (
+                <Text className="font-['Roboto-Flex'] mt-[10px] text-[12px] leading-[18px] text-lhlInk">
+                  {refreshNote}
                 </Text>
               ) : null}
             </>

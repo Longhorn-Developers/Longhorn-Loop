@@ -31,7 +31,9 @@ index_name = "loop-event-tags"
 #   "0 */6 * * *"  -> scrapes Texas Today + HornsLink for new/updated events
 #   "*/15 * * * *" -> checks saved/bookmarked events for upcoming start
 #                      times and creates reminder notifications
-crons = ["0 */6 * * *", "*/15 * * * *"]
+#   "0 8 * * *"    -> LOOP-241: sweeps the HornsLink ORG directory (orgs only,
+#                      no events) and tops up missing contact emails
+crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET

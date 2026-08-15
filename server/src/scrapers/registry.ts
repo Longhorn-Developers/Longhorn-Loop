@@ -14,6 +14,10 @@ import { run as runFineArts, scrapeFineArts } from './finearts';
 import { run as runCns } from './cns';
 // disabled to remove noisy events
 // import { run as runHornsLink, scrapeHornsLink } from './hornslink';
+// NOT the same thing as the line above: this one ingests ORGS only and never
+// touches the events table. See scrapers/hornslinkOrgs.ts. It runs on its own
+// daily cron, not the 6-hour event sweep, so it is absent from SCRAPERS.
+import { run as runHornsLinkOrgs, manual as manualHornsLinkOrgs } from './hornslinkOrgs';
 import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
@@ -44,7 +48,22 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'pharmacy', run: runPharmacy },
 ];
 
+/**
+ * The org directory scraper (LOOP-241).
+ *
+ * Kept OUT of SCRAPERS on purpose. Everything in that array runs on the
+ * 6-hourly event cron and is expected to write events; this one writes only
+ * `organizations` and runs daily, because org rosters barely move and the
+ * detail-page pass is expensive. worker.ts dispatches it from its own cron.
+ */
+export const ORG_DIRECTORY_SCRAPER: ScraperEntry = {
+  name: 'hornslinkOrgs',
+  run: runHornsLinkOrgs,
+  manual: manualHornsLinkOrgs,
+};
+
 /** Lookup a scraper by route slug. */
 export function getManualScraper(slug: string): ScraperEntry['manual'] | undefined {
+  if (slug === ORG_DIRECTORY_SCRAPER.name) return ORG_DIRECTORY_SCRAPER.manual;
   return SCRAPERS.find((s) => s.name === slug)?.manual;
 }

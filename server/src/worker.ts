@@ -9,7 +9,7 @@ import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
-import { SCRAPERS } from './scrapers/registry';
+import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
 
 export type Env = {
   DB: D1Database;
@@ -61,6 +61,12 @@ app.route('/settings', settingsRoutes);
 // scheduled() handler below dispatches on event.cron since the two jobs
 // run at different cadences.
 const REMINDER_CRON = '*/15 * * * *';
+
+// LOOP-241. The HornsLink org directory, on its own daily schedule rather than
+// the 6-hour event sweep: org rosters change slowly, and the run includes a
+// bounded pass of per-org HTML fetches that there is no reason to repeat four
+// times a day.
+const ORG_DIRECTORY_CRON = '0 8 * * *';
 
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -131,6 +137,11 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron === REMINDER_CRON) {
       ctx.waitUntil(sendEventReminders(env));
+      return;
+    }
+
+    if (event.cron === ORG_DIRECTORY_CRON) {
+      ctx.waitUntil(ORG_DIRECTORY_SCRAPER.run(env));
       return;
     }
 
