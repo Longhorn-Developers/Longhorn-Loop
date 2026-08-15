@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { API_BASE_URL } from '@/app/config/api';
 import { clearSession, loadSession, markOnboardingComplete, saveSession } from '@/app/lib/session';
 
 interface OnboardingData {
@@ -93,14 +94,71 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         if (cancelled || !session) return;
         setData((prev) => ({ ...prev, token: session.token, email: session.email }));
         setOnboardingCompleteState(session.onboardingComplete);
+        // Deliberately NOT awaited: the launch gate only needs the token, and
+        // making it wait on a network round trip would put a blank screen in
+        // front of every cold start — including offline ones, where it would
+        // never resolve.
+        void refreshFromServer(session.token);
       })
       .finally(() => {
         if (!cancelled) setIsHydrating(false);
       });
 
+    /**
+     * Fill in what storage doesn't hold, once we're already inside the app.
+     *
+     * Only the token and email are persisted. The display name is not, so
+     * without this the header greets a restored user as "User" — `home.tsx`
+     * reads `data.firstName`, which is empty until something puts it back.
+     *
+     * This also re-checks `onboarding_completed` against the server, which is
+     * the point at which the cached flag gets corrected if it ever drifts
+     * (a profile finished on another device, say).
+     */
+    async function refreshFromServer(token: string): Promise<void> {
+      try {
+        const res = await fetch(`${API_BASE_URL}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        // A rejected token means the stored session is dead — expired past
+        // what the local exp check caught, or signed with a rotated secret.
+        // Drop it rather than leaving the user inside an app where every
+        // screen fails on its own.
+        if (res.status === 401) {
+          if (!cancelled) reset();
+          return;
+        }
+
+        if (!res.ok || cancelled) return;
+
+        const body = (await res.json()) as {
+          user?: { first_name?: string; last_name?: string; onboarding_completed?: unknown };
+        };
+        if (cancelled || !body.user) return;
+
+        setData((prev) => ({
+          ...prev,
+          firstName: body.user?.first_name || prev.firstName,
+          lastName: body.user?.last_name || prev.lastName,
+        }));
+
+        const completed = Boolean(body.user.onboarding_completed);
+        setOnboardingCompleteState(completed);
+        void markOnboardingComplete(completed);
+      } catch {
+        // Offline, or the Worker is down. The session stays valid and the
+        // greeting stays generic until the next launch — not worth signing
+        // anyone out over.
+      }
+    }
+
     return () => {
       cancelled = true;
     };
+    // reset is defined below and stable; including it would need a reorder
+    // that buys nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setOnboardingComplete = useCallback((complete: boolean) => {
