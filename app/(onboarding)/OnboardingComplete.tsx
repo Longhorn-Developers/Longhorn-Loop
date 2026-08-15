@@ -10,7 +10,7 @@ export default function OnboardingComplete() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
-  const { data } = useOnboarding();
+  const { data, setOnboardingComplete } = useOnboarding();
 
   // Has the user tapped the CTA at least once? Drives the button label.
   // false → "GO TO HOME PAGE", true → "TRY AGAIN" after a failed attempt.
@@ -90,6 +90,12 @@ export default function OnboardingComplete() {
         const body = await agreementsRes.text().catch(() => '(no body)');
         throw new Error(`agreements ${agreementsRes.status}: ${body}`);
       }
+
+      // Only after BOTH calls succeed. `onboarding_completed` is set by the
+      // agreements endpoint, so a profile save that lands without it leaves a
+      // half-made account — and caching "complete" here off the back of a
+      // failure would send the next launch to a feed with no profile behind it.
+      setOnboardingComplete(true);
 
       router.replace('/(tabs)/home');
     } catch (err) {
