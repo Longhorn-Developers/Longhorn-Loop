@@ -1,8 +1,9 @@
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   NativeSyntheticEvent,
   Pressable,
   Text,
@@ -10,6 +11,7 @@ import {
   TextInputKeyPressEventData,
   View,
 } from 'react-native';
+import { useThemeColors } from '@/app/lib/themeColors';
 import InlineAlert from '../components/alerts/InlineAlert';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 import OtpInput from '../components/inputs/OtpInputField';
@@ -17,14 +19,20 @@ import FlowLayout from '../components/layouts/FlowLayout';
 
 export default function AccountVerification() {
   const router = useRouter();
-  const { data, update } = useOnboarding();
+  const params = useLocalSearchParams<{ sent?: string }>();
+  const colors = useThemeColors();
+  const { data, update, setOnboardingComplete } = useOnboarding();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [sendingInitialCode, setSendingInitialCode] = useState(true);
+  // Starts true only when this screen is the one that has to send the code.
+  // LoginPage and RegisterPage both send it themselves and arrive with ?sent=1
+  // — firing a second /auth/send-code here would immediately trip the
+  // 60-second cooldown that the first request just started.
+  const [sendingInitialCode, setSendingInitialCode] = useState(params.sent !== '1');
   const inputs = useRef<(TextInput | null)[]>([]);
-  const hasSentInitialCode = useRef(false);
+  const hasSentInitialCode = useRef(params.sent === '1');
 
   const allFilled = code.every((digit) => digit !== '');
 
@@ -51,7 +59,9 @@ export default function AccountVerification() {
           } else if (result.error === 'INVALID_UT_EMAIL') {
             setError('Please use a valid @utexas.edu email address.');
           } else {
-            setError(result.error || 'Failed to send verification code. Please try again.');
+            // Never render result.error directly — it is a machine code like
+            // MISSING_FIELDS, and testers were seeing it verbatim.
+            setError('Failed to send verification code. Please try again.');
           }
         }
       } catch (_err) {
@@ -128,13 +138,15 @@ export default function AccountVerification() {
         } else if (result.error === 'INVALID_UT_EMAIL') {
           setError('Please use a valid @utexas.edu email address.');
         } else {
-          setError(result.error || 'Something went wrong. Please try again.');
+          setError('Something went wrong. Please try again.');
         }
         return;
       }
 
       const token = result.token;
       if (token) {
+        // This is what persists the session — update() mirrors a new token to
+        // secure storage, so the next cold start skips all of this.
         update({ token });
       }
 
@@ -150,6 +162,9 @@ export default function AccountVerification() {
               firstName: profileData.user.first_name || '',
               lastName: profileData.user.last_name || '',
             });
+            // Cache it so the launch gate can route straight to the feed
+            // without waiting on a network call.
+            setOnboardingComplete(true);
             router.replace('/(tabs)/home');
             return;
           }
@@ -187,7 +202,7 @@ export default function AccountVerification() {
         } else if (result.error === 'INVALID_UT_EMAIL') {
           setError('Please use a valid @utexas.edu email address.');
         } else {
-          setError(result.error || 'Failed to resend code. Please try again.');
+          setError('Failed to resend code. Please try again.');
         }
         return;
       }
@@ -225,17 +240,30 @@ export default function AccountVerification() {
         />
       </View>
 
+      {/* Without this the screen showed six empty boxes and nothing else while
+          the first code was still being requested. On a slow connection that
+          reads as broken, and the natural response — tapping Resend — trips
+          the 60-second cooldown the pending request is about to create. */}
+      {sendingInitialCode && (
+        <View className="mt-4 flex-row items-center justify-center gap-2">
+          <ActivityIndicator size="small" color={colors.brand} />
+          <Text className="font-['Roboto-Flex'] text-sm text-lhlSecondaryTextGrey">
+            Sending your code...
+          </Text>
+        </View>
+      )}
+
       <View className="mt-[42px]">
         <PrimaryButton
           label="Verify Email"
-          isFilled={allFilled}
+          isFilled={allFilled && !sendingInitialCode}
           onPress={handleVerify}
           isLoading={loading}
           loadingLabel="Verifying..."
         />
       </View>
 
-      <Pressable className="mt-4" onPress={handleResend}>
+      <Pressable className="mt-4" disabled={sendingInitialCode || resending} onPress={handleResend}>
         <Text className="font-['Roboto-Flex'] text-base text-center">
           {"Didn't receive the code? "}
           <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">
