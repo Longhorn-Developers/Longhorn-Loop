@@ -121,11 +121,21 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // A rejected token means the stored session is dead — expired past
-        // what the local exp check caught, or signed with a rotated secret.
-        // Drop it rather than leaving the user inside an app where every
-        // screen fails on its own.
-        if (res.status === 401) {
+        // Two ways a stored session can be dead, and both have to be dropped
+        // rather than carried into the app.
+        //
+        //   401 — the token itself is rejected: expired past what the local
+        //         exp check caught, or signed with a since-rotated secret.
+        //   404 — USER_NOT_FOUND. The token is perfectly valid and the user
+        //         row behind it is gone. Happens when an account is deleted
+        //         from another device, or when the database is reset under a
+        //         live session.
+        //
+        // The 404 case is the nastier of the two to leave in place: the app
+        // looks signed in, so every screen renders and then fails on its own,
+        // and Settings fails too — which is where Log Out lives. There is no
+        // way out from inside the UI. Clearing here is the escape hatch.
+        if (res.status === 401 || res.status === 404) {
           if (!cancelled) reset();
           return;
         }
