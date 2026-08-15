@@ -31,12 +31,16 @@ import { getAuthUser, getUserId } from '../lib/utils';
 import { PAST_EVENT_CONDITION, UPCOMING_CONDITION } from './users.worker';
 import type { Env } from '../worker';
 import {
+  ORG_EMAIL_MISMATCH,
+  ORG_EMAIL_NOT_ON_FILE,
+  ORG_REFRESH_MIN_INTERVAL_MS,
   ORG_SEARCH_LIMIT,
   ORG_SEARCH_MAX_LIMIT,
   ORG_SEARCH_MIN_QUERY,
   isOrgCategory,
   type OrgClaimState,
 } from '../../../shared/orgRegistration';
+import { refreshOrgContactEmail } from '../scrapers/hornslinkOrgs';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -337,14 +341,33 @@ orgRoutes.post('/register/verify-president', async (c) => {
 
   const onFile = typeof org.president_email === 'string' ? org.president_email.toLowerCase() : null;
 
-  // Build step 3. If we have no president on file we cannot confirm anyone, so
-  // treat it as a mismatch rather than waving the request through — approving
-  // an unverifiable claim is the worse failure.
-  if (!onFile || onFile !== email) {
+  // LOOP-243 splits what used to be one error. Both still refuse the claim —
+  // approving an unverifiable one is the worse failure — but they are not the
+  // same problem and the screen cannot tell them apart from prose.
+  //
+  // No email on file at all: nothing the claimant types could ever match, so
+  // saying "does not match" sends them off to re-check an address that was
+  // never the issue. Point them at HornsLink instead.
+  if (!onFile) {
     return c.json(
       {
-        error: 'PRESIDENT_EMAIL_MISMATCH',
-        message: 'This email does not match the president on file.',
+        error: ORG_EMAIL_NOT_ON_FILE,
+        message:
+          "We couldn't find a contact email on this organization's HornsLink page. Add one there, then try again.",
+      },
+      422,
+    );
+  }
+
+  // We hold one and it is not theirs. Deliberately does NOT echo the stored
+  // address back: it would turn this endpoint into a lookup for any org's
+  // contact email, and the claimant can read it off HornsLink themselves.
+  if (onFile !== email) {
+    return c.json(
+      {
+        error: ORG_EMAIL_MISMATCH,
+        message:
+          "This doesn't match the contact email on your organization's HornsLink page. If it's out of date, update it on HornsLink and try again.",
       },
       422,
     );
@@ -437,9 +460,7 @@ orgRoutes.post('/register/confirm', async (c) => {
     .bind(Date.now(), key)
     .run();
 
-  // The claimant becomes an admin so they can manage the org immediately;
-  // `verified` stays 0 until a human approves, which is what the success
-  // screen's "our team will review" copy promises.
+  // The claimant becomes an admin so they can manage the org immediately.
   await c.env.DB.prepare(
     `INSERT INTO org_members (org_id, user_id, role) VALUES (?, ?, 'admin')
      ON CONFLICT(org_id, user_id) DO UPDATE SET role = 'admin'`,
@@ -447,11 +468,29 @@ orgRoutes.post('/register/confirm', async (c) => {
     .bind(orgId, userId)
     .run();
 
-  // COALESCE, not a plain assignment: a claimant who skipped the dropdown
-  // must not blank a category the org already has.
+  // LOOP-242: verified = 1 here, rather than parking the org in pending_review
+  // for a human.
+  //
+  // This used to read "`verified` stays 0 until a human approves". Nothing
+  // ever approved: there is no admin route and no admin UI, so `verified` had
+  // zero writes anywhere in the codebase and the LOOP-140 badge was
+  // unreachable by any path. The review step was aspirational, not real.
+  //
+  // Auto-approving is also the honest reading of what just happened. The code
+  // was mailed to the address HornsLink publishes as this org's contact and
+  // the claimant read it back. A human reviewer would have no second source to
+  // check that against — they would be re-approving the same one fact.
+  //
+  // pending_review survives for the tail this cannot cover: orgs with no
+  // contact email on HornsLink, which need evidence a person has to weigh
+  // (LOOP-246). claimStateOf still handles it.
+  //
+  // COALESCE on category, not a plain assignment: a claimant who skipped the
+  // dropdown must not blank a category the org already has.
   await c.env.DB.prepare(
     `UPDATE organizations
-        SET verification_status = 'pending_review',
+        SET verified            = 1,
+            verification_status = 'verified',
             category            = COALESCE(?, category),
             updated_at          = datetime('now')
       WHERE id = ?`,
@@ -459,7 +498,66 @@ orgRoutes.post('/register/confirm', async (c) => {
     .bind(category || null, orgId)
     .run();
 
-  return c.json({ verified: true, status: 'pending_review', category: category || null });
+  return c.json({ verified: true, status: 'verified', category: category || null });
+});
+
+// POST /orgs/:orgId/refresh — re-read one org's contact email from HornsLink.
+//
+// The escape hatch for both failures above. A claimant who just added or
+// corrected the contact email on their HornsLink page would otherwise have to
+// wait for the nightly directory cron before the claim could succeed; this
+// re-reads that one org's page immediately.
+//
+// Declared in the registration block with the other claim routes rather than
+// down with the console routes, because it belongs to this flow. It is more
+// specific than /:orgId so Hono's definition-order matching is satisfied
+// either way.
+orgRoutes.post('/:orgId/refresh', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const orgId = Number(c.req.param('orgId'));
+  if (!Number.isFinite(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  const org = await c.env.DB.prepare('SELECT id, updated_at FROM organizations WHERE id = ?')
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  // Server-side throttle. Every call reaches out to Campus Labs, so without a
+  // floor this endpoint is a proxy for hammering them from our Worker — and a
+  // disabled button on the client is not a rate limit.
+  //
+  // updated_at is the clock rather than a new table: every write path in the
+  // scraper and here touches it, so it already means "when did we last do
+  // something to this org". Cheap, and one less migration.
+  // SQLite's datetime('now') is "YYYY-MM-DD HH:MM:SS" in UTC — a space, not a
+  // T, and no zone marker. Both have to be patched in or Date.parse reads it
+  // as local time and the throttle drifts by the UTC offset.
+  const lastTouched =
+    typeof org.updated_at === 'string' ? Date.parse(`${org.updated_at.replace(' ', 'T')}Z`) : NaN;
+  if (Number.isFinite(lastTouched) && Date.now() - lastTouched < ORG_REFRESH_MIN_INTERVAL_MS) {
+    return c.json(
+      {
+        error: 'REFRESH_TOO_SOON',
+        message: 'Give HornsLink a moment to catch up, then try again.',
+        retry_after_ms: ORG_REFRESH_MIN_INTERVAL_MS - (Date.now() - lastTouched),
+      },
+      429,
+    );
+  }
+
+  const outcome = await refreshOrgContactEmail(c.env.DB, orgId);
+
+  // Deliberately reports "no email found" as a 200 with found:false rather
+  // than an error. Nothing went wrong — we looked and HornsLink still has
+  // nothing there, which is a normal answer the screen needs to render as
+  // "still nothing, here's what to do" rather than as a failure.
+  return c.json({
+    found: outcome.found,
+    changed: outcome.changed,
+    reason: outcome.reason ?? null,
+  });
 });
 
 // GET /orgs/:orgId -- console header: identity, role, follower counts, tiles.
