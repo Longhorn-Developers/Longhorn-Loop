@@ -58,6 +58,8 @@ export default function RegisterPage() {
       if (!res.ok) {
         if (data.error === 'INVALID_UT_EMAIL') {
           setAlertMessage(UT_EMAIL_ERROR);
+        } else if (data.error === 'SEND_FAILED') {
+          setAlertMessage("We couldn't send your code right now. Please try again.");
         } else if (data.error === 'RESEND_TOO_SOON') {
           setAlertMessage(
             'Verification code already sent. Please wait before requesting a new one.',

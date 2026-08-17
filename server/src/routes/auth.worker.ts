@@ -38,11 +38,31 @@ async function deliverVerificationCode(to: string, code: string, env: Env): Prom
     );
     return;
   }
-  await sendVerificationEmail(to, code, env.RESEND_API_KEY);
+  await sendVerificationEmail(to, code, env.RESEND_API_KEY, env.EMAIL_FROM || DEFAULT_EMAIL_FROM);
 }
 
+/**
+ * Who the code appears to come from.
+ *
+ * This was `onboarding@resend.dev` — Resend's shared sandbox sender, which
+ * only delivers to the Resend account owner's own address and returns 403 for
+ * everyone else. That is why codes reached Matthew's inbox during development
+ * and would have reached exactly zero beta testers.
+ *
+ * `longhornloop.me` is now verified in Resend (SPF, DKIM and DMARC records
+ * live at the registrar), so this can be any address at that domain.
+ * Overridable via the EMAIL_FROM var so a staging Worker can point elsewhere
+ * without a code change.
+ */
+const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhornloop.me>';
+
 // Send verification email via Resend
-async function sendVerificationEmail(to: string, code: string, apiKey: string): Promise<void> {
+async function sendVerificationEmail(
+  to: string,
+  code: string,
+  apiKey: string,
+  from: string,
+): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -50,7 +70,7 @@ async function sendVerificationEmail(to: string, code: string, apiKey: string): 
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Longhorn Loop <onboarding@resend.dev>',
+      from,
       to: [to],
       subject: 'Your Longhorn Loop Verification Code',
       html: `
@@ -70,6 +90,100 @@ async function sendVerificationEmail(to: string, code: string, apiKey: string): 
     const error = await res.text();
     console.error('Resend error:', error);
     throw new Error('Failed to send verification email');
+  }
+}
+
+type CodeRow = {
+  code_hash: string;
+  expires_at: number;
+  verified: number;
+  used_at: number | null;
+  attempts: number;
+  last_sent_at: number;
+};
+
+/**
+ * Store a fresh code and send it — and put the row back the way it was if the
+ * send fails.
+ *
+ * Both /send-code and /resend-code used to do this inline, in the wrong order:
+ *
+ *     await c.env.DB.prepare('INSERT ... ON CONFLICT DO UPDATE ...').run();
+ *     await deliverVerificationCode(...);   // throws -> unhandled 500
+ *
+ * A Resend outage therefore cost the user twice. The 500 was the small half.
+ * The row had already been overwritten, so `last_sent_at` was now, which meant
+ * the retry they immediately made came back RESEND_TOO_SOON for the next 60
+ * seconds — a failure that locks you out of the fix for it. Worse, the
+ * overwrite also destroyed whatever code was in the row before, so someone
+ * holding a still-valid code from three minutes ago now had a dead one and a
+ * cooldown, from an action that visibly failed.
+ *
+ * So: snapshot, write, send, and on failure restore the snapshot (or delete
+ * the row if there wasn't one) before rethrowing. The caller turns the throw
+ * into a 502 the client can retry immediately.
+ *
+ * D1 has no transaction we can hold across a fetch, so this is a manual
+ * compensating write rather than a rollback. The window between the insert and
+ * the restore is real but small, and the failure mode inside it — a valid code
+ * briefly replaced — is the one we already had permanently.
+ */
+async function issueVerificationCode(email: string, env: Env): Promise<void> {
+  const code = generateCode();
+  const codeHash = await hashCode(code);
+  const now = Date.now();
+
+  const previous = await env.DB.prepare(
+    `SELECT code_hash, expires_at, verified, used_at, attempts, last_sent_at
+     FROM verification_codes WHERE email = ?`,
+  )
+    .bind(email)
+    .first<CodeRow>();
+
+  await env.DB.prepare(
+    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, used_at, attempts, last_sent_at)
+     VALUES (?, ?, ?, 0, NULL, 0, ?)
+     ON CONFLICT(email) DO UPDATE SET
+       code_hash = excluded.code_hash,
+       expires_at = excluded.expires_at,
+       verified = 0,
+       used_at = NULL,
+       attempts = 0,
+       last_sent_at = excluded.last_sent_at`,
+  )
+    .bind(email, codeHash, now + CODE_EXPIRY_MS, now)
+    .run();
+
+  try {
+    await deliverVerificationCode(email, code, env);
+  } catch (sendError) {
+    try {
+      if (previous) {
+        await env.DB.prepare(
+          `UPDATE verification_codes
+           SET code_hash = ?, expires_at = ?, verified = ?, used_at = ?, attempts = ?, last_sent_at = ?
+           WHERE email = ?`,
+        )
+          .bind(
+            previous.code_hash,
+            previous.expires_at,
+            previous.verified,
+            previous.used_at,
+            previous.attempts,
+            previous.last_sent_at,
+            email,
+          )
+          .run();
+      } else {
+        await env.DB.prepare('DELETE FROM verification_codes WHERE email = ?').bind(email).run();
+      }
+    } catch (rollbackError) {
+      // The send failed AND we couldn't undo the write. The user is now in the
+      // 60-second cooldown for a code that was never delivered. Nothing left to
+      // do in-request, but this needs to be findable in the logs.
+      console.error('Failed to roll back verification code for', email, rollbackError);
+    }
+    throw sendError;
   }
 }
 
@@ -128,26 +242,18 @@ authRoutes.post('/send-code', async (c) => {
     return c.json({ error: 'RESEND_TOO_SOON' }, 429);
   }
 
-  const code = generateCode();
-  const codeHash = await hashCode(code);
-
-  // Upsert verification code into D1
-  await c.env.DB.prepare(
-    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, used_at, attempts, last_sent_at)
-     VALUES (?, ?, ?, 0, NULL, 0, ?)
-     ON CONFLICT(email) DO UPDATE SET
-       code_hash = excluded.code_hash,
-       expires_at = excluded.expires_at,
-       verified = 0,
-       used_at = NULL,
-       attempts = 0,
-       last_sent_at = excluded.last_sent_at`,
-  )
-    .bind(normalizedEmail, codeHash, Date.now() + CODE_EXPIRY_MS, Date.now())
-    .run();
-
-  // Send verification email
-  await deliverVerificationCode(normalizedEmail, code, c.env);
+  try {
+    await issueVerificationCode(normalizedEmail, c.env);
+  } catch (error) {
+    console.error('Could not send verification code to', normalizedEmail, error);
+    return c.json(
+      {
+        error: 'SEND_FAILED',
+        message: "We couldn't send your code right now. Please try again.",
+      },
+      502,
+    );
+  }
 
   return c.json({ message: 'VERIFICATION_CODE_SENT' });
 });
@@ -251,25 +357,18 @@ authRoutes.post('/resend-code', async (c) => {
     return c.json({ error: 'RESEND_TOO_SOON' }, 429);
   }
 
-  const code = generateCode();
-  const codeHash = await hashCode(code);
-
-  await c.env.DB.prepare(
-    `INSERT INTO verification_codes (email, code_hash, expires_at, verified, used_at, attempts, last_sent_at)
-     VALUES (?, ?, ?, 0, NULL, 0, ?)
-     ON CONFLICT(email) DO UPDATE SET
-       code_hash = excluded.code_hash,
-       expires_at = excluded.expires_at,
-       verified = 0,
-       used_at = NULL,
-       attempts = 0,
-       last_sent_at = excluded.last_sent_at`,
-  )
-    .bind(normalizedEmail, codeHash, Date.now() + CODE_EXPIRY_MS, Date.now())
-    .run();
-
-  // Send verification email
-  await deliverVerificationCode(normalizedEmail, code, c.env);
+  try {
+    await issueVerificationCode(normalizedEmail, c.env);
+  } catch (error) {
+    console.error('Could not resend verification code to', normalizedEmail, error);
+    return c.json(
+      {
+        error: 'SEND_FAILED',
+        message: "We couldn't send your code right now. Please try again.",
+      },
+      502,
+    );
+  }
 
   return c.json({ message: 'VERIFICATION_CODE_SENT' });
 });

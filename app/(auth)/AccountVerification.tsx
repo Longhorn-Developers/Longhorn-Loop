@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { UT_EMAIL_ERROR } from '@/shared/utEmail';
 import InlineAlert from '../components/alerts/InlineAlert';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 import OtpInput from '../components/inputs/OtpInputField';
@@ -57,7 +58,7 @@ export default function AccountVerification() {
           if (result.error === 'RESEND_TOO_SOON') {
             // A code was already sent very recently
           } else if (result.error === 'INVALID_UT_EMAIL') {
-            setError('Please use a valid @utexas.edu email address.');
+            setError(UT_EMAIL_ERROR);
           } else {
             // Never render result.error directly — it is a machine code like
             // MISSING_FIELDS, and testers were seeing it verbatim.
@@ -136,7 +137,7 @@ export default function AccountVerification() {
         } else if (result.error === 'CODE_NOT_FOUND') {
           setError('No verification code found. Please request a new one.');
         } else if (result.error === 'INVALID_UT_EMAIL') {
-          setError('Please use a valid @utexas.edu email address.');
+          setError(UT_EMAIL_ERROR);
         } else {
           setError('Something went wrong. Please try again.');
         }
@@ -200,7 +201,7 @@ export default function AccountVerification() {
         if (result.error === 'RESEND_TOO_SOON') {
           setError('Please wait before requesting a new code.');
         } else if (result.error === 'INVALID_UT_EMAIL') {
-          setError('Please use a valid @utexas.edu email address.');
+          setError(UT_EMAIL_ERROR);
         } else {
           setError('Failed to resend code. Please try again.');
         }

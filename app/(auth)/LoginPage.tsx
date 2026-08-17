@@ -53,6 +53,10 @@ export default function LoginPage() {
           setError("We couldn't find an account with that email. Try signing up instead.");
         } else if (result.error === 'INVALID_UT_EMAIL') {
           setError(UT_EMAIL_ERROR);
+        } else if (result.error === 'SEND_FAILED') {
+          // The server rolled its write back, so "try again" is honest advice
+          // here — there is no cooldown standing in the way.
+          setError("We couldn't send your code right now. Please try again.");
         } else if (result.error === 'RESEND_TOO_SOON') {
           // A code from a moment ago is still valid, so this is not a failure
           // worth stopping on — send them to type the one they already have.

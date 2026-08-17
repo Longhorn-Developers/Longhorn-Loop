@@ -40,3 +40,8 @@ crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 [vars]
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
+# Verification-code sender. longhornloop.me is verified in Resend (SPF/DKIM/
+# DMARC at the registrar). Changing this to a domain Resend hasn't verified
+# makes every send 403 — the sandbox sender it replaced only ever delivered to
+# the Resend account owner, which is why beta testers received nothing.
+EMAIL_FROM = "Longhorn Loop <noreply@longhornloop.me>"

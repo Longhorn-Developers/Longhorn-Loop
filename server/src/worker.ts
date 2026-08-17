@@ -26,6 +26,10 @@ export type Env = {
   // the wrangler console instead of sending them through Resend. Never set
   // in production.
   RESEND_DEV_MODE?: string;
+  // Sender for verification emails. Set in wrangler.toml [vars]; the domain
+  // must be verified in Resend or every send 403s. Falls back to the default
+  // in auth.worker.ts when unset.
+  EMAIL_FROM?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();
