@@ -72,7 +72,10 @@ export default function RegisterPage() {
         lastName: fieldLastName.trim(),
         email,
       });
-      router.push('/AccountVerification');
+      // ?sent=1: the code went out just above. Without it the verification
+      // screen sends a second one on mount and immediately trips the
+      // 60-second cooldown this request created.
+      router.push('/AccountVerification?sent=1');
     } catch (_err) {
       setAlertMessage('Network error. Please check your connection.');
     } finally {

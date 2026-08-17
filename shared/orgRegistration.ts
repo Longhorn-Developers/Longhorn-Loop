@@ -67,3 +67,34 @@ export const ORG_SEARCH_MAX_LIMIT = 25;
  * lock the org out forever, so a rejected org with no admin is claimable again.
  */
 export type OrgClaimState = 'available' | 'pending_review' | 'claimed';
+
+/**
+ * Why a president-email check failed (LOOP-243).
+ *
+ * These were one error code until it became clear the two cases need
+ * completely different answers from the user, and that the client cannot tell
+ * them apart from the message text alone:
+ *
+ *   - NOT_ON_FILE  -- we hold no contact email for this org at all. Nothing the
+ *     claimant types can ever match. The fix is on HornsLink: add a contact
+ *     email to the org's page, then hit refresh.
+ *   - MISMATCH     -- we hold one and it is not what they typed. Either they
+ *     are not the contact, or HornsLink still lists last year's officer. Same
+ *     fix on HornsLink, different explanation.
+ *
+ * Shared rather than duplicated so the screen's copy branches on the same
+ * string the route emits; a typo here fails the build on both sides at once.
+ */
+export const ORG_EMAIL_NOT_ON_FILE = 'PRESIDENT_EMAIL_NOT_ON_FILE';
+export const ORG_EMAIL_MISMATCH = 'PRESIDENT_EMAIL_MISMATCH';
+
+/**
+ * Minimum gap between POST /orgs/:orgId/refresh calls for one org.
+ *
+ * The endpoint reaches out to HornsLink on every call, so without a floor it
+ * is an open proxy for hammering Campus Labs from our Worker. A minute is
+ * generous next to how long it takes a human to edit an org page and come
+ * back, and it is enforced server-side -- the client's disabled button is not
+ * a rate limit.
+ */
+export const ORG_REFRESH_MIN_INTERVAL_MS = 60 * 1000;

@@ -73,7 +73,7 @@ async function sendVerificationEmail(to: string, code: string, apiKey: string): 
 
 // POST /auth/send-code
 authRoutes.post('/send-code', async (c) => {
-  const { email } = await c.req.json();
+  const { email, mode } = await c.req.json();
 
   if (!email || typeof email !== 'string') {
     return c.json({ error: 'MISSING_EMAIL' }, 400);
@@ -85,6 +85,32 @@ authRoutes.post('/send-code', async (c) => {
   // if (!isValidUTEmail(normalizedEmail)) {
   //   return c.json({ error: "INVALID_UT_EMAIL" }, 400);
   // }
+
+  // `mode: 'login'` means the caller came from "Already Have an Account", and
+  // wants to be told when there is no account rather than being quietly walked
+  // into creating one.
+  //
+  // Until now Log In and Sign Up were the same request, so an unknown address
+  // typed under "Welcome Back!" received a code and fell through into
+  // onboarding. Nobody was ever told they had no account, and a typo in your
+  // own email silently produced a second one.
+  //
+  // The tradeoff is account enumeration: this confirms whether an address is
+  // registered. Accepted deliberately. The signal already leaks — signing up
+  // with an existing address lands you straight on the feed — and the app is
+  // UT-gated, so the cost is low next to a sign-in screen that cannot say
+  // "no account with that email".
+  if (mode === 'login') {
+    const existingUser = await c.env.DB.prepare('SELECT 1 FROM users WHERE email = ?')
+      .bind(normalizedEmail)
+      .first();
+
+    if (!existingUser) {
+      // 404, and NO code is sent — sending one would defeat the point and
+      // burn a Resend send on an address that cannot sign in.
+      return c.json({ error: 'ACCOUNT_NOT_FOUND' }, 404);
+    }
+  }
 
   // Check resend cooldown
   const existing = await c.env.DB.prepare(
