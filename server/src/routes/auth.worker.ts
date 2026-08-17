@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { UT_EMAIL_ERROR, isAllowedUTEmail, normalizeUTEmail } from '../../../shared/utEmail';
+import { type EmailMessage, sendEmail } from '../email/send';
 
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute
@@ -27,20 +28,6 @@ function generateCode(): string {
 // accepted `evil-utexas.edu` besides. Replaced by isAllowedUTEmail in
 // shared/utEmail.ts so the client and the Worker cannot disagree.
 
-// Decide how to deliver the verification code. In dev mode we just log it
-// so devs can test signup without a verified Resend domain. Otherwise we
-// call Resend.
-async function deliverVerificationCode(to: string, code: string, env: Env): Promise<void> {
-  if (env.RESEND_DEV_MODE === 'true') {
-    console.log(
-      `\n[DEV] Verification code for ${to}: ${code}\n` +
-        `      (RESEND_DEV_MODE=true — skipping Resend)\n`,
-    );
-    return;
-  }
-  await sendVerificationEmail(to, code, env.RESEND_API_KEY, env.EMAIL_FROM || DEFAULT_EMAIL_FROM);
-}
-
 /**
  * Who the code appears to come from.
  *
@@ -49,31 +36,27 @@ async function deliverVerificationCode(to: string, code: string, env: Env): Prom
  * everyone else. That is why codes reached Matthew's inbox during development
  * and would have reached exactly zero beta testers.
  *
- * `longhornloop.me` is now verified in Resend (SPF, DKIM and DMARC records
- * live at the registrar), so this can be any address at that domain.
- * Overridable via the EMAIL_FROM var so a staging Worker can point elsewhere
- * without a code change.
+ * Now longhornloop.me, which is verified in Resend. That is NOT the end of the
+ * story: UT's gateway rejects it (see server/src/email/send.ts). Sending from
+ * longhorndevelopers.org instead is the likely answer — an older .org tied to
+ * a real student org, already in the Cloudflare account. Set EMAIL_FROM to
+ * move without touching code.
  */
 const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhornloop.me>';
 
-// Send verification email via Resend
-async function sendVerificationEmail(
-  to: string,
-  code: string,
-  apiKey: string,
-  from: string,
-): Promise<void> {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: 'Your Longhorn Loop Verification Code',
-      html: `
+/**
+ * The code email itself.
+ *
+ * Both parts are built, not just HTML. A text/plain alternative measurably
+ * improves how filters score a message, and we are currently being refused by
+ * one — every free point is worth taking.
+ */
+function verificationEmail(to: string, code: string, from: string): EmailMessage {
+  return {
+    to,
+    from,
+    subject: 'Your Longhorn Loop Verification Code',
+    html: `
         <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #BF5700;">Longhorn Loop</h2>
           <p>Your verification code is:</p>
@@ -83,14 +66,25 @@ async function sendVerificationEmail(
           <p style="color: #666; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
         </div>
       `,
-    }),
-  });
+    text:
+      `Longhorn Loop\n\nYour verification code is: ${code}\n\n` +
+      `This code expires in 10 minutes. If you didn't request this, you can ignore this email.\n`,
+  };
+}
 
-  if (!res.ok) {
-    const error = await res.text();
-    console.error('Resend error:', error);
-    throw new Error('Failed to send verification email');
-  }
+/**
+ * Deliver the code through whichever provider this environment is configured
+ * for. Provider choice lives in EMAIL_PROVIDER — see email/send.ts for why
+ * that is a variable rather than a decision.
+ */
+async function deliverVerificationCode(to: string, code: string, env: Env): Promise<void> {
+  const message = verificationEmail(to, code, env.EMAIL_FROM || DEFAULT_EMAIL_FROM);
+  const provider = await sendEmail(env, message);
+
+  // Which provider handled it, on every send. When the next 550 arrives this
+  // is the difference between knowing which experiment produced it and
+  // guessing from timestamps.
+  console.log(`[email] verification code -> ${to} via ${provider}`);
 }
 
 type CodeRow = {

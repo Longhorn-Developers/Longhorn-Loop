@@ -40,8 +40,22 @@ crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 [vars]
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
-# Verification-code sender. longhornloop.me is verified in Resend (SPF/DKIM/
-# DMARC at the registrar). Changing this to a domain Resend hasn't verified
-# makes every send 403 — the sandbox sender it replaced only ever delivered to
-# the Resend account owner, which is why beta testers received nothing.
+# Verification-code sender. Must be a domain verified with whichever provider
+# EMAIL_PROVIDER selects, or every send fails.
+#
+# UT's Proofpoint gateway currently REJECTS longhornloop.me outright:
+#   550 #5.7.1 Your access to submit messages to this e-mail system has been rejected.
+# Switching to longhorndevelopers.org is the likely fix — an older .org tied to
+# a real student org, already in this Cloudflare account:
+#   EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
 EMAIL_FROM = "Longhorn Loop <noreply@longhornloop.me>"
+
+# Which provider sends. 'cloudflare' | 'postmark' | 'resend' | 'dev'.
+# See server/src/email/send.ts for why this is a variable and not a decision.
+EMAIL_PROVIDER = "resend"
+
+# Cloudflare Email Service. Uncomment AFTER onboarding the domain under
+# Compute > Email Service > Email Sending (it writes the DNS itself), then set
+# EMAIL_PROVIDER = "cloudflare". Requires the Workers Paid plan.
+# [[send_email]]
+# name = "EMAIL"
