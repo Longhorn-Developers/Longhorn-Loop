@@ -1,6 +1,7 @@
 // Auth routes for Cloudflare Worker + D1
 import { Hono } from 'hono';
 import type { Env } from '../worker';
+import { UT_EMAIL_ERROR, isAllowedUTEmail, normalizeUTEmail } from '../../../shared/utEmail';
 
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute
@@ -21,9 +22,10 @@ function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function isValidUTEmail(email: string): boolean {
-  return email.toLowerCase().endsWith('@utexas.edu');
-}
+// `isValidUTEmail` used to live here as `endsWith('@utexas.edu')`, which
+// rejected my.utexas.edu — one of the two domains students actually use — and
+// accepted `evil-utexas.edu` besides. Replaced by isAllowedUTEmail in
+// shared/utEmail.ts so the client and the Worker cannot disagree.
 
 // Decide how to deliver the verification code. In dev mode we just log it
 // so devs can test signup without a verified Resend domain. Otherwise we
@@ -79,12 +81,15 @@ authRoutes.post('/send-code', async (c) => {
     return c.json({ error: 'MISSING_EMAIL' }, 400);
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeUTEmail(email);
 
-  // TODO: Re-enable UT email check for production
-  // if (!isValidUTEmail(normalizedEmail)) {
-  //   return c.json({ error: "INVALID_UT_EMAIL" }, 400);
-  // }
+  // The gate, re-enabled (LOOP-255). This runs BEFORE the cooldown lookup and
+  // before any Resend call, so a non-UT address costs one D1-free rejection
+  // and never receives a code — which is the whole requirement: no code, no
+  // way in.
+  if (!isAllowedUTEmail(normalizedEmail)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: UT_EMAIL_ERROR }, 400);
+  }
 
   // `mode: 'login'` means the caller came from "Already Have an Account", and
   // wants to be told when there is no account rather than being quietly walked
@@ -155,7 +160,16 @@ authRoutes.post('/verify-code', async (c) => {
     return c.json({ error: 'MISSING_FIELDS' }, 400);
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeUTEmail(email);
+
+  // Gate the redemption side too, not just issuance. Codes live for 10
+  // minutes, so without this a code issued to a non-UT address just before
+  // this shipped would still be redeemable — and any row already sitting in
+  // `verification_codes` from before the gate existed stays usable forever
+  // otherwise.
+  if (!isAllowedUTEmail(normalizedEmail)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: UT_EMAIL_ERROR }, 400);
+  }
 
   const record = await c.env.DB.prepare('SELECT * FROM verification_codes WHERE email = ?')
     .bind(normalizedEmail)
@@ -219,12 +233,13 @@ authRoutes.post('/resend-code', async (c) => {
     return c.json({ error: 'MISSING_EMAIL' }, 400);
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeUTEmail(email);
 
-  // TODO: Re-enable UT email check for production
-  // if (!isValidUTEmail(normalizedEmail)) {
-  //   return c.json({ error: "INVALID_UT_EMAIL" }, 400);
-  // }
+  // Same gate as /send-code. Resend is a second door to the same room — a
+  // non-UT address must not be able to reach a code through it either.
+  if (!isAllowedUTEmail(normalizedEmail)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: UT_EMAIL_ERROR }, 400);
+  }
 
   const existing = await c.env.DB.prepare(
     'SELECT last_sent_at FROM verification_codes WHERE email = ?',

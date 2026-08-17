@@ -11,16 +11,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
+import { isAllowedUTEmail } from '@/shared/utEmail';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import TextInputField from '@/app/components/inputs/TextInputField';
 
 import ProfileModal, { ModalAction } from './ProfileModal';
 
 /** Editors must be UT people, so only utexas.edu addresses are invitable. */
-const UT_EMAIL = /^[^\s@]+@([\w-]+\.)*utexas\.edu$/i;
+// LOOP-255: replaced a local any-subdomain regex with the shared allow-list.
+// Inviting an address that can't receive a sign-in code would create a
+// membership row nobody can ever claim.
 
 export function isUtEmail(value: string): boolean {
-  return UT_EMAIL.test(value.trim());
+  return isAllowedUTEmail(value);
 }
 
 export interface InviteEditorModalProps {

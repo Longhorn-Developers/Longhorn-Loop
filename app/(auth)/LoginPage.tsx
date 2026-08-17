@@ -4,6 +4,7 @@ import TextInputField from '@/app/components/inputs/TextInputField';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { UT_EMAIL_ERROR, isAllowedUTEmail } from '@/shared/utEmail';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -16,7 +17,9 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail.trim());
+  // LOOP-255: the same allow-list the Worker enforces. A generic email
+  // regex here let people fill the form and get rejected on submit.
+  const isEmailValid = isAllowedUTEmail(fieldEmail);
 
   /**
    * Request the code here rather than letting the verification screen do it.
@@ -49,7 +52,7 @@ export default function LoginPage() {
         if (result.error === 'ACCOUNT_NOT_FOUND') {
           setError("We couldn't find an account with that email. Try signing up instead.");
         } else if (result.error === 'INVALID_UT_EMAIL') {
-          setError('Please use a valid @utexas.edu email address.');
+          setError(UT_EMAIL_ERROR);
         } else if (result.error === 'RESEND_TOO_SOON') {
           // A code from a moment ago is still valid, so this is not a failure
           // worth stopping on — send them to type the one they already have.

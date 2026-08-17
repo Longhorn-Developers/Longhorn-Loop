@@ -48,6 +48,7 @@ import {
   ORG_SEARCH_MIN_QUERY,
   type OrgClaimState,
 } from '@/shared/orgRegistration';
+import { isAllowedUTEmail } from '@/shared/utEmail';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -234,7 +235,8 @@ export default function OrgRegisterScreen() {
   // Build steps 4 + 5: the primary action stays secondary/outline and disabled
   // until its field is valid, then turns burnt orange. A blank field must
   // never be submittable.
-  const isEmailValid = /^[^\s@]+@([\w-]+\.)*utexas\.edu$/i.test(email.trim());
+  // LOOP-255: shared allow-list, so this can't drift from the Worker.
+  const isEmailValid = isAllowedUTEmail(email);
   const isCodeValid = codeValue.length === CODE_LENGTH && !code.some((d) => d === '');
   const isFormValid = !!selectedOrg && selectedOrg.claimable && !!category && isEmailValid;
 
