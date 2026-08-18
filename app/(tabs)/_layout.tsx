@@ -2,7 +2,7 @@ import TabCreateActiveIcon from '@/assets/images/tab-create-active.svg';
 import TabCreateIcon from '@/assets/images/tab-create.svg';
 import TabExploreActiveIcon from '@/assets/images/tab-explore-active.svg';
 import TabExploreIcon from '@/assets/images/tab-explore.svg';
-import TabHomeInactiveIcon from '@/assets/images/tab-home-inactive.svg';
+import TabHomeActiveIcon from '@/assets/images/tab-home-active.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
 import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
 import TabProfileIcon from '@/assets/images/tab-profile.svg';
@@ -14,6 +14,13 @@ import { Tabs } from 'expo-router';
 // visible thing dark mode missed. The icons are SVGs that used to carry their
 // own greys and oranges; they now paint with `currentColor` and take the tint
 // from here, which is why a single `color` prop is enough to flip all eight.
+//
+// The active icons are SOLID; the inactive ones are outlines. They used to be
+// the same artwork in two colours — three of the four -active files were
+// byte-identical to their inactive twin — so on a small screen, in sunlight, the
+// only thing separating "you are here" from "you are not" was a hue shift on a
+// 1.6pt stroke. Weight reads at a glance in a way colour does not, and it keeps
+// working for the ~8% of men with a red-green deficiency.
 export default function TabsLayout() {
   const colors = useThemeColors();
   const active = colors.accent;
@@ -51,9 +58,9 @@ export default function TabsLayout() {
           options={{
             tabBarIcon: ({ focused }) =>
               focused ? (
-                <TabHomeIcon width={42} height={39} color={active} />
+                <TabHomeActiveIcon width={42} height={39} color={active} />
               ) : (
-                <TabHomeInactiveIcon width={42} height={39} color={inactive} />
+                <TabHomeIcon width={42} height={39} color={inactive} />
               ),
           }}
         />

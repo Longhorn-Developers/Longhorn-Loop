@@ -64,8 +64,8 @@ export default function CreateAccount() {
       subTitle="Let's create your account!"
       onBackPress={() => router.back()}
       showProgressBar={true}
-      startingPercentage={0}
-      progressBarPercentage={25}
+      step={1}
+      totalSteps={4}
       footer={
         <View className="mt-[16px] mb-[42px]">
           <PrimaryButton label="Next" isFilled={allFilled} onPress={handleSubmit} />

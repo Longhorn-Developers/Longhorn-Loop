@@ -43,6 +43,9 @@ export default function AvatarSelector() {
       title="Select Avatar"
       subTitle="Choose the Bevo that represents you"
       onBackPress={() => router.back()}
+      showProgressBar={true}
+      step={3}
+      totalSteps={4}
     >
       {/* 2-column grid */}
       <View
