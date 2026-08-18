@@ -72,22 +72,37 @@ Join our community of developers creating universal apps.
 
 ## Starting the Server
 
-1. Open a 2nd terminal window while keeping the client terminal open
+The backend is a Cloudflare Worker, not a plain Node server. In development
+`app/config/api.ts` points the app at whichever machine started Expo, on port
+8787 — so the Worker has to be running locally or every request fails.
 
-2. Cd into the /server directory
+1. Open a second terminal, keeping the one running Expo open.
+
+2. Set it up (once):
 
    ```bash
    cd server
+   npm install
+   cp .dev.vars.example .dev.vars
+   npx wrangler d1 execute loop-db --local --file=schema.sql
    ```
 
-3. Install dependencies
+   `.dev.vars` is git-ignored and its defaults work as-is. That includes
+   `RESEND_DEV_MODE=true`, which prints verification codes to this terminal
+   instead of emailing them — so you can sign in without a Resend account.
+
+   The `d1 execute` line builds your own local SQLite copy of the database.
+   Nothing you do locally touches production.
+
+3. Start it:
 
    ```bash
-   npm install express cors dotenv
+   npm run dev:lan
    ```
 
-4. Start the server with the /server directory
+   `dev:lan` binds to `0.0.0.0` so a real phone on your wifi can reach it.
+   `npm run dev` binds to localhost only, which is fine for Expo web and the
+   iOS simulator but unreachable from a device.
 
-   ```bash
-   npm run dev
-   ```
+See [`server/README.md`](server/README.md) for the rest — resetting the local
+database, running migrations, and deploying.
