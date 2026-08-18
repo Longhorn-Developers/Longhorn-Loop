@@ -2,7 +2,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../worker';
 import { UT_EMAIL_ERROR, isAllowedUTEmail, normalizeUTEmail } from '../../../shared/utEmail';
-import { type EmailMessage, sendEmail } from '../email/send';
+import { DEFAULT_EMAIL_FROM, type EmailMessage, sendEmail } from '../email/send';
 
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute
@@ -27,24 +27,6 @@ function generateCode(): string {
 // rejected my.utexas.edu — one of the two domains students actually use — and
 // accepted `evil-utexas.edu` besides. Replaced by isAllowedUTEmail in
 // shared/utEmail.ts so the client and the Worker cannot disagree.
-
-/**
- * Who the code appears to come from.
- *
- * Two senders failed before this one, both silently:
- *
- *   onboarding@resend.dev      Resend's shared sandbox. Delivers ONLY to the
- *                              Resend account owner and 403s everyone else, so
- *                              it worked in development and would have reached
- *                              exactly zero beta testers.
- *   noreply@longhornloop.me    Properly verified, and still hard-rejected by
- *                              UT's Proofpoint gateway for being a .me
- *                              registered that morning.
- *
- * longhorndevelopers.org delivers to @my.utexas.edu. Overridable via EMAIL_FROM
- * — but see the warning in wrangler.toml before pointing it at a new domain.
- */
-const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhorndevelopers.org>';
 
 /**
  * The code email itself.

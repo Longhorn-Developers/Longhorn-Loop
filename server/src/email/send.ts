@@ -51,6 +51,29 @@
  * anyone received anything — that distinction cost a full night once already.
  */
 
+/**
+ * Who our mail appears to come from, when EMAIL_FROM is unset.
+ *
+ * Lives here rather than in a route file because auth codes, org verification
+ * codes and org invites must all use the same sender — a person who has just
+ * received a sign-in code should recognise the invite that follows, and a
+ * second sender would build reputation separately from zero.
+ *
+ * Two senders failed before this one, both silently:
+ *
+ *   onboarding@resend.dev      Resend's shared sandbox. Delivers ONLY to the
+ *                              Resend account owner and 403s everyone else, so
+ *                              it worked in development and would have reached
+ *                              exactly zero beta testers.
+ *   noreply@longhornloop.me    Properly verified, and still hard-rejected by
+ *                              UT's Proofpoint gateway for being a .me
+ *                              registered that morning.
+ *
+ * Overridable via EMAIL_FROM, but see wrangler.toml before pointing this at a
+ * new domain.
+ */
+export const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhorndevelopers.org>';
+
 /** One message. Deliberately minimal — the shape every provider agrees on. */
 export type EmailMessage = {
   to: string;

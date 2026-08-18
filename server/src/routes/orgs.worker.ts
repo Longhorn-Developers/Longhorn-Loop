@@ -25,6 +25,8 @@ import {
   PUBLIC_PROFILE_TABS,
 } from '../../../shared/profileEventFilters';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { DEFAULT_EMAIL_FROM, sendEmail } from '../email/send';
+import { orgInviteEmail, orgVerificationEmail } from '../email/templates';
 // "Has this event ended?" is answered in exactly one place in the codebase.
 // These are SQL fragments assuming the events table is aliased `e`; they were
 // module-private until LOOP-240 needed the same answer over here.
@@ -382,6 +384,24 @@ orgRoutes.post('/register/verify-president', async (c) => {
   const key = orgVerificationKey(orgId, email);
   const expiresAt = Date.now() + 10 * 60 * 1000;
 
+  // What the row looked like before, so a failed send can put it back. Same
+  // reasoning as issueVerificationCode in auth.worker.ts: the row IS the
+  // cooldown, and leaving one behind for a code nobody received locks the
+  // president out of retrying for a minute over someone else's outage.
+  const previous = await c.env.DB.prepare(
+    `SELECT code_hash, expires_at, verified, used_at, attempts, last_sent_at
+     FROM verification_codes WHERE email = ?`,
+  )
+    .bind(key)
+    .first<{
+      code_hash: string;
+      expires_at: number;
+      verified: number;
+      used_at: number | null;
+      attempts: number;
+      last_sent_at: number;
+    }>();
+
   await c.env.DB.prepare(
     `INSERT INTO verification_codes (email, code_hash, expires_at, verified, attempts, last_sent_at)
      VALUES (?, ?, ?, 0, 0, ?)
@@ -396,10 +416,48 @@ orgRoutes.post('/register/verify-president', async (c) => {
     .bind(key, await hashCode(code), expiresAt, Date.now())
     .run();
 
-  // Dev mode mirrors auth.worker.ts: log instead of sending, so the flow is
-  // testable before Resend has a verified sending domain.
-  if (c.env.RESEND_DEV_MODE === 'true') {
-    console.log(`[org-verify] code for ${email} (org ${orgId}): ${code}`);
+  // Actually send it (LOOP-245). This used to log the code under
+  // RESEND_DEV_MODE and do nothing at all otherwise — so in production the
+  // code was hashed into the database and then simply lost. No organization
+  // could ever complete a claim, regardless of what the scrapers collected.
+  try {
+    await sendEmail(
+      c.env,
+      orgVerificationEmail(email, org.name as string, code, c.env.EMAIL_FROM || DEFAULT_EMAIL_FROM),
+    );
+  } catch (err) {
+    try {
+      if (previous) {
+        await c.env.DB.prepare(
+          `UPDATE verification_codes
+           SET code_hash = ?, expires_at = ?, verified = ?, used_at = ?, attempts = ?, last_sent_at = ?
+           WHERE email = ?`,
+        )
+          .bind(
+            previous.code_hash,
+            previous.expires_at,
+            previous.verified,
+            previous.used_at,
+            previous.attempts,
+            previous.last_sent_at,
+            key,
+          )
+          .run();
+      } else {
+        await c.env.DB.prepare('DELETE FROM verification_codes WHERE email = ?').bind(key).run();
+      }
+    } catch (rollbackErr) {
+      console.error('Failed to roll back org verification code for', key, rollbackErr);
+    }
+
+    console.error('Could not send org verification code to', email, err);
+    return c.json(
+      {
+        error: 'SEND_FAILED',
+        message: "We couldn't send the verification code right now. Please try again.",
+      },
+      502,
+    );
   }
 
   return c.json({ sent: true, org_name: org.name });
@@ -772,10 +830,49 @@ orgRoutes.post('/:orgId/invites', async (c) => {
     .bind(member.orgId, email, role, member.userId)
     .run();
 
-  // NOTE: the invite email itself is not sent here. server/src/utils/sendEmail
-  // is wired for Resend and 2FA codes only; sending team invites needs a
-  // verified sending domain, which is still an open production TODO.
-  return c.json({ invited: true, email, role, email_sent: false }, 201);
+  // Send it (LOOP-245). Until now this returned email_sent: false and the
+  // invited person was never told anything — the row sat in org_invites
+  // waiting for someone who had no reason to look.
+  //
+  // Note what is NOT rolled back on failure, unlike the verification code
+  // above: the invite row stays. An invite is claimed by signing in with the
+  // invited address, not by clicking anything in the email, so the row is
+  // useful on its own — the admin can simply tell them in person. Deleting it
+  // because a mail server hiccuped would destroy the more durable half of the
+  // feature to keep the pair consistent.
+  //
+  // `email_sent` is reported honestly so the modal can say "invited, but we
+  // couldn't email them" rather than implying a message went out.
+  let emailSent = false;
+  try {
+    const inviter = await c.env.DB.prepare('SELECT first_name, last_name FROM users WHERE id = ?')
+      .bind(member.userId)
+      .first<{ first_name: string | null; last_name: string | null }>();
+
+    const inviterName =
+      [inviter?.first_name, inviter?.last_name].filter(Boolean).join(' ').trim() ||
+      'A Longhorn Loop admin';
+
+    const org = await c.env.DB.prepare('SELECT name FROM organizations WHERE id = ?')
+      .bind(member.orgId)
+      .first<{ name: string }>();
+
+    await sendEmail(
+      c.env,
+      orgInviteEmail(
+        email,
+        org?.name ?? 'an organization',
+        inviterName,
+        role,
+        c.env.EMAIL_FROM || DEFAULT_EMAIL_FROM,
+      ),
+    );
+    emailSent = true;
+  } catch (err) {
+    console.error('Could not send org invite to', email, err);
+  }
+
+  return c.json({ invited: true, email, role, email_sent: emailSent }, 201);
 });
 
 // DELETE /orgs/:orgId/invites/:inviteId -- revoke a pending invite (admin only).
