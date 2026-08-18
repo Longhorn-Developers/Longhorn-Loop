@@ -1,5 +1,6 @@
 import LonghornLoopLogo from '@/app/components/icons/LonghornLoopLogo';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { Image, type ImageSource } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
@@ -20,18 +21,45 @@ import PrimaryButton from '../components/buttons/PrimaryButton';
 const CARD_MARGIN = 45;
 const TEXT_MARGIN = 32;
 
-// Inactive pagination dot. Fixed brand colour, not a theme token.
-const DOT_INACTIVE = '#E8E3DC';
+/**
+ * NOTHING BELOW THE HERO IS ALLOWED TO MOVE BETWEEN SLIDES.
+ *
+ * Every measurement here that looks over-specified is holding one of the three
+ * things that used to shift as you swiped:
+ *
+ *  1. Each hero declared its own aspect ratio (634/742, 626/656, 624/656), so
+ *     slide 1's card was ~10% taller than the other two and everything under it
+ *     started lower.
+ *  2. Each title declared its own size (30, 26, 30) and the copy wraps to a
+ *     different number of lines per slide, so the pagination dots sat at three
+ *     different heights.
+ *  3. The footer grew by a whole button on the last slide, which pushed the
+ *     carousel viewport shorter and moved the artwork up mid-swipe.
+ *
+ * The fix in each case is to reserve the worst case and let the flexible part
+ * absorb the slack, rather than letting content decide the layout.
+ */
 
-// The cream card and its shadow are baked into each hero image, so heroAspect
-// is the image's own ratio.
+/** The copy block is a fixed box: eyebrow + up to 2 title lines + up to 3 of
+ *  body, measured at the widest phone wrap. Shorter copy leaves space rather
+ *  than pulling the dots up. */
+const TEXT_BLOCK_HEIGHT = 194;
+
+/** One size for all three titles. Per-slide sizes were the design compensating
+ *  for the longest string; the reserved block does that job now. */
+const TITLE_SIZE = 28;
+
+const BUTTON_HEIGHT = 55;
+const BUTTON_GAP = 16;
+/** Reserved on EVERY slide, not just the last, so the primary CTA does not jump
+ *  when the second button appears. */
+const FOOTER_HEIGHT = BUTTON_HEIGHT * 2 + BUTTON_GAP;
+
 interface Slide {
   id: string;
   hero: ImageSource;
-  heroAspect: number;
   eyebrow: string;
   title: string;
-  titleSize: number;
   subtitle: string;
 }
 
@@ -39,30 +67,24 @@ const SLIDES: Slide[] = [
   {
     id: 'campus',
     hero: require('@/assets/images/onboarding-explore-hero.webp'),
-    heroAspect: 634 / 742,
     eyebrow: 'STAY IN THE LOOP',
     title: 'Campus, all in one place',
-    titleSize: 30,
     subtitle:
       "Every UT event and org, sorted by what's close, what's next, and what's worth your time.",
   },
   {
     id: 'people',
     hero: require('@/assets/images/onboarding-people-hero.webp'),
-    heroAspect: 626 / 656,
     eyebrow: 'FIND YOUR PEOPLE',
     title: 'Make Campus Feel Smaller',
-    titleSize: 26,
     subtitle:
       "See who's going, discover communities you'll love, and turn new faces into familiar ones.",
   },
   {
     id: 'yours',
     hero: require('@/assets/images/onboarding-yours-hero.webp'),
-    heroAspect: 624 / 656,
     eyebrow: 'MAKE IT YOURS',
     title: 'Your Loop, Your Path',
-    titleSize: 30,
     subtitle: 'Loop learns what matters to you and builds a feed around your interests.',
   },
 ];
@@ -70,6 +92,7 @@ const SLIDES: Slide[] = [
 export default function FrontPage() {
   const router = useRouter();
   const { update } = useOnboarding();
+  const colors = useThemeColors();
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<Slide>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -87,20 +110,22 @@ export default function FrontPage() {
   };
 
   const renderSlide = ({ item, index }: ListRenderItemInfo<Slide>) => (
-    <View style={{ width }} className="items-center pt-[30px]">
-      <Image
-        source={item.hero}
-        style={{ width: width - CARD_MARGIN * 2, aspectRatio: item.heroAspect }}
-        contentFit="contain"
-      />
+    <View style={{ width, height: '100%' }} className="items-center pt-[30px]">
+      {/* The hero takes whatever the fixed blocks below do not, so the card
+          scales with the device instead of overflowing a small one — and it is
+          the same box on all three slides, which is what stops the shift. */}
+      <View style={{ width: width - CARD_MARGIN * 2, flex: 1 }}>
+        <Image source={item.hero} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+      </View>
 
-      <View style={{ width: width - TEXT_MARGIN * 2, marginTop: 14 }}>
-        <Text className="text-center font-roboto-bold text-[16px] text-lhlBurntOrange">
+      <View style={{ width: width - TEXT_MARGIN * 2, height: TEXT_BLOCK_HEIGHT, marginTop: 14 }}>
+        <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
           {item.eyebrow}
         </Text>
 
         <Text
-          style={{ marginTop: 29, fontSize: item.titleSize }}
+          style={{ marginTop: 29, fontSize: TITLE_SIZE }}
+          numberOfLines={2}
           className="text-center font-roboto-bold text-lhlInk"
         >
           {item.title}
@@ -108,6 +133,7 @@ export default function FrontPage() {
 
         <Text
           style={{ marginTop: 12 }}
+          numberOfLines={3}
           className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
         >
           {item.subtitle}
@@ -115,7 +141,7 @@ export default function FrontPage() {
       </View>
 
       {/* Active dot is a 32x13 pill, the rest 13px circles. */}
-      <View className="flex-row items-center" style={{ gap: 10, marginTop: 32 }}>
+      <View className="flex-row items-center pb-2" style={{ gap: 10 }}>
         {SLIDES.map((slide, i) =>
           i === index ? (
             <View key={slide.id} className="h-[13px] w-8 rounded-full bg-lhlBurntOrange" />
@@ -123,7 +149,7 @@ export default function FrontPage() {
             <View
               key={slide.id}
               className="h-[13px] w-[13px] rounded-full"
-              style={{ backgroundColor: DOT_INACTIVE }}
+              style={{ backgroundColor: colors.placeholder }}
             />
           ),
         )}
@@ -149,35 +175,41 @@ export default function FrontPage() {
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        // Every item is exactly one screen wide, so we can tell the list that
+        // instead of making it measure — scrollToIndex warns without this.
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
       />
 
-      {/* Last slide swaps the single Continue for the two auth CTAs. */}
-      <View className="gap-4 px-5 pb-2 pt-4">
-        {isLastSlide ? (
-          <>
-            <PrimaryButton
-              label="Get Started"
-              isFilled
-              onPress={() => router.push('/RegisterPage')}
-            />
+      {/* Fixed height: the last slide adds a button, and without the reservation
+          that resize propagates up into the carousel and moves the artwork. */}
+      <View className="px-5 pb-2 pt-4">
+        <View style={{ height: FOOTER_HEIGHT, gap: BUTTON_GAP }}>
+          <PrimaryButton
+            label={isLastSlide ? 'Get Started' : 'Continue'}
+            isFilled
+            onPress={isLastSlide ? () => router.push('/RegisterPage') : goNext}
+          />
+          {isLastSlide && (
             <Pressable
-              className="h-[55px] flex-row items-center justify-center rounded-lg border-2 border-lhlBorderColor bg-lhlSurface"
+              style={{ height: BUTTON_HEIGHT }}
+              className="flex-row items-center justify-center rounded-lg border-2 border-lhlBorderColor bg-lhlSurface"
               onPress={() => router.push('/LoginPage')}
             >
-              <Text className="font-roboto-semibold text-xl text-lhlBurntOrange">
+              <Text className="font-roboto-semibold text-xl text-lhlAccent">
                 Already Have an Account
               </Text>
             </Pressable>
-          </>
-        ) : (
-          <PrimaryButton label="Continue" isFilled onPress={goNext} />
-        )}
+          )}
+        </View>
       </View>
 
-      {/* Dev-only bypass: skip auth and onboarding straight to the feed. */}
+      {/* Dev-only bypass: skip auth and onboarding straight to the feed.
+          Absolutely positioned so a dev build lays out identically to the one
+          testers get — otherwise we tune spacing against a screen 20px shorter
+          than the real thing. */}
       {__DEV__ && (
         <Pressable
-          className="items-center pb-2"
+          className="absolute bottom-1 left-0 right-0 items-center"
           onPress={() => {
             update({ firstName: 'Dev', lastName: 'User', email: 'dev@utexas.edu' });
             router.replace('/(tabs)/home');

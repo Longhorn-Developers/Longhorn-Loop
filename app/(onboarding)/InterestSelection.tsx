@@ -56,8 +56,8 @@ export default function CategorySelectorScreen() {
       subTitle="Pick tags from any category and we'll use them to customize your experience."
       onBackPress={() => router.back()}
       showProgressBar={true}
-      startingPercentage={25}
-      progressBarPercentage={50}
+      step={2}
+      totalSteps={4}
       footer={
         <View className="mt-[16px] mb-[42px]">
           <PrimaryButton label="Next" isFilled={allFilled} onPress={handleSubmit} />

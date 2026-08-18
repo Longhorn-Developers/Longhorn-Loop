@@ -5,8 +5,11 @@
 import React from 'react';
 import Svg, { Path, Rect } from 'react-native-svg';
 
-const CIRCLE_FILL = '#9D4A06';
-const TOWER_FILL = '#F1E7DE';
+// A logo is a fixed mark, not a themed surface: the tower sits on its own
+// orange disc, so it carries its contrast with it. Re-tinting either colour for
+// dark mode would make it a different logo.
+const CIRCLE_FILL = '#9D4A06'; // theme-exempt: brand mark
+const TOWER_FILL = '#F1E7DE'; // theme-exempt: brand mark
 
 interface LonghornLoopLogoProps {
   /** Diameter in px. Keeps the 35:36 source ratio. */
