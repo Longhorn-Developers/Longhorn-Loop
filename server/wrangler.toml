@@ -43,12 +43,17 @@ EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.d
 # Verification-code sender. Must be a domain verified with whichever provider
 # EMAIL_PROVIDER selects, or every send fails.
 #
-# UT's Proofpoint gateway currently REJECTS longhornloop.me outright:
+# DO NOT change this to a newly registered domain without re-testing delivery
+# to a real @utexas.edu address. UT's gateway is Proofpoint, and it rejected
+# longhornloop.me — registered that same morning — at the SMTP handshake:
+#
 #   550 #5.7.1 Your access to submit messages to this e-mail system has been rejected.
-# Switching to longhorndevelopers.org is the likely fix — an older .org tied to
-# a real student org, already in this Cloudflare account:
-#   EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
-EMAIL_FROM = "Longhorn Loop <noreply@longhornloop.me>"
+#
+# The identical message went through from longhorndevelopers.org minutes later,
+# on the same Resend account and the same Amazon SES IP pool. Only the sending
+# domain differed, so the block was on the domain, not the infrastructure — an
+# aged .org with a real organisation behind it passes where a fresh .me does not.
+EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
 
 # Which provider sends. 'cloudflare' | 'postmark' | 'resend' | 'dev'.
 # See server/src/email/send.ts for why this is a variable and not a decision.

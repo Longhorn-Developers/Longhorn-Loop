@@ -31,18 +31,20 @@ function generateCode(): string {
 /**
  * Who the code appears to come from.
  *
- * This was `onboarding@resend.dev` — Resend's shared sandbox sender, which
- * only delivers to the Resend account owner's own address and returns 403 for
- * everyone else. That is why codes reached Matthew's inbox during development
- * and would have reached exactly zero beta testers.
+ * Two senders failed before this one, both silently:
  *
- * Now longhornloop.me, which is verified in Resend. That is NOT the end of the
- * story: UT's gateway rejects it (see server/src/email/send.ts). Sending from
- * longhorndevelopers.org instead is the likely answer — an older .org tied to
- * a real student org, already in the Cloudflare account. Set EMAIL_FROM to
- * move without touching code.
+ *   onboarding@resend.dev      Resend's shared sandbox. Delivers ONLY to the
+ *                              Resend account owner and 403s everyone else, so
+ *                              it worked in development and would have reached
+ *                              exactly zero beta testers.
+ *   noreply@longhornloop.me    Properly verified, and still hard-rejected by
+ *                              UT's Proofpoint gateway for being a .me
+ *                              registered that morning.
+ *
+ * longhorndevelopers.org delivers to @my.utexas.edu. Overridable via EMAIL_FROM
+ * — but see the warning in wrangler.toml before pointing it at a new domain.
  */
-const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhornloop.me>';
+const DEFAULT_EMAIL_FROM = 'Longhorn Loop <noreply@longhorndevelopers.org>';
 
 /**
  * The code email itself.

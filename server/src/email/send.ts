@@ -17,34 +17,38 @@
  * address: a sender-level block. Resend's free tier sends over a shared Amazon
  * SES pool, and that pool is the most likely thing being refused.
  *
- * We do not yet know whether the block is on the sending IPs or on the
- * longhornloop.me domain itself, and the fix differs completely:
+ * RESOLVED: it was the DOMAIN, not the provider.
  *
- *   - IP reputation  -> a different provider clears it
- *   - domain/TLD     -> only a UT ITS allow-list or a different domain does
+ * The same message, from the same Resend account over the same shared Amazon
+ * SES IP pool, was DELIVERED to @my.utexas.edu once the sender changed from
+ * longhornloop.me to longhorndevelopers.org. Nothing else differed. Proofpoint
+ * was refusing a domain registered hours earlier on a TLD it distrusts, not
+ * refusing Amazon's IPs.
  *
- * The only way to find out is to send the same message from different
- * infrastructure and see what bounces. That is what this file is for: swapping
- * providers is now an env var, not a rewrite, so each experiment costs one
- * redeploy instead of an afternoon.
+ * So resend + longhorndevelopers.org is the working configuration, and the
+ * expensive migrations we were lining up (Postmark, Cloudflare Email Service,
+ * a UT ITS allow-list request) all turned out to be unnecessary.
  *
- * WHAT TO TRY, AND WHY IT MIGHT WORK
+ * WHY THIS ABSTRACTION SURVIVES ANYWAY
  *
- *   cloudflare  Cloudflare Email Service. Free-ish under the sponsorship and
- *               native to the Worker, but the platform is months old — new
- *               infrastructure means new IPs with no history, and history is
- *               exactly what Proofpoint scores on. Could be cleaner than SES
- *               shared; could be worse. Unknown, and worth one test.
- *   postmark    Sells deliverability specifically and polices its pools hard
- *               enough to reject customers over it. Best odds of the three on
- *               reputation alone.
- *   resend      What we have. Known blocked from longhornloop.me.
+ * Because the finding is fragile in a specific way: it is a fact about how one
+ * gateway currently scores one domain, and we do not control either. If UT
+ * tightens its policy, or Resend's shared pool degrades, or the domain's
+ * reputation is spent by some other project sending from it, the symptom is
+ * every beta tester silently unable to log in. Being able to answer that with
+ * an env var instead of a rewrite is worth the ~200 lines.
+ *
+ *   resend      Current. Verified on longhorndevelopers.org, delivers to UT.
+ *   postmark    First fallback. Sells deliverability specifically and polices
+ *               its pools hard enough to reject customers over it.
+ *   cloudflare  Email Service. Free-ish under the sponsorship and native to
+ *               the Worker, but months old — new IPs with no history, and
+ *               history is what Proofpoint scores on. Untested against UT.
  *   dev         Logs the code to the wrangler console. Local only.
  *
- * Prefer sending from longhorndevelopers.org over longhornloop.me whichever
- * provider wins. It is an older .org tied to a real student organization and
- * already sits in the Cloudflare account, where .me is a TLD with a bad
- * reputation that we registered the same morning.
+ * If you are here because codes stopped arriving: check Resend's Emails log
+ * FIRST. A 200 from this file means Resend accepted the request, not that
+ * anyone received anything — that distinction cost a full night once already.
  */
 
 /** One message. Deliberately minimal — the shape every provider agrees on. */

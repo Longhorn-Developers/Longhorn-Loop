@@ -129,7 +129,7 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
       RESEND_API_KEY: 'test-key',
       // Explicitly NOT dev mode — dev mode short-circuits before Resend and
       // would make every test here pass without exercising anything.
-      EMAIL_FROM: 'Longhorn Loop <noreply@longhornloop.me>',
+      EMAIL_FROM: 'Longhorn Loop <noreply@longhorndevelopers.org>',
     } as Env;
   });
 
@@ -201,13 +201,15 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
   it('sends from the verified domain, not the Resend sandbox address', async () => {
     // onboarding@resend.dev only ever delivered to the Resend account owner.
     // It looked like it worked in dev for exactly that reason, and would have
-    // delivered to zero beta testers.
+    // delivered to zero beta testers. The domain also has to be one UT accepts
+    // — longhornloop.me was verified with Resend and still refused at UT's
+    // gateway, so "verified" and "deliverable" are not the same property.
     workingResend();
     await post('/send-code', { email: EMAIL });
 
     const [, init] = (globalThis.fetch as any).mock.calls[0];
     const body = JSON.parse(init.body);
-    expect(body.from).toBe('Longhorn Loop <noreply@longhornloop.me>');
+    expect(body.from).toBe('Longhorn Loop <noreply@longhorndevelopers.org>');
     expect(body.from).not.toContain('resend.dev');
     expect(body.to).toEqual([EMAIL]);
   });
