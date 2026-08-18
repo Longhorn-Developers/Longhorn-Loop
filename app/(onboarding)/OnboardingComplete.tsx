@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { captureError } from '@/app/lib/monitoring';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -130,7 +131,12 @@ export default function OnboardingComplete() {
 
       router.replace('/(tabs)/home');
     } catch (err) {
+      // Reported, not just logged. This is the last step of signup: a failure
+      // here leaves someone verified but with no profile, and they have no way
+      // to tell us beyond "it didn't work". A console.error on their phone is
+      // invisible to us.
       console.error('Onboarding submit failed:', err);
+      captureError('onboarding.submit', err);
       setHasAttempted(true);
     } finally {
       setSubmitting(false);

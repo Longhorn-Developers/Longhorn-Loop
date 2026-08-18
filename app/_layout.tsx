@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { OnboardingProvider } from './context/OnboardingContext';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';
 import { useThemeColors } from './lib/themeColors';
+import { initMonitoring } from './lib/monitoring';
 
 // One QueryClient for the whole app. 30s staleTime means same-key queries
 // won't refetch within 30s of the last fetch. Mutations still force fresh
@@ -22,6 +23,11 @@ const queryClient = new QueryClient({
 
 // Prevent the native splash screen from auto-hiding before assets are loaded
 NativeSplashScreen.preventAutoHideAsync();
+
+// Crash reporting, started before any screen mounts so an error during the
+// first render is still captured. No-op without the SDK or a DSN — see
+// lib/monitoring.ts for why that matters.
+initMonitoring();
 
 /**
  * The navigator, plus the two themed things that live outside any screen.
