@@ -7,7 +7,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": { "simulator": true },
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://localhost:8787"
       }
@@ -15,16 +17,20 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": ""
       }
     }
   },

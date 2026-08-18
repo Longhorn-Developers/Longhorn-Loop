@@ -53,7 +53,8 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,
