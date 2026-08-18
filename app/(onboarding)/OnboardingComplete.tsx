@@ -4,7 +4,15 @@ import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Animated,
+  SafeAreaView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function OnboardingComplete() {
   const colors = useThemeColors();
@@ -16,6 +24,29 @@ export default function OnboardingComplete() {
   // false → "GO TO HOME PAGE", true → "TRY AGAIN" after a failed attempt.
   const [hasAttempted, setHasAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  /**
+   * Notification preference — ASKED, not assumed.
+   *
+   * This screen used to post `notifications_enabled: true` unconditionally,
+   * alongside three `agreed_*` flags that are genuinely implied by finishing
+   * onboarding. Reminders are not: nobody was shown the question, so the value
+   * recorded a decision the user never made. Settings then displayed a toggle
+   * already switched on, which reads as "you chose this" rather than "we chose
+   * for you".
+   *
+   * Defaulting ON is a deliberate product call, not an accident — the app's
+   * core value is not missing events, and a beta tester who never finds the
+   * Settings screen still gets reminders. But it is now visibly a default the
+   * user can decline before it is ever written.
+   *
+   * Note this flag is only a stored preference. There is no expo-notifications
+   * dependency and no push token anywhere in the app yet, so nothing actually
+   * delivers on it — and no OS permission dialog appears here. When push does
+   * land, the OS prompt should be requested at a moment the user has asked for
+   * it, not fired blind on this screen.
+   */
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const checkScale = useRef(new Animated.Value(0)).current;
   const checkOpacity = useRef(new Animated.Value(0)).current;
@@ -83,7 +114,7 @@ export default function OnboardingComplete() {
           agreed_responsible_use: true,
           agreed_visibility_acknowledgment: true,
           agreed_community_guidelines: true,
-          notifications_enabled: true,
+          notifications_enabled: notificationsEnabled,
         }),
       });
       if (!agreementsRes.ok) {
@@ -144,6 +175,24 @@ export default function OnboardingComplete() {
             { opacity: buttonOpacity, transform: [{ translateY: buttonTranslate }] },
           ]}
         >
+          {/* Above the CTA on purpose. Below it and most people never see it,
+              which puts us back where we started. */}
+          <View style={styles.notifyRow}>
+            <View style={styles.notifyText}>
+              <Text style={styles.notifyTitle}>Event reminders</Text>
+              <Text style={styles.notifySubtitle}>
+                Get a heads-up before events you save. You can change this any time in Settings.
+              </Text>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              disabled={submitting}
+              trackColor={{ true: colors.accent }}
+              accessibilityLabel="Event reminders"
+            />
+          </View>
+
           <TouchableOpacity
             style={[styles.button, submitting && styles.buttonDisabled]}
             onPress={submitOnboarding}
@@ -201,6 +250,27 @@ const makeStyles = (c: ThemeColors) =>
     buttonWrapper: {
       width: '100%',
       marginTop: 16,
+    },
+    notifyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+      marginBottom: 20,
+    },
+    notifyText: {
+      flex: 1,
+    },
+    notifyTitle: {
+      color: c.ink,
+      fontFamily: 'Roboto-Flex',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    notifySubtitle: {
+      color: c.inkSecondary,
+      fontFamily: 'Roboto-Flex',
+      fontSize: 13,
+      marginTop: 2,
     },
     button: {
       backgroundColor: c.brand,
