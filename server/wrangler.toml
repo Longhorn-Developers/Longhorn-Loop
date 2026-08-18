@@ -40,3 +40,27 @@ crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 [vars]
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
+# Verification-code sender. Must be a domain verified with whichever provider
+# EMAIL_PROVIDER selects, or every send fails.
+#
+# DO NOT change this to a newly registered domain without re-testing delivery
+# to a real @utexas.edu address. UT's gateway is Proofpoint, and it rejected
+# longhornloop.me — registered that same morning — at the SMTP handshake:
+#
+#   550 #5.7.1 Your access to submit messages to this e-mail system has been rejected.
+#
+# The identical message went through from longhorndevelopers.org minutes later,
+# on the same Resend account and the same Amazon SES IP pool. Only the sending
+# domain differed, so the block was on the domain, not the infrastructure — an
+# aged .org with a real organisation behind it passes where a fresh .me does not.
+EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
+
+# Which provider sends. 'cloudflare' | 'postmark' | 'resend' | 'dev'.
+# See server/src/email/send.ts for why this is a variable and not a decision.
+EMAIL_PROVIDER = "resend"
+
+# Cloudflare Email Service. Uncomment AFTER onboarding the domain under
+# Compute > Email Service > Email Sending (it writes the DNS itself), then set
+# EMAIL_PROVIDER = "cloudflare". Requires the Workers Paid plan.
+# [[send_email]]
+# name = "EMAIL"

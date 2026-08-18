@@ -4,6 +4,7 @@ import TextInputField from '@/app/components/inputs/TextInputField';
 import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { UT_EMAIL_ERROR, isAllowedUTEmail } from '@/shared/utEmail';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
@@ -18,7 +19,8 @@ export default function RegisterPage() {
   const [alertMessage, setAlertMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldEmail.trim());
+  // LOOP-255: the same allow-list the Worker enforces.
+  const isEmailValid = isAllowedUTEmail(fieldEmail);
 
   const validateForm = () => {
     if (!fieldFirstName.trim()) {
@@ -28,7 +30,7 @@ export default function RegisterPage() {
       return 'Please enter your last name.';
     }
     if (!isEmailValid) {
-      return 'UT email address is invalid or unregistered.';
+      return UT_EMAIL_ERROR;
     }
     return '';
   };
@@ -55,7 +57,9 @@ export default function RegisterPage() {
 
       if (!res.ok) {
         if (data.error === 'INVALID_UT_EMAIL') {
-          setAlertMessage('Please use a valid @utexas.edu email address.');
+          setAlertMessage(UT_EMAIL_ERROR);
+        } else if (data.error === 'SEND_FAILED') {
+          setAlertMessage("We couldn't send your code right now. Please try again.");
         } else if (data.error === 'RESEND_TOO_SOON') {
           setAlertMessage(
             'Verification code already sent. Please wait before requesting a new one.',
