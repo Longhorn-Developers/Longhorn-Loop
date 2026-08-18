@@ -41,6 +41,7 @@ import {
   type OrgClaimState,
 } from '../../../shared/orgRegistration';
 import { refreshOrgContactEmail } from '../scrapers/hornslinkOrgs';
+import { UT_EMAIL_ERROR, isAllowedUTEmail } from '../../../shared/utEmail';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -320,8 +321,12 @@ orgRoutes.post('/register/verify-president', async (c) => {
   if (orgId === null) return c.json({ error: 'INVALID_ORG_ID' }, 400);
 
   // Build step 4: an empty or non-UT address never reaches the mismatch check.
-  if (!/^[^\s@]+@([\w-]+\.)*utexas\.edu$/i.test(email)) {
-    return c.json({ error: 'INVALID_UT_EMAIL', message: 'Enter a valid UT email address.' }, 400);
+  //
+  // This was a local regex allowing any *.utexas.edu subdomain, which was
+  // looser than the sign-in gate. Both now use the same allow-list (LOOP-255)
+  // so an address that cannot sign in also cannot claim an org.
+  if (!isAllowedUTEmail(email)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: UT_EMAIL_ERROR }, 400);
   }
 
   const org = await c.env.DB.prepare(
@@ -732,9 +737,11 @@ orgRoutes.post('/:orgId/invites', async (c) => {
   const email = body && typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const role = body && body.role === 'admin' ? 'admin' : 'editor';
 
-  // Editors must be UT people — same rule the modal enforces client-side.
-  if (!/^[^\s@]+@([\w-]+\.)*utexas\.edu$/i.test(email)) {
-    return c.json({ error: 'INVALID_UT_EMAIL', message: 'Enter a valid UT email address.' }, 400);
+  // Editors must be UT people — same rule the modal enforces client-side, and
+  // now the same allow-list as sign-in (LOOP-255). Inviting an address that
+  // cannot receive a code would create a membership row nobody can ever claim.
+  if (!isAllowedUTEmail(email)) {
+    return c.json({ error: 'INVALID_UT_EMAIL', message: UT_EMAIL_ERROR }, 400);
   }
 
   // If they already have an account and are already in the org, an invite is

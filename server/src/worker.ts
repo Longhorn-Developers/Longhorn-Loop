@@ -10,6 +10,7 @@ import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
+import type { SendEmailBinding } from './email/send';
 
 export type Env = {
   DB: D1Database;
@@ -26,6 +27,18 @@ export type Env = {
   // the wrangler console instead of sending them through Resend. Never set
   // in production.
   RESEND_DEV_MODE?: string;
+  // Sender for verification emails. Set in wrangler.toml [vars]; the domain
+  // must be verified with whichever provider is active or every send fails.
+  // Falls back to the default in auth.worker.ts when unset.
+  EMAIL_FROM?: string;
+  // 'cloudflare' | 'postmark' | 'resend' | 'dev'. See email/send.ts — this is
+  // a variable because UT's gateway blocks our current sender and we do not
+  // yet know which provider it will accept.
+  EMAIL_PROVIDER?: string;
+  // Cloudflare Email Service binding. Present only once wrangler.toml declares
+  // [[send_email]] AND the domain is onboarded in the dashboard.
+  EMAIL?: SendEmailBinding;
+  POSTMARK_API_TOKEN?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();

@@ -1,17 +1,28 @@
 {
   "expo": {
-    "name": "Longhorn-Journey-Forked",
-    "slug": "Longhorn-Journey-Forked",
+    "name": "Longhorn Loop",
+    "slug": "longhorn-loop",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "longhornjourneyforked",
+    "scheme": "longhornloop",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "primaryColor": "#BF5700",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "org.longhorndevelopers.longhornloop",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Longhorn Loop needs access to your photos so you can set a profile picture and add images to events you host.",
+        "NSCameraUsageDescription": "Longhorn Loop needs camera access so you can take a photo for your profile or an event you host.",
+        "NSLocationWhenInUseUsageDescription": "Longhorn Loop uses your location to show how far away campus events are."
+      }
     },
     "android": {
+      "package": "org.longhorndevelopers.longhornloop",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -41,7 +52,9 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,
