@@ -15,8 +15,25 @@ npx wrangler d1 execute loop-db --local --file=schema.sql
 npm run dev:lan
 ```
 
-Worker is now running on port 8787. The app's `app/config/api.ts` points at it
-automatically in dev mode, so `npx expo start` in the repo root just works.
+Worker is now running on port 8787. One more step: the app talks to the
+**deployed** Worker by default, so tell it to use yours instead. In the repo
+root:
+
+```bash
+echo "EXPO_PUBLIC_USE_LOCAL_API=1" >> .env
+npx expo start --clear
+```
+
+It works out the right address on its own, including from a real phone on your
+wifi. On startup it prints which backend it chose:
+
+```
+[api] http://192.168.1.24:8787  (EXPO_PUBLIC_USE_LOCAL_API=1)
+```
+
+If that line says `(default)` and a workers.dev URL, the flag did not take —
+`EXPO_PUBLIC_*` is inlined at build time, so `.env` edits need `--clear` and an
+app reload.
 
 You do not need a Cloudflare account to do any of this. Everything above runs
 against a SQLite file on your own machine.

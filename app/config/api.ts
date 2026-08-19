@@ -1,16 +1,36 @@
 // Where the app sends its API calls.
 //
-// Production hits the deployed Worker. Development has to reach the
-// `wrangler dev` process on whichever machine started Expo, and the address
-// that machine answers to depends on where the app is running:
+// THE DEFAULT IS THE DEPLOYED WORKER, IN DEVELOPMENT TOO.
+//
+// It used to be a local `wrangler dev`, which quietly required five things to
+// be true before `npx expo start` did anything: npm install in server/, a
+// .dev.vars file, a seeded local D1, a Cloudflare account, and a second
+// terminal left running. Miss any one and the app says "Network error: please
+// check your connection", which sends people to look at their wifi. That cost
+// a whole bug bash morning across several people.
+//
+// Almost nobody working on a screen needs a local Worker. So `git pull` and
+// `npx expo start` now work with no setup at all, and running the server
+// locally is the thing you opt into:
+//
+//   EXPO_PUBLIC_USE_LOCAL_API=1     talk to `wrangler dev` on this machine
+//   EXPO_PUBLIC_API_BASE_URL=...    talk to this exact URL (wins over both)
+//
+// The trade-off is real and worth saying out loud: the default writes to the
+// PRODUCTION database. Accounts you create and events you post are visible to
+// everyone. That is the right default while the whole team is testing flows
+// against real email, and the wrong one if you are experimenting — use the
+// local flag then.
+//
+// Whichever it picks, it says so in the Metro console on startup.
+//
+// Reaching a local Worker is itself awkward, which is why devApiBaseUrl exists:
 //
 //   Expo web, iOS simulator   "localhost" is the same machine — works
 //   A real phone in Expo Go   "localhost" is the *phone* — nothing is
 //                             listening there, so every request fails
 //
-// This file used to hardcode localhost in dev, which is exactly why the app
-// worked in a browser and threw "Network request failed" on phones. We now
-// read the dev machine's address out of the Expo host URI: it's the same host
+// So we read the dev machine's address out of the Expo host URI: the same host
 // Metro just served the JS bundle from, so if the app opened at all, this
 // resolves to something reachable.
 
@@ -59,9 +79,28 @@ function devApiBaseUrl(): string {
   return `http://${host}:${DEV_API_PORT}`;
 }
 
-// An explicit override wins in dev. Set EXPO_PUBLIC_API_BASE_URL in .env to
-// point a device at the deployed Worker, a tunnel, or a teammate's machine.
-const override = process.env.EXPO_PUBLIC_API_BASE_URL;
+/**
+ * Trim whitespace and any trailing slashes off a base URL.
+ *
+ * Every caller writes `${API_BASE_URL}/auth/send-code`, so a base ending in
+ * "/" produces "https://host//auth/send-code". Hono does not match a doubled
+ * slash, so every request 404s and the app reports a network error — which
+ * points at the wifi rather than at the one character that is wrong. Not
+ * hypothetical: the value gets copied out of a browser address bar, and
+ * browsers show the trailing slash.
+ */
+function normalizeBaseUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim().replace(/\/+$/, '');
+  return trimmed ? trimmed : undefined;
+}
+
+/** An exact URL to talk to. Wins over everything, in dev and (over https) in
+ *  release. A teammate's machine, a tunnel, a staging Worker. */
+const override = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
+
+/** Opt in to the `wrangler dev` running on this machine. Accepts "1" or "true"
+ *  because both are what people type. */
+const useLocalApi = /^(1|true)$/i.test(process.env.EXPO_PUBLIC_USE_LOCAL_API?.trim() ?? '');
 
 /**
  * EXPO_PUBLIC_* values are inlined into the bundle at build time, so a `.env`
@@ -83,6 +122,33 @@ function overrideForRelease(value: string | undefined): string | undefined {
   return undefined;
 }
 
+function resolveDevBaseUrl(): string {
+  if (override) return override;
+  if (useLocalApi) return devApiBaseUrl();
+  return PROD_API;
+}
+
 export const API_BASE_URL = __DEV__
-  ? override || devApiBaseUrl()
+  ? resolveDevBaseUrl()
   : overrideForRelease(override) || PROD_API;
+
+// Say which backend this bundle is talking to, and why.
+//
+// Every confusing hour this file has caused came down to not knowing that.
+// EXPO_PUBLIC_* is inlined at BUILD time, so an edited .env with no `--clear`
+// and no app reload silently keeps the old value — and the only symptom is a
+// network error that looks like a connectivity problem.
+if (__DEV__) {
+  const reason = override
+    ? 'EXPO_PUBLIC_API_BASE_URL'
+    : useLocalApi
+      ? 'EXPO_PUBLIC_USE_LOCAL_API=1'
+      : 'default';
+
+  console.log(
+    `[api] ${API_BASE_URL}  (${reason})` +
+      (override || useLocalApi
+        ? ''
+        : '  — production database; set EXPO_PUBLIC_USE_LOCAL_API=1 for a local Worker'),
+  );
+}
