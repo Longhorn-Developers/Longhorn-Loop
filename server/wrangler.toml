@@ -64,3 +64,45 @@ EMAIL_PROVIDER = "resend"
 # EMAIL_PROVIDER = "cloudflare". Requires the Workers Paid plan.
 # [[send_email]]
 # name = "EMAIL"
+
+# ---------------------------------------------------------------------------
+# Local development environment: `wrangler dev --env local`, via `npm run dev`.
+#
+# WHY THIS EXISTS
+#
+# Workers AI and Vectorize have no local emulation. When wrangler sees the
+# top-level [ai] and [[vectorize]] bindings it opens a "remote proxy session"
+# against this account before it will serve a single request, so `wrangler dev`
+# fails outright for anyone not signed in to the Longhorn Developers Cloudflare
+# account:
+#
+#   [ERROR] A request to the Cloudflare API
+#           (/accounts/9f38.../workers/subdomain/edge-preview) failed.
+#   [ERROR] Failed to start the remote proxy session.
+#
+# Those two bindings are only used by the ingest path — semantic tagging of
+# scraped events, which runs on a cron. Nothing a person clicks in the app
+# touches them, and every call site already guards on the binding being absent
+# (see lib/semanticTags.ts and lib/utils.ts, which return null or a no-op
+# result). So local dev drops them and stays entirely offline.
+#
+# Bindings are NOT inherited by named environments in wrangler — that is a
+# footgun most of the time and exactly what we want here, but it does mean DB,
+# R2 and vars have to be repeated below. If you add a binding above that the
+# app needs at request time, add it here too.
+# ---------------------------------------------------------------------------
+[env.local]
+
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "loop-db"
+database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
+
+[[env.local.r2_buckets]]
+binding = "EVENT_IMAGES"
+bucket_name = "longhorn-loop-event-images"
+
+[env.local.vars]
+EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
+EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
+EMAIL_PROVIDER = "resend"

@@ -4,10 +4,10 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "vitest run",
-    "dev": "wrangler dev",
-    "dev:worker": "wrangler dev",
-    "dev:lan": "wrangler dev --ip 0.0.0.0",
-    "build": "tsc"
+    "dev": "wrangler dev --env local",
+    "dev:lan": "wrangler dev --env local --ip 0.0.0.0",
+    "build": "tsc",
+    "dev:cloud": "wrangler dev"
   },
   "keywords": [],
   "author": "",
