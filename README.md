@@ -87,9 +87,10 @@ The backend is a Cloudflare Worker, not a plain Node server. In development
    npx wrangler d1 execute loop-db --local --file=schema.sql
    ```
 
-   `.dev.vars` is git-ignored and its defaults work as-is. That includes
-   `RESEND_DEV_MODE=true`, which prints verification codes to this terminal
-   instead of emailing them — so you can sign in without a Resend account.
+   `.dev.vars` is git-ignored and its defaults work as-is. It is optional now —
+   `[env.local]` already sends verification codes to this terminal rather than
+   to an inbox, so you can sign in without it. Copy it anyway if you want to
+   set a real `RESEND_API_KEY` or the R2 image base URL.
 
    The `d1 execute` line builds your own local SQLite copy of the database.
    Nothing you do locally touches production, and you do not need a Cloudflare

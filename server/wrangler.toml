@@ -93,10 +93,15 @@ EMAIL_PROVIDER = "resend"
 # ---------------------------------------------------------------------------
 [env.local]
 
+# The id is deliberately not the real one. `--local` keys its SQLite file off
+# it and never validates it, so local dev is unaffected — but it means a
+# stray `wrangler deploy --env local` fails on an invalid database id instead
+# of quietly standing up a second Worker wired to the PRODUCTION database.
+# We have already had one orphaned Worker firing crons at prod; once is enough.
 [[env.local.d1_databases]]
 binding = "DB"
 database_name = "loop-db"
-database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
+database_id = "local-only-never-deploy"
 
 [[env.local.r2_buckets]]
 binding = "EVENT_IMAGES"
@@ -105,4 +110,7 @@ bucket_name = "longhorn-loop-event-images"
 [env.local.vars]
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
 EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
-EMAIL_PROVIDER = "resend"
+# 'dev', not 'resend': codes print to the wrangler console. Local dev cannot
+# send real mail even if someone has a live RESEND_API_KEY in their .dev.vars,
+# which matters while the account is on a 100/day free tier that the beta needs.
+EMAIL_PROVIDER = "dev"
