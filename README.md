@@ -70,6 +70,33 @@ Join our community of developers creating universal apps.
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 
+## Pointing the app at a backend
+
+There are two ways to run, and which you want depends on what you are testing.
+
+**Local backend** (default). You run the Worker yourself; verification codes
+print to your terminal. Nothing you do leaves your machine. Best for
+day-to-day work — see _Starting the Server_ below.
+
+**Deployed backend.** Copy `.env.example` to `.env` and uncomment the
+production line:
+
+```
+EXPO_PUBLIC_API_BASE_URL=https://loop-db.longhorn-developers.workers.dev
+```
+
+Now you need no wrangler, no local database, and no Cloudflare account —
+`npx expo start` on its own is the whole setup. Verification codes arrive in a
+real inbox, which is what a beta tester experiences, so this is the mode for
+testing the flow end to end.
+
+The catch: you are writing to the **production database**. Accounts you create
+and events you post are real, and other people will see them. Good for a bug
+bash, bad for experimenting.
+
+`.env` is git-ignored, and a non-https override is refused in release builds,
+so a stray local `.env` cannot ship pointing at someone's laptop.
+
 ## Starting the Server
 
 The backend is a Cloudflare Worker, not a plain Node server. In development
@@ -87,9 +114,10 @@ The backend is a Cloudflare Worker, not a plain Node server. In development
    npx wrangler d1 execute loop-db --local --file=schema.sql
    ```
 
-   `.dev.vars` is git-ignored and its defaults work as-is. That includes
-   `RESEND_DEV_MODE=true`, which prints verification codes to this terminal
-   instead of emailing them — so you can sign in without a Resend account.
+   `.dev.vars` is git-ignored and its defaults work as-is. It is optional now —
+   `[env.local]` already sends verification codes to this terminal rather than
+   to an inbox, so you can sign in without it. Copy it anyway if you want to
+   set a real `RESEND_API_KEY` or the R2 image base URL.
 
    The `d1 execute` line builds your own local SQLite copy of the database.
    Nothing you do locally touches production, and you do not need a Cloudflare
