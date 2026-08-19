@@ -18,13 +18,44 @@ npm run dev:lan
 Worker is now running on port 8787. The app's `app/config/api.ts` points at it
 automatically in dev mode, so `npx expo start` in the repo root just works.
 
-### Why `dev:lan` and not `wrangler dev`
+You do not need a Cloudflare account to do any of this. Everything above runs
+against a SQLite file on your own machine.
 
-`wrangler dev` binds to localhost only, which is fine for the iOS simulator and
-Expo web (same machine) but unreachable from a real phone. `npm run dev:lan`
-adds `--ip 0.0.0.0` so the Worker also accepts connections from other devices
-on your network. Use `npm run dev:worker` if you specifically want the
-localhost-only bind.
+### The dev scripts
+
+| script              | what it does                                                |
+| ------------------- | ----------------------------------------------------------- |
+| `npm run dev`       | `--env local`, localhost only. Simulator and Expo web.      |
+| `npm run dev:lan`   | `--env local`, `--ip 0.0.0.0`. Also reachable from a phone. |
+| `npm run dev:cloud` | Full config, remote bindings. Needs Cloudflare access.      |
+
+`dev` binds to localhost, which is the phone itself when you open the app on a
+real device — nothing is listening there, so every request fails. `dev:lan`
+binds to `0.0.0.0` so other devices on your wifi can reach it.
+
+### Why `--env local` exists
+
+Workers AI and Vectorize have no local emulation. When wrangler sees the
+top-level `[ai]` and `[[vectorize]]` bindings it opens a _remote proxy session_
+against the Longhorn Developers Cloudflare account before serving a single
+request, so plain `wrangler dev` fails for anyone not signed in to it:
+
+```
+[ERROR] A request to the Cloudflare API (/accounts/9f38.../workers/subdomain/edge-preview) failed.
+[ERROR] Failed to start the remote proxy session.
+```
+
+Those two bindings are only used by the ingest path — semantic tagging of
+scraped events, which runs on a cron. Nothing a person clicks in the app touches
+them, and every call site already handles the binding being absent. So
+`[env.local]` in `wrangler.toml` leaves them out and local dev stays offline.
+
+Use `dev:cloud` if you are specifically working on ingest or semantic tagging;
+that one does need an account.
+
+Bindings are not inherited by named environments in wrangler, so `[env.local]`
+repeats `DB`, `EVENT_IMAGES` and the vars. If you add a binding the app needs at
+request time, add it in both places.
 
 ## Testing on a physical phone
 

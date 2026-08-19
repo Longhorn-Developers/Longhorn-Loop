@@ -92,7 +92,9 @@ The backend is a Cloudflare Worker, not a plain Node server. In development
    instead of emailing them — so you can sign in without a Resend account.
 
    The `d1 execute` line builds your own local SQLite copy of the database.
-   Nothing you do locally touches production.
+   Nothing you do locally touches production, and you do not need a Cloudflare
+   account — the dev scripts run against `[env.local]`, which leaves out the two
+   bindings that would otherwise require one.
 
 3. Start it:
 
