@@ -7,7 +7,7 @@ import FlowLayout from '../components/layouts/FlowLayout';
 const TERMS = [
   {
     id: 'responsible',
-    label: 'I agree to use Longhorn Journey responsibly and not post misleading or troll content.',
+    label: 'I agree to use Longhorn Loop responsibly and not post misleading or troll content.',
   },
   {
     id: 'visible',
@@ -17,7 +17,18 @@ const TERMS = [
     id: 'guidelines',
     label: 'I agree to respect the community guidelines and other users.',
   },
-];
+  {
+    id: 'removed',
+    label:
+      'I acknowledge that violating the guidelines may result in my removal and a permanent ban.',
+  },
+] as const;
+
+/** Every box starts unchecked. Derived from TERMS so the two cannot disagree —
+ *  see the note on `allChecked`. */
+const NONE_CHECKED: Record<string, boolean> = Object.fromEntries(
+  TERMS.map((term) => [term.id, false]),
+);
 
 /**
  * The checkbox was a 16pt square with a 12pt label beside it, which is the
@@ -32,13 +43,14 @@ const ROW_MIN_HEIGHT = 48;
 
 export default function TermsAndConditions() {
   const router = useRouter();
-  const [checked, setChecked] = useState<Record<string, boolean>>({
-    responsible: false,
-    visible: false,
-    guidelines: false,
-  });
+  const [checked, setChecked] = useState<Record<string, boolean>>(NONE_CHECKED);
 
-  const allChecked = Object.values(checked).every(Boolean);
+  // Over TERMS, not over the keys of `checked`. Those are not the same set: a
+  // term nobody has tapped yet has no key, so `Object.values(checked).every()`
+  // is asking "is everything I have seen ticked", which is true of an empty
+  // object and true of three ticks out of four. Adding a fourth term to the
+  // list is exactly how you would hit that, and it is what happened here.
+  const allChecked = TERMS.every((term) => checked[term.id]);
 
   const toggleCheckbox = (id: string) => {
     setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
