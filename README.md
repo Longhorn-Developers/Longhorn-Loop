@@ -72,30 +72,26 @@ Join our community of developers creating universal apps.
 
 ## Pointing the app at a backend
 
-There are two ways to run, and which you want depends on what you are testing.
+Nothing to configure. A fresh clone plus `npm install` and `npx expo start`
+talks to the deployed Worker — no wrangler, no local database, no Cloudflare
+account. Verification codes arrive in your real UT inbox, which is what a beta
+tester experiences.
 
-**Local backend** (default). You run the Worker yourself; verification codes
-print to your terminal. Nothing you do leaves your machine. Best for
-day-to-day work — see _Starting the Server_ below.
-
-**Deployed backend.** Copy `.env.example` to `.env` and uncomment the
-production line:
+On startup the app prints which backend it picked:
 
 ```
-EXPO_PUBLIC_API_BASE_URL=https://loop-db.longhorn-developers.workers.dev
+[api] https://loop-db.longhorn-developers.workers.dev  (default)
 ```
 
-Now you need no wrangler, no local database, and no Cloudflare account —
-`npx expo start` on its own is the whole setup. Verification codes arrive in a
-real inbox, which is what a beta tester experiences, so this is the mode for
-testing the flow end to end.
+**This writes to the production database.** Accounts you create and events you
+post are real and other people will see them. That is the right default while
+the team is testing flows end to end, and the wrong one if you are
+experimenting — run the backend locally for that (below), which needs
+`EXPO_PUBLIC_USE_LOCAL_API=1` in a `.env`. See `.env.example`.
 
-The catch: you are writing to the **production database**. Accounts you create
-and events you post are real, and other people will see them. Good for a bug
-bash, bad for experimenting.
-
-`.env` is git-ignored, and a non-https override is refused in release builds,
-so a stray local `.env` cannot ship pointing at someone's laptop.
+`EXPO_PUBLIC_*` is inlined into the bundle at build time, so after editing
+`.env` you must restart with `npx expo start --clear` **and** reload the app.
+Editing it with Metro running has no effect.
 
 ## Starting the Server
 
