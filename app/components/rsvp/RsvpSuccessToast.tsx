@@ -3,7 +3,9 @@
 
 import CelebrationIcon from '@/assets/images/celebration.svg';
 import XCloseIcon from '@/assets/images/x-close.svg';
-import React, { useEffect, useRef } from 'react';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, Text, View } from 'react-native';
 
 interface RsvpSuccessToastProps {
@@ -13,12 +15,10 @@ interface RsvpSuccessToastProps {
 }
 
 const AUTO_DISMISS_MS = 3000;
-const PEACH_BG = '#FFF3E9';
-const BORDER_COLOR = '#B4B2B2';
-const TEXT_PRIMARY = '#000000';
-const TEXT_MUTED = '#444';
 
 export default function RsvpSuccessToast({ visible, eventTitle, onClose }: RsvpSuccessToastProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
 
@@ -70,7 +70,7 @@ export default function RsvpSuccessToast({ visible, eventTitle, onClose }: RsvpS
     >
       <View style={styles.card}>
         <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
-          <XCloseIcon width={14} height={15} />
+          <XCloseIcon width={14} height={15} color={colors.inkSecondary} />
         </Pressable>
 
         <View style={styles.headlineRow}>
@@ -91,7 +91,7 @@ export default function RsvpSuccessToast({ visible, eventTitle, onClose }: RsvpS
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   wrapper: {
     position: 'absolute' as const,
     left: 16,
@@ -100,10 +100,10 @@ const styles = {
     zIndex: 100,
   },
   card: {
-    backgroundColor: PEACH_BG,
+    backgroundColor: c.brandSoft,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: c.border,
     paddingHorizontal: 18,
     paddingTop: 16,
     paddingBottom: 18,
@@ -131,17 +131,17 @@ const styles = {
   headline: {
     fontSize: 20,
     fontWeight: '800' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
   },
   body: {
     fontSize: 16,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     lineHeight: 22,
     marginBottom: 12,
   },
   subtext: {
     fontSize: 13,
-    color: TEXT_MUTED,
+    color: c.inkSecondary,
     lineHeight: 18,
   },
-};
+});

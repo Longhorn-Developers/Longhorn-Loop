@@ -70,24 +70,65 @@ Join our community of developers creating universal apps.
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 
+## Pointing the app at a backend
+
+Nothing to configure. A fresh clone plus `npm install` and `npx expo start`
+talks to the deployed Worker — no wrangler, no local database, no Cloudflare
+account. Verification codes arrive in your real UT inbox, which is what a beta
+tester experiences.
+
+On startup the app prints which backend it picked:
+
+```
+[api] https://loop-db.longhorn-developers.workers.dev  (default)
+```
+
+**This writes to the production database.** Accounts you create and events you
+post are real and other people will see them. That is the right default while
+the team is testing flows end to end, and the wrong one if you are
+experimenting — run the backend locally for that (below), which needs
+`EXPO_PUBLIC_USE_LOCAL_API=1` in a `.env`. See `.env.example`.
+
+`EXPO_PUBLIC_*` is inlined into the bundle at build time, so after editing
+`.env` you must restart with `npx expo start --clear` **and** reload the app.
+Editing it with Metro running has no effect.
+
 ## Starting the Server
 
-1. Open a 2nd terminal window while keeping the client terminal open
+The backend is a Cloudflare Worker, not a plain Node server. In development
+`app/config/api.ts` points the app at whichever machine started Expo, on port
+8787 — so the Worker has to be running locally or every request fails.
 
-2. Cd into the /server directory
+1. Open a second terminal, keeping the one running Expo open.
+
+2. Set it up (once):
 
    ```bash
    cd server
+   npm install
+   cp .dev.vars.example .dev.vars
+   npx wrangler d1 execute loop-db --local --file=schema.sql
    ```
 
-3. Install dependencies
+   `.dev.vars` is git-ignored and its defaults work as-is. It is optional now —
+   `[env.local]` already sends verification codes to this terminal rather than
+   to an inbox, so you can sign in without it. Copy it anyway if you want to
+   set a real `RESEND_API_KEY` or the R2 image base URL.
+
+   The `d1 execute` line builds your own local SQLite copy of the database.
+   Nothing you do locally touches production, and you do not need a Cloudflare
+   account — the dev scripts run against `[env.local]`, which leaves out the two
+   bindings that would otherwise require one.
+
+3. Start it:
 
    ```bash
-   npm install express cors dotenv
+   npm run dev:lan
    ```
 
-4. Start the server with the /server directory
+   `dev:lan` binds to `0.0.0.0` so a real phone on your wifi can reach it.
+   `npm run dev` binds to localhost only, which is fine for Expo web and the
+   iOS simulator but unreachable from a device.
 
-   ```bash
-   npm run dev
-   ```
+See [`server/README.md`](server/README.md) for the rest — resetting the local
+database, running migrations, and deploying.

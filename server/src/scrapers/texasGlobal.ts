@@ -250,7 +250,7 @@ export async function discoverEventCards(): Promise<string[]> {
 }
 
 export async function scrapeTexasGlobal(
-  db: D1Database,
+  env: Env,
   options: { maxEvents?: number; dryRun?: boolean } = {},
 ): Promise<ScraperResult> {
   const dryRun = options.dryRun ?? false;
@@ -332,7 +332,7 @@ export async function scrapeTexasGlobal(
   }
 
   if (!dryRun && normalized.length > 0) {
-    const result = await ingestEvents(db, normalized);
+    const result = await ingestEvents(env, normalized);
     eventsUpserted = result.inserted + result.updated;
     errors.push(...result.errors);
   }
@@ -347,5 +347,5 @@ export async function scrapeTexasGlobal(
 
 export async function run(env: Env): Promise<void> {
   console.log('[texasGlobal] Scraper started');
-  await scrapeTexasGlobal(env.DB);
+  await scrapeTexasGlobal(env);
 }

@@ -1,6 +1,9 @@
 name = "loop-db"
 main = "src/worker.ts"
 compatibility_date = "2024-01-01"
+# Pin to the Longhorn Developers account; the login token can also see a
+# personal account, which makes wrangler ambiguous in non-interactive mode.
+account_id = "9f38fafdc1cf403ddb29934c9992449f"
 
 [[d1_databases]]
 binding = "DB"
@@ -11,16 +14,103 @@ database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
 binding = "EVENT_IMAGES"
 bucket_name = "longhorn-loop-event-images"
 
+# Workers AI: gives c.env.AI for running embedding models at ingest.
+[ai]
+binding = "AI"
+
+# Vectorize: stores the ~70 taxonomy tag vectors that events are matched
+# against at ingest. Index created via:
+#   npx wrangler vectorize create loop-event-tags --dimensions=1024 --metric=cosine
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "loop-event-tags"
+
 [triggers]
 # Both schedules fire the same scheduled() handler in worker.ts, which
 # dispatches on event.cron:
 #   "0 */6 * * *"  -> scrapes Texas Today + HornsLink for new/updated events
 #   "*/15 * * * *" -> checks saved/bookmarked events for upcoming start
 #                      times and creates reminder notifications
-crons = ["0 */6 * * *", "*/15 * * * *"]
+#   "0 8 * * *"    -> LOOP-241: sweeps the HornsLink ORG directory (orgs only,
+#                      no events) and tops up missing contact emails
+crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
 
 [vars]
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
+# Verification-code sender. Must be a domain verified with whichever provider
+# EMAIL_PROVIDER selects, or every send fails.
+#
+# DO NOT change this to a newly registered domain without re-testing delivery
+# to a real @utexas.edu address. UT's gateway is Proofpoint, and it rejected
+# longhornloop.me — registered that same morning — at the SMTP handshake:
+#
+#   550 #5.7.1 Your access to submit messages to this e-mail system has been rejected.
+#
+# The identical message went through from longhorndevelopers.org minutes later,
+# on the same Resend account and the same Amazon SES IP pool. Only the sending
+# domain differed, so the block was on the domain, not the infrastructure — an
+# aged .org with a real organisation behind it passes where a fresh .me does not.
+EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
+
+# Which provider sends. 'cloudflare' | 'postmark' | 'resend' | 'dev'.
+# See server/src/email/send.ts for why this is a variable and not a decision.
+EMAIL_PROVIDER = "resend"
+
+# Cloudflare Email Service. Uncomment AFTER onboarding the domain under
+# Compute > Email Service > Email Sending (it writes the DNS itself), then set
+# EMAIL_PROVIDER = "cloudflare". Requires the Workers Paid plan.
+# [[send_email]]
+# name = "EMAIL"
+
+# ---------------------------------------------------------------------------
+# Local development environment: `wrangler dev --env local`, via `npm run dev`.
+#
+# WHY THIS EXISTS
+#
+# Workers AI and Vectorize have no local emulation. When wrangler sees the
+# top-level [ai] and [[vectorize]] bindings it opens a "remote proxy session"
+# against this account before it will serve a single request, so `wrangler dev`
+# fails outright for anyone not signed in to the Longhorn Developers Cloudflare
+# account:
+#
+#   [ERROR] A request to the Cloudflare API
+#           (/accounts/9f38.../workers/subdomain/edge-preview) failed.
+#   [ERROR] Failed to start the remote proxy session.
+#
+# Those two bindings are only used by the ingest path — semantic tagging of
+# scraped events, which runs on a cron. Nothing a person clicks in the app
+# touches them, and every call site already guards on the binding being absent
+# (see lib/semanticTags.ts and lib/utils.ts, which return null or a no-op
+# result). So local dev drops them and stays entirely offline.
+#
+# Bindings are NOT inherited by named environments in wrangler — that is a
+# footgun most of the time and exactly what we want here, but it does mean DB,
+# R2 and vars have to be repeated below. If you add a binding above that the
+# app needs at request time, add it here too.
+# ---------------------------------------------------------------------------
+[env.local]
+
+# The id is deliberately not the real one. `--local` keys its SQLite file off
+# it and never validates it, so local dev is unaffected — but it means a
+# stray `wrangler deploy --env local` fails on an invalid database id instead
+# of quietly standing up a second Worker wired to the PRODUCTION database.
+# We have already had one orphaned Worker firing crons at prod; once is enough.
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "loop-db"
+database_id = "local-only-never-deploy"
+
+[[env.local.r2_buckets]]
+binding = "EVENT_IMAGES"
+bucket_name = "longhorn-loop-event-images"
+
+[env.local.vars]
+EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
+EMAIL_FROM = "Longhorn Loop <noreply@longhorndevelopers.org>"
+# 'dev', not 'resend': codes print to the wrangler console. Local dev cannot
+# send real mail even if someone has a live RESEND_API_KEY in their .dev.vars,
+# which matters while the account is on a 100/day free tier that the beta needs.
+EMAIL_PROVIDER = "dev"

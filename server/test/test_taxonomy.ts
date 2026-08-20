@@ -1,13 +1,11 @@
 /**
- * Validates the structure of server/src/lib/taxonomy.ts.
- *
- * This file is a server-side copy of the bucket/tag data in
- * app/lib/interestCategories.ts. If you add or rename buckets/tags in either
- * place, update the other to match — this test will catch structural drift.
+ * Validates the structure of the shared taxonomy module (shared/taxonomy.ts),
+ * which both the app and server import. Guards structural invariants (unique
+ * ids, non-empty tags, the expected 16 buckets).
  */
 
 import { describe, it, expect } from 'vitest';
-import { TAXONOMY_BUCKETS, BUCKET_ID_SET, ALL_TAXONOMY_TAGS } from '../src/lib/taxonomy';
+import { TAXONOMY_BUCKETS, BUCKET_ID_SET, ALL_TAXONOMY_TAGS } from '../../shared/taxonomy';
 
 describe('server taxonomy module', () => {
   it('exports a non-empty bucket list', () => {
@@ -40,32 +38,28 @@ describe('server taxonomy module', () => {
   });
 
   it('contains the expected bucket IDs (spot-check)', () => {
-    expect(BUCKET_ID_SET.has('music')).toBe(true);
+    expect(BUCKET_ID_SET.has('performing')).toBe(true);
     expect(BUCKET_ID_SET.has('tech')).toBe(true);
     expect(BUCKET_ID_SET.has('sports')).toBe(true);
     expect(BUCKET_ID_SET.has('food')).toBe(true);
     expect(BUCKET_ID_SET.has('education')).toBe(true);
   });
 
-  it('has exactly the 16 buckets from the client taxonomy', () => {
-    // Source of truth: app/lib/interestCategories.ts. Update both together.
+  it('has exactly the 12 buckets from the shared taxonomy', () => {
+    // Source of truth: shared/taxonomy.ts (imported by both app and server).
     const expected = [
-      'music',
       'performing',
-      'spirituality',
       'arts',
       'sports',
       'food',
       'tech',
-      'science',
       'education',
       'outdoors',
       'gaming',
       'social',
-      'health',
-      'business',
       'travel',
       'nightlife',
+      'spirituality',
     ];
     expect(TAXONOMY_BUCKETS.map((b) => b.id)).toEqual(expected);
   });

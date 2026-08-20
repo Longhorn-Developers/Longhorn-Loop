@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Longhorn Loop — every UT event, in one place</title>
+    <meta
+      name="description"
+      content="Longhorn Loop brings every UT Austin campus event into one feed. Built by Longhorn Developers, a student organization at UT Austin."
+    />
+    <meta property="og:title" content="Longhorn Loop" />
+    <meta property="og:description" content="Every UT Austin campus event, in one feed." />
+    <meta property="og:type" content="website" />
+    <style>
+      :root {
+        --ink: #09090b;
+        --ink-secondary: #485656;
+        --brand: #bf5700;
+        --border: #e4e2e0;
+        --bg: #f9f8f5;
+        --surface: #ffffff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          16px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 96px 24px;
+      }
+      .brand {
+        color: var(--brand);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 13px;
+        margin: 0 0 16px;
+      }
+      h1 {
+        font-size: clamp(36px, 6vw, 56px);
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        margin: 0 0 20px;
+      }
+      .lede {
+        font-size: 20px;
+        color: var(--ink-secondary);
+        margin: 0 0 48px;
+        max-width: 34ch;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 48px 0;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 22px;
+      }
+      .card h2 {
+        font-size: 16px;
+        margin: 0 0 6px;
+      }
+      .card p {
+        font-size: 15px;
+        color: var(--ink-secondary);
+        margin: 0;
+      }
+      .status {
+        display: inline-block;
+        background: var(--brand);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 999px;
+      }
+      footer {
+        margin-top: 72px;
+        padding-top: 28px;
+        border-top: 1px solid var(--border);
+        font-size: 14px;
+        color: var(--ink-secondary);
+      }
+      footer a {
+        color: var(--brand);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #f5f5f4;
+          --ink-secondary: #b8b5b2;
+          --border: #3a3937;
+          --bg: #17161a;
+          --surface: #201f24;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">Longhorn Loop</p>
+      <h1>Every UT event, in one place.</h1>
+      <p class="lede">
+        Campus events are scattered across a dozen sites, org pages and group chats. Longhorn Loop
+        pulls them into one feed built for how students actually find things to do.
+      </p>
+
+      <p class="status">Currently in closed beta</p>
+
+      <div class="cards">
+        <div class="card">
+          <h2>One feed</h2>
+          <p>Events from across campus, sorted by what you're actually into.</p>
+        </div>
+        <div class="card">
+          <h2>UT students only</h2>
+          <p>Sign in with your UT email. No outsiders, no bots.</p>
+        </div>
+        <div class="card">
+          <h2>For orgs too</h2>
+          <p>Claim your organization and post events students will actually see.</p>
+        </div>
+      </div>
+
+      <footer>
+        Built by <strong>Longhorn Developers</strong>, a student organization at The University of
+        Texas at Austin. Not affiliated with or endorsed by the University.<br /><br />
+        <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp;
+        <a href="mailto:privacy@longhorndevelopers.org">Contact</a>
+      </footer>
+    </main>
+  </body>
+</html>

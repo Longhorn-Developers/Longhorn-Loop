@@ -2,22 +2,22 @@
 // the user a clean "Return Home" exit (instead of leaving them on the
 // event they just reported, which is now hidden for them anyway).
 
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const BG = '#F9F8F5';
-const BURNT_ORANGE = '#BF5700';
-const TEXT_PRIMARY = '#020B12';
-
 export default function ReportSuccessScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
 
   const goHome = () => router.replace('/(tabs)/home');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.container}>
         <View style={styles.checkCircle}>
           <Text style={styles.checkMark}>✓</Text>
@@ -33,7 +33,7 @@ export default function ReportSuccessScreen() {
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   container: {
     flex: 1,
     alignItems: 'center' as const,
@@ -44,7 +44,7 @@ const styles = {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: 32,
@@ -57,13 +57,13 @@ const styles = {
   },
   body: {
     fontSize: 18,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     textAlign: 'center' as const,
     lineHeight: 26,
     marginBottom: 40,
   },
   button: {
-    backgroundColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 8,
@@ -74,4 +74,4 @@ const styles = {
     fontWeight: '700' as const,
     letterSpacing: 1,
   },
-};
+});

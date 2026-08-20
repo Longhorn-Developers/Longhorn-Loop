@@ -1,7 +1,10 @@
 // Events routes for Cloudflare Worker
 import { Hono } from 'hono';
+import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
+import { blockedAuthorFilter, blockedUserFilter, isBlockedBetween } from '../lib/blocks';
+import { getAuthUser, getUserId } from '../lib/utils';
 import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
 
@@ -76,40 +79,6 @@ type ImageFields = {
   imageAltText: string | null;
 };
 
-// JWT verification (mirrors the pattern used in saved.worker.ts).
-async function getAuthUser(
-  authHeader: string | undefined,
-  secret: string,
-): Promise<{ email: string } | null> {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split('.');
-    const encoder = new TextEncoder();
-    const signingInput = `${headerB64}.${payloadB64}`;
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify'],
-    );
-    const sigBytes = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
-    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(signingInput));
-    if (!valid) return null;
-    const payload = JSON.parse(atob(payloadB64));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return { email: payload.email };
-  } catch {
-    return null;
-  }
-}
-
-async function getUserId(db: D1Database, email: string): Promise<number | null> {
-  const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-  return row ? (row.id as number) : null;
-}
-
 async function getUserByEmail(db: D1Database, email: string): Promise<AuthDbUser | null> {
   const row = await db
     .prepare('SELECT id, email, first_name, last_name FROM users WHERE email = ?')
@@ -140,6 +109,19 @@ function readStringField(body: CreateEventBody, keys: string[]): string | null {
     if (value !== null) return value;
   }
   return null;
+}
+
+/**
+ * Whether the caller actually mentioned a field.
+ *
+ * PATCH needs this and POST does not: readStringField answers "is there a
+ * usable value here", which collapses "absent" and "present but empty" into
+ * the same null. A partial update has to tell those apart — omitting
+ * `description` must leave the column alone, while sending `description: ""`
+ * is a deliberate clear.
+ */
+function hasField(body: CreateEventBody, keys: string[]): boolean {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(body, key));
 }
 
 function readIntegerField(body: CreateEventBody, keys: string[]): number | null {
@@ -667,7 +649,8 @@ async function getCreatedEvent(
 }
 
 // Returns a SQL fragment + params that hide events the caller already
-// reported and any event over the global threshold.
+// reported, any event over the global threshold, and (LOOP-180) any event
+// posted by someone the caller has blocked or who has blocked the caller.
 function buildVisibilityFilter(userId: number | null): {
   sql: string;
   params: any[];
@@ -687,6 +670,11 @@ function buildVisibilityFilter(userId: number | null): {
     `;
     params.push(userId);
   }
+
+  const blocked = blockedAuthorFilter(userId);
+  sql += blocked.sql;
+  params.push(...blocked.params);
+
   return { sql, params };
 }
 
@@ -851,8 +839,322 @@ eventRoutes.post('/create', async (c) => {
       .run();
   }
 
+  // Feed ranking reads event_tags, not event_categories. Scraped events get
+  // tagged by the classifier at ingest; user-created events are hand-tagged
+  // here so they flow into the same ranking. The picked tags all belong to the
+  // chosen discovery bucket (the create UI scopes them to it), so we write each
+  // as a { bucket, tag } pair with source 'user'.
+  const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
+  if (discoveryBucket && BUCKET_ID_SET.has(discoveryBucket)) {
+    const bucketTags = new Set(TAXONOMY_BUCKETS.find((b) => b.id === discoveryBucket)?.tags ?? []);
+    const matches = categories
+      .filter((cat) => cat.name && bucketTags.has(cat.name))
+      .map((cat) => ({
+        bucketId: discoveryBucket,
+        tag: cat.name as string,
+        source: 'user' as const,
+        // Full confidence: a creator hand-picking a tag is the strongest signal
+        // we have, stronger than a semantic guess. Ranks these at full weight.
+        score: 1,
+      }));
+    if (matches.length > 0) {
+      const { writeEventTags } = await import('../lib/classifier');
+      await writeEventTags(c.env.DB, eventId, matches);
+    }
+  }
+
   const event = await getCreatedEvent(c.env.DB, eventId);
   return c.json({ event }, 201);
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /events/:id -- edit an existing event (LOOP-136).
+// ---------------------------------------------------------------------------
+//
+// Backs the pencil affordance on the Events tab of the Org Management console.
+// Scope is the core fields the product owner signed off on: title, description,
+// start/end datetime, location, and category/interest tags. Image replacement
+// and recurrence are deliberately NOT here — see the header comment on
+// app/components/org/EditEventOverlay.tsx for why.
+//
+// Partial by contract: a key the caller omits is never written. That is what
+// makes this safe to call from an overlay that only knows about six fields —
+// it cannot clobber image_url, rsvp_url, the denormalized counters, or any
+// other column it has never heard of.
+//
+// Validation reuses the POST /events/create helpers rather than restating the
+// rules. A second validator would drift, and the first thing to drift would be
+// a length cap that the create form enforces and the edit form doesn't.
+//
+// Body (all optional; camelCase aliases accepted, same as create):
+//   title            string, 1..80
+//   description      string|null, <=500  (null / "" clears it)
+//   start_datetime   ISO 8601 with timezone
+//   end_datetime     ISO 8601 with timezone, or null to pin it to the start
+//   location         string, <=200  (also location_full / location_short)
+//   categories       string[] | {id,name}[], <=20   (also interestTags)
+//   discovery_bucket taxonomy bucket id; rewrites event_tags when sent
+//                    alongside categories
+//
+// Responses:
+//   200 { event }                        the updated row, shaped like create's
+//   400 { error: 'INVALID_EVENT_ID' }
+//   400 { error: 'INVALID_BODY' }
+//   400 { error: 'VALIDATION_ERROR', fields: {...} }
+//   401 { error: 'UNAUTHORIZED' | 'USER_NOT_FOUND' }
+//   403 { error: 'FORBIDDEN' }
+//   404 { error: 'EVENT_NOT_FOUND' }
+
+/** Every request key that means "the caller is changing where this happens". */
+const LOCATION_KEYS = [
+  'location',
+  'location_full',
+  'locationFull',
+  'location_short',
+  'locationShort',
+];
+
+const START_KEYS = ['start_datetime', 'startDatetime', 'datetime'];
+const END_KEYS = ['end_datetime', 'endDatetime'];
+const CATEGORY_KEYS = ['categories', 'interestTags', 'interest_tags'];
+
+/**
+ * May `userId` edit this event?
+ *
+ * Two independent grants, matching how events get into the system:
+ *   - the creator of a user-created event owns it outright;
+ *   - admins AND editors of the hosting org can manage that org's events —
+ *     schema.sql is explicit that an editor "can post/manage events, cannot
+ *     manage people", so this is deliberately looser than the admin-only gate
+ *     on the Members tab.
+ *
+ * Membership is org-scoped: being an editor of one org grants nothing over
+ * another org's events. That falls out of the org_id in the WHERE clause and
+ * is the case the tests pin hardest.
+ */
+async function canEditEvent(
+  db: D1Database,
+  event: { host_organization_id: number | null; created_by_user_id: number | null },
+  userId: number,
+): Promise<boolean> {
+  if (event.created_by_user_id !== null && event.created_by_user_id === userId) return true;
+  if (event.host_organization_id === null) return false;
+
+  const row = await db
+    .prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
+    .bind(event.host_organization_id, userId)
+    .first();
+
+  return row?.role === 'admin' || row?.role === 'editor';
+}
+
+eventRoutes.patch('/:id', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const user = await getUserByEmail(c.env.DB, auth.email);
+  if (!user) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'), 10);
+  if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id, start_datetime, end_datetime, host_organization_id, created_by_user_id
+       FROM events WHERE id = ?`,
+  )
+    .bind(eventId)
+    .first();
+  if (!existing) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  // Re-checked here on every call. The console hides the pencil for anyone who
+  // can't edit, but that is presentation: this is the check that counts.
+  const allowed = await canEditEvent(
+    c.env.DB,
+    {
+      host_organization_id: (existing.host_organization_id as number | null) ?? null,
+      created_by_user_id: (existing.created_by_user_id as number | null) ?? null,
+    },
+    user.id,
+  );
+  if (!allowed) return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const parsed = await c.req.json().catch(() => null);
+  if (!isRecord(parsed)) return c.json({ error: 'INVALID_BODY' }, 400);
+  const body = parsed as CreateEventBody;
+
+  const errors: ValidationErrors = {};
+  // Column name -> new value. Only what the caller actually sent lands here,
+  // and the keys are literals from this file, never strings off the request.
+  const updates: Record<string, unknown> = {};
+
+  if (hasField(body, ['title'])) {
+    const title = parseRequiredString(body, ['title'], 'title', MAX_TITLE_LENGTH, errors);
+    // Required-if-present: an event with a blank title is unusable in every
+    // list that renders it, so clearing the title is rejected rather than
+    // treated as a clear.
+    if (title) updates.title = title;
+  }
+
+  if (hasField(body, ['description'])) {
+    updates.description = parseOptionalString(
+      body,
+      ['description'],
+      'description',
+      MAX_DESCRIPTION_LENGTH,
+      errors,
+    );
+  }
+
+  // Datetimes are validated against each other, not just individually, so the
+  // effective pair is resolved first: whatever was sent, falling back to what
+  // is already stored. An event whose end_datetime is NULL reads as
+  // instantaneous, matching the COALESCE the feed queries use.
+  const patchesStart = hasField(body, START_KEYS);
+  const patchesEnd = hasField(body, END_KEYS);
+  let effectiveStart = existing.start_datetime as string;
+  let effectiveEnd = (existing.end_datetime as string | null) ?? effectiveStart;
+
+  if (patchesStart) {
+    const next = parseIsoDatetime(
+      readStringField(body, START_KEYS),
+      'start_datetime',
+      true,
+      errors,
+    );
+    if (next) {
+      effectiveStart = next;
+      updates.start_datetime = next;
+    }
+  }
+
+  if (patchesEnd) {
+    const raw = readStringField(body, END_KEYS);
+    // An explicitly emptied end means "single instant", which the create path
+    // spells as end = start. Storing that rather than NULL keeps the two paths
+    // producing the same row for the same user intent.
+    const next =
+      raw === null ? effectiveStart : parseIsoDatetime(raw, 'end_datetime', false, errors);
+    if (next) {
+      effectiveEnd = next;
+      updates.end_datetime = next;
+    }
+  }
+
+  if (new Date(effectiveEnd).getTime() < new Date(effectiveStart).getTime()) {
+    errors.end_datetime = 'Must be on or after start_datetime';
+  }
+
+  // expires_at is derived, so moving either endpoint has to move it too or the
+  // cleanup job (LOOP-150) purges a rescheduled event on its old schedule.
+  if (patchesStart || patchesEnd) {
+    updates.expires_at = computeExpiresAt(effectiveEnd, effectiveStart);
+  }
+
+  if (hasField(body, LOCATION_KEYS)) {
+    const locationObject = isRecord(body.location) ? body.location : null;
+    const locationFull =
+      parseOptionalString(
+        body,
+        ['location_full', 'locationFull'],
+        'location_full',
+        MAX_LOCATION_LENGTH,
+        errors,
+      ) ??
+      parseOptionalString(
+        locationObject ?? {},
+        ['full', 'full_name', 'fullName', 'name'],
+        'location_full',
+        MAX_LOCATION_LENGTH,
+        errors,
+      ) ??
+      parseOptionalString(body, ['location'], 'location', MAX_LOCATION_LENGTH, errors);
+    // Both columns move together. location_short is a display truncation of
+    // location_full, so leaving the old one behind would show the previous
+    // room next to the new address.
+    updates.location_full = locationFull;
+    updates.location_short =
+      parseOptionalString(
+        body,
+        ['location_short', 'locationShort'],
+        'location_short',
+        40,
+        errors,
+      ) ??
+      parseOptionalString(
+        locationObject ?? {},
+        ['short', 'short_name', 'shortName'],
+        'location_short',
+        40,
+        errors,
+      ) ??
+      truncateLocation(locationFull);
+  }
+
+  const patchesCategories = hasField(body, CATEGORY_KEYS);
+  const categories = patchesCategories ? normalizeCategories(body, errors) : [];
+
+  const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
+  if (discoveryBucket) {
+    // theme is a pure function of the bucket on the create path; recomputing it
+    // here keeps a re-bucketed event from keeping its old theme forever.
+    const theme = THEME_BY_DISCOVERY_BUCKET[discoveryBucket];
+    if (theme) updates.theme = theme;
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return c.json({ error: 'VALIDATION_ERROR', fields: errors }, 400);
+  }
+
+  const columns = Object.keys(updates);
+  if (columns.length > 0) {
+    await c.env.DB.prepare(
+      `UPDATE events
+          SET ${columns.map((column) => `${column} = ?`).join(', ')},
+              updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+      .bind(...columns.map((column) => updates[column]), eventId)
+      .run();
+  }
+
+  // Categories are a set, not a column, so "edit" is replace-all. Skipped
+  // entirely when the caller didn't mention them, which is the whole point of
+  // a partial patch.
+  if (patchesCategories) {
+    await c.env.DB.prepare('DELETE FROM event_categories WHERE event_id = ?').bind(eventId).run();
+    for (const category of categories) {
+      await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO event_categories (event_id, category_id, category_name)
+         VALUES (?, ?, ?)`,
+      )
+        .bind(eventId, category.id, category.name)
+        .run();
+    }
+  }
+
+  // event_tags drives feed ranking and is rewritten only when the caller sent
+  // BOTH a bucket and a tag list — i.e. actually edited the tag picker. Sending
+  // one alone would otherwise wipe the classifier's semantic tags on a scraped
+  // event as a side effect of, say, fixing a typo in the title.
+  if (patchesCategories && discoveryBucket && BUCKET_ID_SET.has(discoveryBucket)) {
+    const bucketTags = new Set(TAXONOMY_BUCKETS.find((b) => b.id === discoveryBucket)?.tags ?? []);
+    const { writeEventTags } = await import('../lib/classifier');
+    await writeEventTags(
+      c.env.DB,
+      eventId,
+      categories
+        .filter((cat) => cat.name && bucketTags.has(cat.name))
+        .map((cat) => ({
+          bucketId: discoveryBucket,
+          tag: cat.name as string,
+          source: 'user' as const,
+          score: 1,
+        })),
+    );
+  }
+
+  const event = await getCreatedEvent(c.env.DB, eventId);
+  return c.json({ event });
 });
 
 // GET /events -- list upcoming events with optional filters
@@ -877,7 +1179,8 @@ eventRoutes.get('/', async (c) => {
     LEFT JOIN organizations o ON e.host_organization_id = o.id
     WHERE e.status = 'active'
       AND e.is_archived = 0
-      AND e.end_datetime > datetime('now')
+      -- Nullable end_datetime: see the same filter in feed.worker.ts.
+      AND COALESCE(e.end_datetime, e.start_datetime) > datetime('now')
       ${visibility.sql}
   `;
   const params: any[] = [...visibility.params];
@@ -986,6 +1289,17 @@ eventRoutes.get('/:id', async (c) => {
     if (reportedByMe) {
       return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
     }
+
+    // Blocking (LOOP-180). The list endpoints filter this in SQL; a single
+    // event is fetched by id with no WHERE to hang the filter off, so it is
+    // checked here instead. Without it a blocked author's event is one deep
+    // link away — from a notification, a share sheet, or the report screen —
+    // and the feed filter would be decoration.
+    const author = event.created_by_user_id as number | null;
+    if (author !== null) {
+      const block = await isBlockedBetween(c.env.DB, userId, author);
+      if (block.blocked) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+    }
   }
 
   const categories = await c.env.DB.prepare(
@@ -996,6 +1310,14 @@ eventRoutes.get('/:id', async (c) => {
 
   const benefits = await c.env.DB.prepare(
     'SELECT benefit_name FROM event_benefits WHERE event_id = ?',
+  )
+    .bind(id)
+    .all();
+
+  // Classifier-assigned tags (Phase 2). Distinct tag names, shown as chips in
+  // the app in place of the raw scraped categories.
+  const tagRows = await c.env.DB.prepare(
+    'SELECT DISTINCT tag FROM event_tags WHERE event_id = ? ORDER BY tag',
   )
     .bind(id)
     .all();
@@ -1013,6 +1335,7 @@ eventRoutes.get('/:id', async (c) => {
       name: c.category_name,
     })),
     benefits: benefits.results.map((b: any) => b.benefit_name),
+    tags: tagRows.results.map((t: any) => t.tag as string),
     is_rsvped: isRsvped,
   });
 });
@@ -1035,9 +1358,19 @@ eventRoutes.post('/:id/rsvp', async (c) => {
     .first();
   if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
 
-  await c.env.DB.prepare(`INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`)
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_rsvps (user_id, event_id) VALUES (?, ?)`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Bump the denormalized counter only when this RSVP is new (deduped per
+  // user), so re-POSTing the same RSVP doesn't inflate rsvp_count.
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
@@ -1055,9 +1388,118 @@ eventRoutes.delete('/:id/rsvp', async (c) => {
     return c.json({ error: 'INVALID_EVENT_ID' }, 400);
   }
 
-  await c.env.DB.prepare(`DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`)
+  const deleted = await c.env.DB.prepare(
+    `DELETE FROM event_rsvps WHERE user_id = ? AND event_id = ?`,
+  )
     .bind(userId, eventId)
     .run();
+
+  // Only decrement when a row was actually removed, so a repeat DELETE can't
+  // drive rsvp_count negative.
+  if (deleted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET rsvp_count = rsvp_count - 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
+
+  return c.json({ ok: true });
+});
+
+// Faces shown in the attendee stack on the event detail screen. The row only
+// has space for a few; `count` carries the real total so the label stays
+// accurate without shipping every attendee to the client.
+const ATTENDEE_PREVIEW_LIMIT = 5;
+
+// GET /events/:id/attendees -- auth-gated preview of who has RSVP'd, plus the
+// total. Auth-gated because it names people: an attendee list is exactly the
+// kind of thing that shouldn't be readable by anyone with an event URL.
+//
+// Counts from event_rsvps rather than events.rsvp_count so a drifted
+// denormalized counter can't disagree with the faces beside it.
+eventRoutes.get('/:id/attendees', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  // `count` is deliberately NOT block-filtered (LOOP-180). It is an aggregate
+  // about the event — "23 going" — not a disclosure about any particular
+  // person, and subtracting blocked attendees from it would tell the blocker
+  // exactly when a blocked person RSVP'd by making the number move. The FACES
+  // below are filtered, because those are the part that names someone.
+  const totalRow = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM event_rsvps WHERE event_id = ?',
+  )
+    .bind(eventId)
+    .first<{ count: number }>();
+
+  const notBlocked = blockedUserFilter(viewerId, 'r.user_id');
+
+  // Newest RSVPs first, so the faces change as an event fills up rather than
+  // freezing on whoever happened to RSVP first.
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.first_name, u.last_name, u.avatar
+       FROM event_rsvps r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.event_id = ?
+        ${notBlocked.sql}
+      ORDER BY r.created_at DESC, u.id DESC
+      LIMIT ?`,
+  )
+    .bind(eventId, ...notBlocked.params, ATTENDEE_PREVIEW_LIMIT)
+    .all();
+
+  return c.json({
+    attendees: results.map((u: any) => ({
+      id: u.id as number,
+      first_name: (u.first_name as string) ?? '',
+      last_name: (u.last_name as string) ?? '',
+      avatar: (u.avatar as number | null) ?? null,
+    })),
+    count: totalRow?.count ?? 0,
+  });
+});
+
+// POST /events/:id/view -- auth-gated, idempotent view signal. Deduped per
+// user (one row per user/event), so view_count tracks distinct viewers.
+eventRoutes.post('/:id/view', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const eventExists = await c.env.DB.prepare('SELECT 1 FROM events WHERE id = ?')
+    .bind(eventId)
+    .first();
+  if (!eventExists) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  const inserted = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO event_views (user_id, event_id) VALUES (?, ?)`,
+  )
+    .bind(userId, eventId)
+    .run();
+
+  if (inserted.meta.changes > 0) {
+    await c.env.DB.prepare(`UPDATE events SET view_count = view_count + 1 WHERE id = ?`)
+      .bind(eventId)
+      .run();
+  }
 
   return c.json({ ok: true });
 });
@@ -1129,7 +1571,60 @@ eventRoutes.post('/scrape/:name', async (c) => {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const result = await scraper(c.env.DB, body as Record<string, unknown>);
+  const result = await scraper(c.env, body as Record<string, unknown>);
 
   return c.json(result);
+});
+
+// POST /events/reclassify -- backfill event_tags for all existing events (LOOP-221)
+eventRoutes.post('/reclassify', async (c) => {
+  const { writeEventTags } = await import('../lib/classifier');
+  const { classifyEventsBatch } = await import('../lib/semanticTags');
+
+  const rows = await c.env.DB.prepare(
+    'SELECT id, title, description FROM events WHERE is_archived = 0',
+  ).all<{ id: number; title: string; description: string | null }>();
+
+  // Batch-classify to stay under the Workers AI per-invocation embed cap; the
+  // same reason ingestEvents batches. tagsByIndex[i] <-> rows.results[i].
+  const tagsByIndex = await classifyEventsBatch(
+    c.env,
+    rows.results.map((r) => ({ title: r.title, description: r.description })),
+  );
+
+  let processed = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.results.length; i++) {
+    const event = rows.results[i];
+    try {
+      await writeEventTags(c.env.DB, event.id, tagsByIndex[i]);
+      processed++;
+    } catch (err) {
+      errors.push(`event ${event.id}: ${err}`);
+    }
+  }
+
+  return c.json({ ok: true, processed, errors });
+});
+
+// POST /events/seed-tag-vectors that embeds every taxonomy tag into Vectorize.
+// Run once after deploy and whenever the taxonomy changes. Safe to re-run
+// (upsert overwrites existing tag vectors).
+eventRoutes.post('/seed-tag-vectors', async (c) => {
+  const { seedTagVectors } = await import('../lib/semanticTags');
+  const result = await seedTagVectors(c.env);
+  return c.json({ ok: true, ...result });
+});
+
+// POST /events/delete-tag-vectors -- remove stale tag vectors by id.
+// Body: { ids: string[] } where each id is `tag:<bucketId>:<tagName>`.
+// Use after renaming/removing a taxonomy tag: seeding adds the new vector but
+// leaves the old id orphaned, and the binding has no list method to find it.
+eventRoutes.post('/delete-tag-vectors', async (c) => {
+  const { deleteTagVectors } = await import('../lib/semanticTags');
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: string[] };
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  const result = await deleteTagVectors(c.env, ids);
+  return c.json({ ok: true, ...result });
 });

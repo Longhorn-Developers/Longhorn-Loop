@@ -223,7 +223,7 @@ export async function discoverEventUrls(): Promise<string[]> {
 }
 
 export async function scrapeMccombs(
-  db: D1Database,
+  env: Env,
   options: { maxEvents?: number; dryRun?: boolean } = {},
 ): Promise<ScraperResult> {
   const dryRun = options.dryRun ?? false;
@@ -295,7 +295,7 @@ export async function scrapeMccombs(
   }
 
   if (!dryRun && normalized.length > 0) {
-    const result = await ingestEvents(db, normalized);
+    const result = await ingestEvents(env, normalized);
     eventsUpserted = result.inserted + result.updated;
     errors.push(...result.errors);
   }
@@ -310,5 +310,5 @@ export async function scrapeMccombs(
 
 export async function run(env: Env): Promise<void> {
   console.log('[mccombs] Scraper started');
-  await scrapeMccombs(env.DB);
+  await scrapeMccombs(env);
 }

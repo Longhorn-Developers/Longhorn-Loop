@@ -20,6 +20,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { API_BASE_URL } from '@/app/config/api';
 
 // ---------- Types ----------
@@ -82,6 +83,7 @@ function NotificationRow({
   item: Notification;
   onDelete: (id: number) => void;
 }) {
+  const colors = useThemeColors();
   const isUnread = !item.read_at;
   const translateX = useSharedValue(0);
   const rowHeight = useSharedValue(72);
@@ -185,7 +187,7 @@ function NotificationRow({
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: '#EF4444',
+              backgroundColor: colors.destructive,
               justifyContent: 'center',
               alignItems: 'flex-end',
             },
@@ -203,7 +205,15 @@ function NotificationRow({
               alignItems: 'center',
             }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Delete</Text>
+            <Text
+              style={{
+                color: '#fff', // theme-exempt: label on the filled destructive swipe background, white in both themes
+                fontWeight: '700',
+                fontSize: 16,
+              }}
+            >
+              Delete
+            </Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -220,7 +230,7 @@ function NotificationRow({
                     width: 6,
                     height: 6,
                     borderRadius: 3,
-                    backgroundColor: '#BF5700',
+                    backgroundColor: colors.brand,
                   }}
                 />
               )}
@@ -234,9 +244,15 @@ function NotificationRow({
               ) : (
                 <View
                   className="w-10 h-10 rounded-full shrink-0 items-center justify-center"
-                  style={{ backgroundColor: '#BF5700' }}
+                  style={{ backgroundColor: colors.brand }}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+                  <Text
+                    style={{
+                      color: '#fff', // theme-exempt: initial sits on the filled brand avatar, white in both themes
+                      fontWeight: '700',
+                      fontSize: 16,
+                    }}
+                  >
                     {item.title.charAt(0).toUpperCase()}
                   </Text>
                 </View>
@@ -248,7 +264,7 @@ function NotificationRow({
                   className="text-sm leading-5"
                   style={{
                     fontWeight: isUnread ? '700' : '400',
-                    color: isUnread ? '#020B12' : '#6B7280',
+                    color: isUnread ? colors.ink : colors.inkSecondary,
                   }}
                   numberOfLines={2}
                 >
@@ -257,7 +273,7 @@ function NotificationRow({
                 {item.subtitle ? (
                   <Text
                     className="text-[13px] leading-[18px]"
-                    style={{ color: isUnread ? '#6B7280' : '#9CA3AF' }}
+                    style={{ color: isUnread ? colors.inkSecondary : colors.inkMuted }}
                     numberOfLines={1}
                   >
                     {item.subtitle}
@@ -272,7 +288,7 @@ function NotificationRow({
                   className="w-14 h-14 rounded-lg shrink-0"
                 />
               ) : (
-                <View className="w-14 h-14 rounded-lg shrink-0 bg-[#D9D9D9]" />
+                <View className="w-14 h-14 rounded-lg shrink-0 bg-lhlPlaceholderGrey" />
               )}
             </View>
           </Animated.View>
@@ -285,6 +301,7 @@ function NotificationRow({
 // ---------- Main Screen ----------
 
 export default function NotificationsScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
@@ -418,37 +435,37 @@ export default function NotificationsScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4">
           <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 justify-center">
-            <ArrowLeft size={24} color="#020B12" />
+            <ArrowLeft size={24} color={colors.ink} />
           </TouchableOpacity>
 
-          <Text className="text-lg font-bold text-[#020B12]">Notifications</Text>
+          <Text className="text-lg font-bold text-lhlInk">Notifications</Text>
 
           {notifications.length > 0 ? (
             <TouchableOpacity
               onPress={handleClearAll}
               className="w-[60px] items-end justify-center"
             >
-              <Text className="text-sm text-lhlBurntOrange font-semibold">Clear all</Text>
+              <Text className="text-sm text-lhlAccent font-semibold">Clear all</Text>
             </TouchableOpacity>
           ) : (
             <View className="w-[60px]" />
           )}
         </View>
 
-        <View className="h-px bg-[#D2DEE0] mx-5" />
+        <View className="h-px bg-lhlDivider mx-5" />
 
         {/* Content */}
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#BF5700" />
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         ) : isEmpty ? (
           <View className="flex-1 items-center justify-center px-10">
             <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
-            <Text className="text-base text-[#374151] font-semibold mb-2 text-center">
+            <Text className="text-base text-lhlSecondaryTextGrey font-semibold mb-2 text-center">
               No new notifications
             </Text>
-            <Text className="text-sm text-[#9CA3AF] text-center">
+            <Text className="text-sm text-lhlMutedText text-center">
               When you have upcoming events or activity, they&apos;ll show up here.
             </Text>
           </View>
@@ -458,7 +475,7 @@ export default function NotificationsScreen() {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => <NotificationRow item={item} onDelete={handleDelete} />}
             renderSectionHeader={({ section: { title } }) => (
-              <Text className="text-[13px] font-semibold text-lhlBurntOrange px-5 pt-4 pb-2 bg-lhlBackgroundColor">
+              <Text className="text-[13px] font-semibold text-lhlAccent px-5 pt-4 pb-2 bg-lhlBackgroundColor">
                 {title}
               </Text>
             )}
@@ -471,7 +488,7 @@ export default function NotificationsScreen() {
         {/* Undo Toast */}
         {toastVisible && (
           <Animated.View
-            className="absolute bottom-[100px] left-5 right-5 bg-[#020B12] rounded-xl px-4 py-[14px] flex-row items-center justify-between"
+            className="absolute bottom-[100px] left-5 right-5 bg-lhlInk rounded-xl px-4 py-[14px] flex-row items-center justify-between"
             style={[
               toastAnimatedStyle,
               {
@@ -482,9 +499,14 @@ export default function NotificationsScreen() {
               },
             ]}
           >
-            <Text className="text-white text-sm flex-1">Notification deleted</Text>
+            {/* surface, not white: the panel is bg-lhlInk, which is near-white in
+                dark mode — a fixed white label would vanish. surface inverts with it. */}
+            <Text className="text-lhlSurface text-sm flex-1">Notification deleted</Text>
             <TouchableOpacity onPress={handleUndo}>
-              <Text className="text-lhlBurntOrange text-sm font-bold ml-4">Undo</Text>
+              {/* Not accent: this panel is bg-lhlInk in BOTH themes, so an
+                  orange label sits at ~2.4:1 on it either way. On an inverted
+                  surface the action reads by weight, not by hue. */}
+              <Text className="ml-4 text-sm font-bold underline text-lhlSurface">Undo</Text>
             </TouchableOpacity>
           </Animated.View>
         )}

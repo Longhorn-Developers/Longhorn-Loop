@@ -3,21 +3,42 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.worker';
 import { eventRoutes } from './routes/events.worker';
+import { feedRoutes } from './routes/feed.worker';
 import { notificationRoutes } from './routes/notifications.worker';
+import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
+import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
-import { SCRAPERS } from './scrapers/registry';
+import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
+import type { SendEmailBinding } from './email/send';
 
 export type Env = {
   DB: D1Database;
   EVENT_IMAGES?: R2Bucket;
   EVENT_IMAGE_PUBLIC_BASE_URL?: string;
+  // Workers AI binding (embeddings). Optional so tests/CI without the binding
+  // still typecheck; ingest falls back to the keyword classifier when absent.
+  AI?: Ai;
+  // Vectorize index holding taxonomy tag vectors, queried at ingest.
+  VECTORIZE?: VectorizeIndex;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   // When set to "true" in .dev.vars, the Worker logs verification codes to
   // the wrangler console instead of sending them through Resend. Never set
   // in production.
   RESEND_DEV_MODE?: string;
+  // Sender for verification emails. Set in wrangler.toml [vars]; the domain
+  // must be verified with whichever provider is active or every send fails.
+  // Falls back to the default in auth.worker.ts when unset.
+  EMAIL_FROM?: string;
+  // 'cloudflare' | 'postmark' | 'resend' | 'dev'. See email/send.ts — this is
+  // a variable because UT's gateway blocks our current sender and we do not
+  // yet know which provider it will accept.
+  EMAIL_PROVIDER?: string;
+  // Cloudflare Email Service binding. Present only once wrangler.toml declares
+  // [[send_email]] AND the domain is onboarded in the dashboard.
+  EMAIL?: SendEmailBinding;
+  POSTMARK_API_TOKEN?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -27,7 +48,11 @@ app.use(
   '*',
   cors({
     origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    // PATCH must be listed or the browser's preflight blocks every partial
+    // update — Edit Profile save, the avatar, the Settings toggles, org role
+    // swaps and org notification settings are all PATCH, and all failed with
+    // an opaque "Failed to fetch" on web until this was added.
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 );
@@ -39,13 +64,22 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.route('/auth', authRoutes);
 app.route('/users', userRoutes);
 app.route('/events', eventRoutes);
+app.route('/feed', feedRoutes);
 app.route('/notifications', notificationRoutes);
 app.route('/saved', savedRoutes);
+app.route('/orgs', orgRoutes);
+app.route('/settings', settingsRoutes);
 
 // Cron schedules, configured in wrangler.toml under [triggers]. The
 // scheduled() handler below dispatches on event.cron since the two jobs
 // run at different cadences.
 const REMINDER_CRON = '*/15 * * * *';
+
+// LOOP-241. The HornsLink org directory, on its own daily schedule rather than
+// the 6-hour event sweep: org rosters change slowly, and the run includes a
+// bounded pass of per-org HTML fetches that there is no reason to repeat four
+// times a day.
+const ORG_DIRECTORY_CRON = '0 8 * * *';
 
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -116,6 +150,11 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron === REMINDER_CRON) {
       ctx.waitUntil(sendEventReminders(env));
+      return;
+    }
+
+    if (event.cron === ORG_DIRECTORY_CRON) {
+      ctx.waitUntil(ORG_DIRECTORY_SCRAPER.run(env));
       return;
     }
 

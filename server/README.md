@@ -12,22 +12,116 @@ cd server
 npm install
 cp .dev.vars.example .dev.vars   # defaults work for local dev
 npx wrangler d1 execute loop-db --local --file=schema.sql
-npx wrangler dev
+npm run dev:lan
 ```
 
-Worker is now running at `http://localhost:8787`. The app's
-`app/config/api.ts` already points there when running in dev mode, so
-`npx expo start` in the repo root will use it automatically.
+Worker is now running on port 8787. One more step: the app talks to the
+**deployed** Worker by default, so tell it to use yours instead. In the repo
+root:
+
+```bash
+echo "EXPO_PUBLIC_USE_LOCAL_API=1" >> .env
+npx expo start --clear
+```
+
+It works out the right address on its own, including from a real phone on your
+wifi. On startup it prints which backend it chose:
+
+```
+[api] http://192.168.1.24:8787  (EXPO_PUBLIC_USE_LOCAL_API=1)
+```
+
+If that line says `(default)` and a workers.dev URL, the flag did not take —
+`EXPO_PUBLIC_*` is inlined at build time, so `.env` edits need `--clear` and an
+app reload.
+
+You do not need a Cloudflare account to do any of this. Everything above runs
+against a SQLite file on your own machine.
+
+### The dev scripts
+
+| script              | what it does                                                |
+| ------------------- | ----------------------------------------------------------- |
+| `npm run dev`       | `--env local`, localhost only. Simulator and Expo web.      |
+| `npm run dev:lan`   | `--env local`, `--ip 0.0.0.0`. Also reachable from a phone. |
+| `npm run dev:cloud` | Full config, remote bindings. Needs Cloudflare access.      |
+
+`dev` binds to localhost, which is the phone itself when you open the app on a
+real device — nothing is listening there, so every request fails. `dev:lan`
+binds to `0.0.0.0` so other devices on your wifi can reach it.
+
+### Why `--env local` exists
+
+Workers AI and Vectorize have no local emulation. When wrangler sees the
+top-level `[ai]` and `[[vectorize]]` bindings it opens a _remote proxy session_
+against the Longhorn Developers Cloudflare account before serving a single
+request, so plain `wrangler dev` fails for anyone not signed in to it:
+
+```
+[ERROR] A request to the Cloudflare API (/accounts/9f38.../workers/subdomain/edge-preview) failed.
+[ERROR] Failed to start the remote proxy session.
+```
+
+Those two bindings are only used by the ingest path — semantic tagging of
+scraped events, which runs on a cron. Nothing a person clicks in the app touches
+them, and every call site already handles the binding being absent. So
+`[env.local]` in `wrangler.toml` leaves them out and local dev stays offline.
+
+Use `dev:cloud` if you are specifically working on ingest or semantic tagging;
+that one does need an account.
+
+Bindings are not inherited by named environments in wrangler, so `[env.local]`
+repeats `DB`, `EVENT_IMAGES` and the vars. If you add a binding the app needs at
+request time, add it in both places.
+
+## Testing on a physical phone
+
+Expo Go on a real device cannot resolve `localhost` to your dev machine --
+`localhost` is the phone. Two things have to be true:
+
+1. **The Worker accepts LAN connections.** Start it with `npm run dev:lan`.
+2. **The phone and the dev machine are on the same network.** University Wi-Fi
+   that isolates clients (and most guest networks) will block this even when
+   both devices show as connected.
+
+The app derives the dev machine's address from the same host Metro served the
+bundle from, so no IP needs to be typed in. If a request still fails, the error
+now names the exact URL it tried, e.g.
+
+```
+Network request failed. Could not reach http://192.168.1.24:8787 -- check that
+the Worker is running (`npm run dev:lan` in /server) and that this device is on
+the same network as the dev machine.
+```
+
+Verify that URL from the phone's browser: it should return `{"status":"ok"}` at
+`/health`. If the browser can't load it either, it's the network or the bind,
+not the app.
+
+### Overriding the API URL
+
+Set `EXPO_PUBLIC_API_BASE_URL` in a root `.env` to point the app somewhere else
+-- the deployed Worker, a teammate's machine, or a tunnel. This is required
+when running `expo start --tunnel`, since the tunnel only proxies Metro and not
+port 8787.
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://loop-db.longhorn-developers.workers.dev
+```
 
 ### Seed events
 
+Manual scrapes are triggered per source via `POST /events/scrape/:name`.
+Available sources: `hornslink`, `mccombs`, `texasGlobal`, `lawSchool`,
+`cockrell`, `cofa`.
+
 ```bash
-curl -X POST http://localhost:8787/events/scrape \
+curl -X POST http://localhost:8787/events/scrape/hornslink \
   -H "Content-Type: application/json" \
   -d '{"maxPages":3}'
 ```
 
-Pulls ~60 events from HornsLink into your local D1.
+Pulls events from HornsLink into your local D1.
 
 ```bash
 curl -X POST http://localhost:8787/events/scrape/mccombs \

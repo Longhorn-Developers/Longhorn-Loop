@@ -1,9 +1,9 @@
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
-// falls back to `event_url`. Attendees, share, and report are mocked
-// pending backend support.
+// falls back to `event_url`. Attendees come from GET /events/:id/attendees;
+// the share button opens the platform share sheet (app/lib/shareEvent.ts).
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
-import BookmarkIcon from '@/assets/images/bookmark.svg';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import CalendarIcon from '@/assets/images/calendar.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
@@ -11,16 +11,21 @@ import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
+import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
+import { shareEvent } from '@/app/lib/shareEvent';
+import { recordView } from '@/app/lib/signals';
+import type { ThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -32,16 +37,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BURNT_ORANGE = '#BF5700';
-const GOING_BLUE = '#2591D4';
-const BADGE_BROWN = '#9D4A06';
-const BG_OFFWHITE = '#F7F4EF';
-const TEXT_PRIMARY = '#020B12';
-const TEXT_MUTED = '#7A7A7A';
-const BORDER_GREY = '#E5E5E5';
-const CHIP_BG = '#F1F1F1';
-const REPORT_RED = '#E11D48';
 
 // Container aspect ratio for the poster. Defaults to portrait since most
 // flyers are vertical.
@@ -107,11 +102,14 @@ function formatShortTime(isoString: string): string {
 }
 
 function MetaRow({ event }: { event: ApiEvent }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={styles.metaIconBadge}>
-          <CalendarIcon width={16} height={16} />
+          <CalendarIcon width={16} height={16} color={colors.inkSecondary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.metaPrimary}>{formatShortDate(event.start_datetime)}</Text>
@@ -133,10 +131,51 @@ function MetaRow({ event }: { event: ApiEvent }) {
   );
 }
 
-// TODO: replace mock data with a real attendees endpoint once backend supports RSVPs.
-function AttendeesRow() {
-  const mockAvatars = ['#F06292', '#81C784', '#FFB74D'];
-  const mockCount = 142;
+interface Attendee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  avatar: number | null;
+}
+
+interface AttendeesResponse {
+  attendees: Attendee[];
+  count: number;
+}
+
+// Faces + count for everyone who has RSVP'd, from GET /events/:id/attendees.
+// The endpoint is auth-gated, so signed-out viewers get the section without a
+// count rather than a failed request.
+function AttendeesRow({
+  eventId,
+  token,
+  onShare,
+}: {
+  eventId: string;
+  token: string | null;
+  onShare: () => void;
+}) {
+  const colors = useThemeColors();
+  // Each face opens that person's public profile (LOOP-180). The attendee list
+  // is where you actually encounter a stranger in this app, so it is the entry
+  // point the profile screen was built for.
+  const router = useRouter();
+
+  const { data, isLoading } = useQuery({
+    queryKey: eventsKeys.attendees(eventId),
+    queryFn: () => api.get<AttendeesResponse>(`/events/${eventId}/attendees`, { token }),
+    enabled: !!token,
+  });
+
+  const attendees = data?.attendees ?? [];
+  const count = data?.count ?? 0;
+
+  // Nobody has RSVP'd yet — say so rather than showing an empty face stack.
+  const label = isLoading
+    ? '—'
+    : count === 0
+      ? 'Be the first to RSVP'
+      : `${count} ${count === 1 ? 'student' : 'students'}`;
 
   return (
     <View
@@ -149,43 +188,62 @@ function AttendeesRow() {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row' }}>
-          {mockAvatars.map((color, i) => (
-            <View
-              key={i}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: color,
-                borderWidth: 2,
-                borderColor: '#fff',
-                marginLeft: i === 0 ? 0 : -8,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                {String.fromCharCode(65 + i)}
-              </Text>
-            </View>
-          ))}
+          {attendees.map((attendee, i) => {
+            const avatarSource = getAvatarSource(attendee.avatar ?? undefined);
+            return (
+              <TouchableOpacity
+                key={attendee.id}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${attendee.first_name}’s profile`}
+                onPress={() => router.push(`/user/${attendee.id}`)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  backgroundColor: colors.brand,
+                  borderWidth: 2,
+                  borderColor: colors.surface,
+                  marginLeft: i === 0 ? 0 : -8,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {avatarSource ? (
+                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
+                ) : (
+                  // theme-exempt: initial sits on the brand-coloured fill above
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        <Text style={{ marginLeft: 10, fontSize: 14, color: TEXT_PRIMARY }}>
-          {mockCount} students
+        <Text
+          style={{
+            marginLeft: attendees.length > 0 ? 10 : 0,
+            fontSize: 14,
+            color: colors.ink,
+          }}
+        >
+          {label}
         </Text>
       </View>
 
-      {/* TODO: wire up share intent. */}
       <TouchableOpacity
-        disabled
+        accessibilityRole="button"
+        accessibilityLabel="Share this event"
+        onPress={onShare}
+        hitSlop={8}
         style={{
           width: 36,
           height: 36,
           borderRadius: 8,
-          backgroundColor: BADGE_BROWN,
+          backgroundColor: colors.brand,
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: 0.9,
         }}
       >
         <ShareIcon width={16} height={18} />
@@ -197,6 +255,8 @@ function AttendeesRow() {
 type SavedListResponse = { events: ApiEvent[] };
 
 export default function EventDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
@@ -209,6 +269,9 @@ export default function EventDetailScreen() {
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  // Transient pill for the share fallbacks. Native share sheets report their
+  // own result, so this only ever fires on web (clipboard copy or failure).
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   // Fetch the event.
   const eventQuery = useQuery({
@@ -268,12 +331,34 @@ export default function EventDetailScreen() {
     toggleSave.mutate(isSaved);
   };
 
+  // Sharing is deliberately not auth-gated: a signed-out viewer can still pass
+  // an event along, which is the cheapest way we get new users.
+  const handleShare = async () => {
+    if (!event) return;
+    const outcome = await shareEvent(event);
+    if (outcome === 'copied') setShareNotice('Link copied');
+    else if (outcome === 'failed') setShareNotice('Couldn\u2019t share this event');
+  };
+
+  useEffect(() => {
+    if (!shareNotice) return;
+    const timer = setTimeout(() => setShareNotice(null), 2500);
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
+
   // Seed isRsvped from the event response once it resolves.
   useEffect(() => {
     if (event?.is_rsvped !== undefined) {
       setIsRsvped(event.is_rsvped);
     }
   }, [event?.is_rsvped]);
+
+  // Record a view once the event resolves. Deduped per user server-side
+  useEffect(() => {
+    if (event?.id) {
+      recordView(event.id, token);
+    }
+  }, [event?.id, token]);
 
   // Map the query state to the existing loading / error / event UI.
   const loading = eventQuery.isPending;
@@ -303,6 +388,8 @@ export default function EventDetailScreen() {
     await addRsvp(event.id, token);
     setIsRsvped(true);
     setShowToast(true);
+    // The caller has just joined the list they're looking at.
+    queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
 
   const confirmCancel = async () => {
@@ -310,6 +397,7 @@ export default function EventDetailScreen() {
     await removeRsvp(event.id, token);
     setIsRsvped(false);
     setShowCancelModal(false);
+    queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
 
   const openExternalRsvp = async () => {
@@ -322,9 +410,9 @@ export default function EventDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={BURNT_ORANGE} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -332,14 +420,14 @@ export default function EventDetailScreen() {
 
   if (error || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-lhlSurface">
         <View className="px-5 pt-4">
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={{ fontSize: 16, color: BURNT_ORANGE }}>‹ Back</Text>
+            <Text style={{ fontSize: 16, color: colors.accent }}>‹ Back</Text>
           </TouchableOpacity>
         </View>
         <View className="flex-1 items-center justify-center px-8">
-          <Text style={{ fontSize: 16, color: TEXT_PRIMARY, textAlign: 'center' }}>
+          <Text style={{ fontSize: 16, color: colors.ink, textAlign: 'center' }}>
             {error || 'Event not found.'}
           </Text>
         </View>
@@ -348,28 +436,31 @@ export default function EventDetailScreen() {
   }
 
   const hasRsvpLink = !!event.rsvp_url;
-  const chips = [
-    ...(event.benefits ?? []),
-    ...(event.categories?.map((c) => c.name).filter(Boolean) ?? []),
-  ];
+  // Chips are our own benefits + classifier-assigned taxonomy tags — not the
+  // raw scraped categories (which surfaced generic labels like "Social").
+  const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Soft two-layer gradient behind the poster. */}
-        <SafeAreaView edges={['top']} style={{ backgroundColor: BG_OFFWHITE }}>
+        <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
           <View style={{ position: 'relative' }}>
             <LinearGradient
+              // theme-exempt: warm under-layer, only ever seen through the 15% window
+              // in the layer above; it reads as a soft haze in either theme.
               colors={['rgba(146,141,135,1)', 'rgba(248,239,229,1)']}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
             <LinearGradient
-              colors={['rgba(249,248,245,1)', 'rgba(146,141,135,0.15)', 'rgba(249,248,245,1)']}
+              // The opaque ends are the page background; the middle stop is a
+              // translucent grey that works over either theme.
+              colors={[colors.background, 'rgba(146,141,135,0.15)', colors.background]}
               locations={[0, 0.5144, 1]}
               start={{ x: 0.5, y: 0 }}
               end={{ x: 0.5, y: 1 }}
@@ -385,7 +476,7 @@ export default function EventDetailScreen() {
               }}
             >
               <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <ArrowLeftIcon width={20} height={20} />
+                <ArrowLeftIcon width={20} height={20} color={colors.ink} />
               </TouchableOpacity>
 
               <View
@@ -406,10 +497,10 @@ export default function EventDetailScreen() {
                       flex: 1,
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: '#D9D9D9',
+                      backgroundColor: colors.placeholder,
                     }}
                   >
-                    <Text style={{ color: TEXT_MUTED, fontSize: 14 }}>No image</Text>
+                    <Text style={{ color: colors.inkSecondary, fontSize: 14 }}>No image</Text>
                   </View>
                 )}
               </View>
@@ -441,7 +532,15 @@ export default function EventDetailScreen() {
 
           <View style={{ marginBottom: 18 }}>
             <Text style={styles.sectionHeader}>Hosted by</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Opens the org's PUBLIC profile (LOOP-180), never the management
+                console — most people tapping this are not members, and the
+                console 403s them. */}
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`View ${event.host_organization_name}`}
+              onPress={() => router.push(`/org/${event.host_organization_id}/profile`)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
               {event.org_profile_picture ? (
                 <Image
                   source={{ uri: event.org_profile_picture }}
@@ -453,7 +552,7 @@ export default function EventDetailScreen() {
                     width: 32,
                     height: 32,
                     borderRadius: 16,
-                    backgroundColor: BURNT_ORANGE,
+                    backgroundColor: colors.brand,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -463,23 +562,23 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               )}
-              <Text style={{ fontSize: 14, color: TEXT_PRIMARY, flex: 1 }} numberOfLines={1}>
+              <Text style={{ fontSize: 14, color: colors.ink, flex: 1 }} numberOfLines={1}>
                 {event.host_organization_name}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          <View style={{ height: 1, backgroundColor: BORDER_GREY, marginVertical: 12 }} />
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
           <Text style={styles.sectionHeader}>Attendees</Text>
-          <AttendeesRow />
+          <AttendeesRow eventId={String(id)} token={token} onShare={handleShare} />
 
           <TouchableOpacity
             onPress={() => router.push(`/event/${id}/report`)}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >
             <FlagIcon width={12} height={14} />
-            <Text style={{ color: REPORT_RED, fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: colors.destructive, fontSize: 14, fontWeight: '600' }}>
               Report this event
             </Text>
           </TouchableOpacity>
@@ -489,15 +588,16 @@ export default function EventDetailScreen() {
       <SafeAreaView edges={['bottom']} style={styles.actionBarWrapper}>
         <View style={styles.actionBar}>
           <TouchableOpacity onPress={handleToggleSave} style={styles.bookmarkButton}>
-            <BookmarkIcon width={14} height={18} color={isSaved ? BURNT_ORANGE : TEXT_PRIMARY} />
+            <BookmarkGlyph saved={isSaved} width={14} height={18} idleColor={colors.ink} />
           </TouchableOpacity>
 
           <Pressable
             onPress={handleRsvpPress}
-            style={[styles.rsvpButton, { backgroundColor: isRsvped ? GOING_BLUE : BURNT_ORANGE }]}
+            style={[styles.rsvpButton, { backgroundColor: isRsvped ? colors.info : colors.brand }]}
           >
             <Text style={styles.rsvpButtonText}>{isRsvped ? "I'm Going" : 'RSVP'}</Text>
             {isRsvped ? (
+              // theme-exempt: tick sits on the filled "Going" button, white in both themes
               <Text style={{ color: '#fff', fontSize: 16, marginLeft: 6 }}>✓</Text>
             ) : hasRsvpLink ? (
               <View style={{ marginLeft: 8 }}>
@@ -548,6 +648,12 @@ export default function EventDetailScreen() {
         onSecondary={() => setShowCancelModal(false)}
       />
 
+      {shareNotice ? (
+        <View pointerEvents="none" style={styles.sharePill}>
+          <Text style={styles.sharePillText}>{shareNotice}</Text>
+        </View>
+      ) : null}
+
       <RsvpSuccessToast
         visible={showToast}
         eventTitle={event.title}
@@ -557,12 +663,12 @@ export default function EventDetailScreen() {
   );
 }
 
-const styles = {
+const makeStyles = (c: ThemeColors) => ({
   backButton: {
     position: 'absolute' as const,
     top: 12,
     left: 16,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderRadius: 999,
     width: 40,
     height: 40,
@@ -590,14 +696,14 @@ const styles = {
   title: {
     fontSize: 22,
     fontWeight: '700' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     marginBottom: 16,
   },
   metaIconBadge: {
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: BADGE_BROWN,
+    backgroundColor: c.brand,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -605,35 +711,35 @@ const styles = {
     fontFamily: 'RobotoFlex_600SemiBold',
     fontSize: 14,
     fontWeight: '600' as const,
-    color: '#000',
+    color: c.ink,
   },
   metaSecondary: {
     fontFamily: 'RobotoFlex_400Regular',
     fontSize: 14,
     fontWeight: '400' as const,
-    color: '#000',
+    color: c.ink,
     marginTop: 2,
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: '700' as const,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     marginBottom: 8,
   },
   bodyText: {
     fontSize: 14,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     lineHeight: 21,
   },
   chip: {
-    backgroundColor: CHIP_BG,
+    backgroundColor: c.surfaceMuted,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
   chipText: {
     fontSize: 13,
-    color: TEXT_PRIMARY,
+    color: c.ink,
     fontWeight: '500' as const,
   },
   actionBarWrapper: {
@@ -641,9 +747,9 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
     borderTopWidth: 1,
-    borderTopColor: BORDER_GREY,
+    borderTopColor: c.border,
   },
   actionBar: {
     flexDirection: 'row' as const,
@@ -657,8 +763,8 @@ const styles = {
     height: 48,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: BORDER_GREY,
-    backgroundColor: '#fff',
+    borderColor: c.border,
+    backgroundColor: c.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -666,14 +772,32 @@ const styles = {
     flex: 1,
     height: 48,
     borderRadius: 8,
-    backgroundColor: BURNT_ORANGE,
+    backgroundColor: c.brand,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   rsvpButtonText: {
+    // theme-exempt: label on the filled RSVP button (brand or info), white in both themes
     color: '#fff',
     fontSize: 16,
     fontWeight: '700' as const,
   },
-};
+  sharePill: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    bottom: 96,
+    alignItems: 'center' as const,
+  },
+  sharePillText: {
+    backgroundColor: c.ink,
+    color: c.surface,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    borderRadius: 999,
+    overflow: 'hidden' as const,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+});

@@ -3,84 +3,37 @@ import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent } from '@/app/components/MapViewWrapper';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
-import { explore as exploreKeys, saved as savedKeys } from '@/app/lib/queryKeys';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { feed as feedKeys } from '@/app/lib/queryKeys';
+import { useSavedEvents } from '@/app/lib/useSavedEvents';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { ListIcon, MapPin } from 'phosphor-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const BURNT_ORANGE = '#BF5700';
-const TEXT_PRIMARY = '#020B12';
-const TEXT_MUTED = '#9A9A9A';
-const BG_OFFWHITE = '#F9F8F6';
-const DIVIDER = '#D2DEE0';
-const TOGGLE_BG = '#EFEFEF';
-const TOGGLE_ACTIVE_BG = '#FFFFFF';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 type EventsListResponse = { events: ApiEvent[] };
-type SavedListResponse = { events: ApiEvent[] };
 type ViewMode = 'list' | 'map';
 
 const IS_WEB = Platform.OS === 'web';
 
 export default function ExploreScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
-  const queryClient = useQueryClient();
+  const { savedIds, toggleSave: handleToggleSave } = useSavedEvents(token);
 
   // Default to map on native (the primary feature); web is locked to list.
   const [viewMode, setViewMode] = useState<ViewMode>(IS_WEB ? 'list' : 'map');
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
-  // GET /events is a public endpoint — no auth required, no `enabled` guard needed.
   const eventsQuery = useQuery({
-    queryKey: exploreKeys.events({ limit: '100' }),
-    queryFn: () => api.get<EventsListResponse>('/events?limit=100', { token }),
+    queryKey: feedKeys.explore({ limit: '100' }),
+    queryFn: () => api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
     staleTime: 30_000,
   });
-
-  const savedQuery = useQuery({
-    queryKey: savedKeys.list(),
-    queryFn: () => api.get<SavedListResponse>('/saved', { token }),
-    enabled: !!token,
-  });
-
-  const savedIds = React.useMemo(
-    () => new Set((savedQuery.data?.events ?? []).map((e) => e.id)),
-    [savedQuery.data],
-  );
-
-  const toggleSave = useMutation({
-    mutationFn: async ({ eventId, wasSaved }: { eventId: number; wasSaved: boolean }) => {
-      if (wasSaved) {
-        await api.delete(`/saved/${eventId}`, { token });
-      } else {
-        await api.post(`/saved/${eventId}`, { token });
-      }
-    },
-    onMutate: async ({ eventId, wasSaved }) => {
-      await queryClient.cancelQueries({ queryKey: savedKeys.list() });
-      const previous = queryClient.getQueryData<SavedListResponse>(savedKeys.list());
-      queryClient.setQueryData<SavedListResponse>(savedKeys.list(), (old) => {
-        const list = old?.events ?? [];
-        if (wasSaved) return { events: list.filter((e) => e.id !== eventId) };
-        return { events: [...list, { id: eventId } as ApiEvent] };
-      });
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(savedKeys.list(), context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: savedKeys.list() }),
-  });
-
-  const handleToggleSave = (eventId: number) => {
-    if (!token) return;
-    toggleSave.mutate({ eventId, wasSaved: savedIds.has(eventId) });
-  };
 
   // Toggle: tapping the active pin dismisses the card; tapping a new pin selects it.
   const handlePinPress = (eventId: number) => {
@@ -106,13 +59,13 @@ export default function ExploreScreen() {
       <SafeAreaView
         style={{
           flex: 1,
-          backgroundColor: BG_OFFWHITE,
+          backgroundColor: colors.background,
           alignItems: 'center',
           justifyContent: 'center',
         }}
         edges={['left', 'right']}
       >
-        <ActivityIndicator size="large" color={BURNT_ORANGE} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </SafeAreaView>
     );
   }
@@ -122,14 +75,14 @@ export default function ExploreScreen() {
       <SafeAreaView
         style={{
           flex: 1,
-          backgroundColor: BG_OFFWHITE,
+          backgroundColor: colors.background,
           alignItems: 'center',
           justifyContent: 'center',
           paddingHorizontal: 24,
         }}
         edges={['left', 'right']}
       >
-        <Text style={{ fontSize: 16, color: TEXT_MUTED, textAlign: 'center' }}>
+        <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
           Could not load events. Check your connection.
         </Text>
       </SafeAreaView>
@@ -139,7 +92,7 @@ export default function ExploreScreen() {
   const showList = viewMode === 'list' || IS_WEB;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG_OFFWHITE }} edges={['left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
       {/* Header */}
       <View
         style={{
@@ -151,14 +104,14 @@ export default function ExploreScreen() {
           alignItems: 'center',
         }}
       >
-        <Text style={{ fontSize: 32, fontWeight: '700', color: TEXT_PRIMARY }}>Explore</Text>
+        <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>Explore</Text>
 
         {/* Toggle hidden on web — react-native-maps has no web renderer */}
         {!IS_WEB && (
           <View
             style={{
               flexDirection: 'row',
-              backgroundColor: TOGGLE_BG,
+              backgroundColor: colors.surfaceMuted,
               borderRadius: 10,
               padding: 3,
             }}
@@ -171,12 +124,12 @@ export default function ExploreScreen() {
               style={{
                 padding: 7,
                 borderRadius: 8,
-                backgroundColor: viewMode === 'list' ? TOGGLE_ACTIVE_BG : 'transparent',
+                backgroundColor: viewMode === 'list' ? colors.surface : 'transparent',
               }}
             >
               <ListIcon
                 size={18}
-                color={viewMode === 'list' ? BURNT_ORANGE : TEXT_MUTED}
+                color={viewMode === 'list' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
             </TouchableOpacity>
@@ -185,12 +138,12 @@ export default function ExploreScreen() {
               style={{
                 padding: 7,
                 borderRadius: 8,
-                backgroundColor: viewMode === 'map' ? TOGGLE_ACTIVE_BG : 'transparent',
+                backgroundColor: viewMode === 'map' ? colors.surface : 'transparent',
               }}
             >
               <MapPin
                 size={18}
-                color={viewMode === 'map' ? BURNT_ORANGE : TEXT_MUTED}
+                color={viewMode === 'map' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
             </TouchableOpacity>
@@ -200,7 +153,12 @@ export default function ExploreScreen() {
 
       {/* Divider */}
       <View
-        style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20, marginBottom: 16 }}
+        style={{
+          height: 1,
+          backgroundColor: colors.divider,
+          marginHorizontal: 20,
+          marginBottom: 16,
+        }}
       />
 
       {/* Content */}
@@ -214,7 +172,7 @@ export default function ExploreScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <Text style={{ color: TEXT_MUTED, textAlign: 'center', marginTop: 40 }}>
+            <Text style={{ color: colors.inkMuted, textAlign: 'center', marginTop: 40 }}>
               No events found.
             </Text>
           }

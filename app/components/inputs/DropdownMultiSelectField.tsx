@@ -55,7 +55,9 @@ export default function DropdownMultiSelectField({
     <View>
       {label && (
         <Pressable onPress={onToggle}>
-          <Text className="font-['Roboto-Flex'] font-semibold text-[16px]">{label}</Text>
+          <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
+            {label}
+          </Text>
         </Pressable>
       )}
 
@@ -69,7 +71,7 @@ export default function DropdownMultiSelectField({
           border
           px-[9px] h-[33px] gap-2
           ${borderColorClass}
-          bg-white
+          bg-lhlSurface
         `}
         style={
           {
@@ -83,7 +85,7 @@ export default function DropdownMultiSelectField({
         <Text
           numberOfLines={1}
           className={`flex-1 font-['Roboto-Flex'] text-[14px] ${
-            selectedValues.length > 0 ? 'text-black' : 'text-neutral-400'
+            selectedValues.length > 0 ? 'text-lhlInk' : 'text-lhlMutedText'
           }`}
         >
           {displayText}
@@ -96,7 +98,7 @@ export default function DropdownMultiSelectField({
 
       {isOpen && (
         <View
-          className="mt-1 border border-lhlBorderColor bg-white overflow-hidden"
+          className="mt-1 border border-lhlBorderColor bg-lhlSurface overflow-hidden"
           style={{ borderRadius: borderRadius }}
         >
           {options.map((option, index) => {
@@ -114,7 +116,7 @@ export default function DropdownMultiSelectField({
                   ${index !== options.length - 1 ? 'border-b' : ''}
                 `}
               >
-                <Text className="font-['Roboto-Flex'] text-[14px] text-black">{option}</Text>
+                <Text className="font-['Roboto-Flex'] text-[14px] text-lhlInk">{option}</Text>
 
                 {/* Custom Checkbox UI */}
                 <View
