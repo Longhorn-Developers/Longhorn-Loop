@@ -17,7 +17,12 @@ CREATE TABLE IF NOT EXISTS users (
   onboarding_completed INTEGER NOT NULL DEFAULT 0,
   -- Short profile bio, edited on Edit Profile (LOOP-181). NULL = unset.
   bio TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Bevo customization "recipe" JSON (shared/avatar.ts AvatarConfig) and an
+  -- uploaded photo URL, both replacing `avatar` as what onboarding writes
+  -- (migration 0018). See that file for display precedence.
+  avatar_config TEXT,
+  profile_photo_url TEXT
 );
 
 -- Linked socials -- up to MAX_LINKED_SOCIALS (3) per user (LOOP-181).

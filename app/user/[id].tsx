@@ -44,7 +44,7 @@
 
 import type { ApiEvent } from '@/app/components/EventCard';
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
-import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import FollowControl from '@/app/components/profile/FollowControl';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
@@ -57,11 +57,12 @@ import { user as userKeys } from '@/app/lib/queryKeys';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
+import type { AvatarConfig } from '@/shared/avatar';
 import type { PublicProfileTab } from '@/shared/profileEventFilters';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PublicProfileResponse {
@@ -70,6 +71,8 @@ interface PublicProfileResponse {
     first_name: string;
     last_name: string;
     avatar: number | null;
+    avatar_config: AvatarConfig | null;
+    profile_photo_url: string | null;
     bio: string | null;
     year_classification: string | null;
     unique_classification: string[];
@@ -221,7 +224,6 @@ export default function PublicUserProfileScreen() {
   }
 
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
-  const avatarSource = getAvatarSource(profile?.avatar);
   const events = eventsQuery.data?.events ?? [];
 
   return (
@@ -240,9 +242,7 @@ export default function PublicUserProfileScreen() {
           {/* --- Header --- */}
           <View className="items-center px-[20px]">
             <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
-              {avatarSource ? (
-                <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-              ) : null}
+              {profile ? <AvatarDisplay user={profile} size={92} /> : null}
             </View>
 
             <Text

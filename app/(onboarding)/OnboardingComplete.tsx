@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { appendImageFile } from '@/app/lib/imageForm';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { captureError } from '@/app/lib/monitoring';
@@ -81,27 +82,38 @@ export default function OnboardingComplete() {
   // Save the collected onboarding data to the backend, then navigate home.
   // Two calls: profile first (creates the user row), agreements second
   // (the agreements endpoint UPDATEs and assumes the row exists).
+  //
+  // The profile call is always multipart, even without a photo: the upload
+  // picked on Avatar.tsx is a local URI up to this point (deferred, same as
+  // the create-event flyer), and this is the one place it actually reaches
+  // the server — accepting only-sometimes-multipart would mean branching this
+  // request body for one optional field.
   const submitOnboarding = async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${data.token}`,
-      };
+      const authHeaders = { Authorization: `Bearer ${data.token}` };
+
+      const form = new FormData();
+      form.append('first_name', data.firstName);
+      form.append('last_name', data.lastName);
+      form.append('avatar_config', JSON.stringify(data.avatarConfig));
+      form.append('year_classification', data.selectedYear);
+      form.append('unique_classification', JSON.stringify(data.uniqueClassification));
+      form.append('majors', JSON.stringify(data.selectedMajors));
+      form.append('tags', JSON.stringify(data.selectedTags));
+      if (data.avatarPhotoUri) {
+        await appendImageFile(form, 'photo', {
+          uri: data.avatarPhotoUri,
+          name: data.avatarPhotoName,
+          mimeType: data.avatarPhotoMimeType,
+        });
+      }
 
       const profileRes = await fetch(`${API_BASE_URL}/users/me/profile`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify({
-          first_name: data.firstName,
-          last_name: data.lastName,
-          avatar: data.avatar,
-          year_classification: data.selectedYear,
-          unique_classification: data.uniqueClassification,
-          majors: data.selectedMajors,
-          tags: data.selectedTags,
-        }),
+        headers: authHeaders,
+        body: form,
       });
       if (!profileRes.ok) {
         const body = await profileRes.text().catch(() => '(no body)');
@@ -110,7 +122,7 @@ export default function OnboardingComplete() {
 
       const agreementsRes = await fetch(`${API_BASE_URL}/users/me/agreements`, {
         method: 'POST',
-        headers,
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agreed_responsible_use: true,
           agreed_visibility_acknowledgment: true,

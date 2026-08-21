@@ -1,9 +1,16 @@
 // Events routes for Cloudflare Worker
 import { Hono } from 'hono';
+import { parseStoredAvatarConfig } from '../../../shared/avatar';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
 import { blockedAuthorFilter, blockedUserFilter, isBlockedBetween } from '../lib/blocks';
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  extensionForMimeType,
+  isFileLike,
+  MAX_IMAGE_BYTES,
+} from '../lib/images';
 import { getAuthUser, getUserId } from '../lib/utils';
 import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
@@ -21,7 +28,6 @@ const MAX_LOCATION_LENGTH = 200;
 const MAX_URL_LENGTH = 2048;
 const MAX_CATEGORY_COUNT = 20;
 const MAX_CATEGORY_NAME_LENGTH = 120;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const ISO_8601_WITH_TIMEZONE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -31,7 +37,6 @@ const VALID_IMAGE_ASPECT_RATIOS = new Set<ImageAspectRatio>([
   'horizontal',
   'none',
 ]);
-const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const THEME_BY_DISCOVERY_BUCKET: Record<string, string> = {
   music: 'Music',
   arts: 'Arts',
@@ -389,15 +394,6 @@ function parseDataImage(
   }
 }
 
-function extensionForMimeType(mimeType: string, filename: string | null): string {
-  if (mimeType === 'image/jpeg') return 'jpg';
-  if (mimeType === 'image/png') return 'png';
-  if (mimeType === 'image/gif') return 'gif';
-  if (mimeType === 'image/webp') return 'webp';
-  const filenameMatch = filename?.match(/\.([a-z0-9]+)$/i);
-  return filenameMatch?.[1].toLowerCase() ?? 'bin';
-}
-
 async function storeImageBytes(
   env: Env,
   userId: number,
@@ -448,10 +444,6 @@ async function storeImageBytes(
     imageMimeType: mimeType,
     imageAltText: altText,
   };
-}
-
-function isFileLike(value: FormDataEntryValue): value is File {
-  return typeof File !== 'undefined' && value instanceof File;
 }
 
 function assignFormField(body: CreateEventBody, key: string, value: string): void {
@@ -1448,7 +1440,7 @@ eventRoutes.get('/:id/attendees', async (c) => {
   // Newest RSVPs first, so the faces change as an event fills up rather than
   // freezing on whoever happened to RSVP first.
   const { results } = await c.env.DB.prepare(
-    `SELECT u.id, u.first_name, u.last_name, u.avatar
+    `SELECT u.id, u.first_name, u.last_name, u.avatar, u.avatar_config, u.profile_photo_url
        FROM event_rsvps r
        JOIN users u ON u.id = r.user_id
       WHERE r.event_id = ?
@@ -1465,6 +1457,8 @@ eventRoutes.get('/:id/attendees', async (c) => {
       first_name: (u.first_name as string) ?? '',
       last_name: (u.last_name as string) ?? '',
       avatar: (u.avatar as number | null) ?? null,
+      avatar_config: parseStoredAvatarConfig(u.avatar_config),
+      profile_photo_url: (u.profile_photo_url as string | null) ?? null,
     })),
     count: totalRow?.count ?? 0,
   });

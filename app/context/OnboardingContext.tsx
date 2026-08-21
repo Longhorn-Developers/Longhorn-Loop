@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/app/config/api';
 import { clearSession, loadSession, markOnboardingComplete, saveSession } from '@/app/lib/session';
+import { DEFAULT_AVATAR_CONFIG, type AvatarConfig } from '@/shared/avatar';
 
 interface OnboardingData {
   // Auth
@@ -17,8 +18,29 @@ interface OnboardingData {
   // Interests
   selectedTags: string[];
 
-  // Avatar
-  avatar: number | null;
+  // Avatar (LOOP-XXX Bevo customization replaces the six-preset picker).
+  // avatarConfig always holds a value — even someone who never opens the
+  // customizer gets DEFAULT_AVATAR_CONFIG, so the disabled-Next gate on
+  // Avatar.tsx can go away and "Skip" still submits a real Bevo. A photo
+  // takes precedence when set; avatarConfig stays as the fallback for if
+  // it's ever removed.
+  avatarConfig: AvatarConfig;
+  avatarPhotoUri: string | null;
+  avatarPhotoName: string | null;
+  avatarPhotoMimeType: string | null;
+  /**
+   * Transport for the customize-bevo screen's "Done" back to Avatar.tsx.
+   *
+   * Deliberately separate from `avatarConfig`, which is the COMMITTED value
+   * sent at final submission. customize-bevo has no return-value mechanism
+   * back to the screen that pushed it, so it hands its result off through
+   * context instead — but writing straight to `avatarConfig` on Done would
+   * make Avatar.tsx's own "Cancel" unable to discard it (the commit would
+   * already have happened). Avatar.tsx reads this as its pending selection
+   * and only folds it into `avatarConfig` when its own "Save Changes" fires;
+   * "Cancel" just clears this field, leaving avatarConfig untouched.
+   */
+  pendingBevoConfig: AvatarConfig | null;
 }
 
 interface OnboardingContextType {
@@ -55,7 +77,11 @@ const DEFAULT_DATA: OnboardingData = {
   selectedYear: '',
   uniqueClassification: [],
   selectedTags: [],
-  avatar: null,
+  avatarConfig: DEFAULT_AVATAR_CONFIG,
+  avatarPhotoUri: null,
+  avatarPhotoName: null,
+  avatarPhotoMimeType: null,
+  pendingBevoConfig: null,
 };
 
 const OnboardingContext = createContext<OnboardingContextType>({
