@@ -1,3 +1,4 @@
+import { Baloo2_400Regular, Baloo2_700Bold } from '@expo-google-fonts/baloo-2';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -112,6 +113,10 @@ export default function RootLayout() {
     'Roboto-Flex-Medium': require('../assets/fonts/RobotoFlex-Medium.ttf'),
     'Roboto-Flex-SemiBold': require('../assets/fonts/RobotoFlex-SemiBold.ttf'),
     'Roboto-Flex-Bold': require('../assets/fonts/RobotoFlex-Bold.ttf'),
+    // Customize Bevo (Figma "Content" panel: Baloo, 400 Regular) — its own
+    // font, distinct from the app's Roboto Flex default.
+    'Baloo2-Regular': Baloo2_400Regular,
+    'Baloo2-Bold': Baloo2_700Bold,
   });
 
   // Hide the native splash screen once the font is loaded (or fails)

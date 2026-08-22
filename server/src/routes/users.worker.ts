@@ -9,6 +9,12 @@ import {
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  extensionForMimeType,
+  isFileLike,
+  MAX_IMAGE_BYTES,
+} from '../lib/images';
+import {
   DELETE_CODE_LENGTH,
   DELETE_CODE_RESEND_COOLDOWN_MS,
   DELETE_CODE_TTL_MS,
@@ -21,6 +27,7 @@ import {
   hashCode,
 } from '../lib/accountDeletion';
 import { MAX_BIO, normalizeBio } from '../../../shared/bio';
+import { parseStoredAvatarConfig, serializeAvatarConfig } from '../../../shared/avatar';
 import { getSocialPlatform } from '../../../shared/socialPlatforms';
 import {
   PROFILE_EVENT_FILTERS,
@@ -57,6 +64,7 @@ function parseUniqueClassification(value: unknown): string[] {
     return [value];
   }
 }
+
 
 /**
  * The "N followers · N following" line on the profile header.
@@ -146,37 +154,157 @@ userRoutes.post('/me/agreements', async (c) => {
   return c.json({ message: 'AGREEMENTS_SAVED', user: updatedUser });
 });
 
-// POST /users/me/profile -- save onboarding profile data (majors, tags, avatar, etc.)
+function readFormValue(form: FormData, key: string): string | null {
+  const value = form.get(key);
+  return typeof value === 'string' ? value : null;
+}
+
+function readFormArray(form: FormData, key: string): string[] | null {
+  const raw = readFormValue(form, key);
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    // Not JSON — fall through to comma-splitting below.
+  }
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+interface ProfileSubmission {
+  first_name: string | null;
+  last_name: string | null;
+  /** JSON string or already-parsed object; serializeAvatarConfig accepts both. */
+  avatar_config: unknown;
+  year_classification: string | null;
+  unique_classification: string[] | null;
+  majors: string[] | null;
+  tags: string[] | null;
+  uploadedPhoto: File | null;
+}
+
+/**
+ * Onboarding's profile submit now carries an optional photo, so this accepts
+ * multipart/form-data (mirrors POST /events/create's readCreateEventBody) as
+ * well as the original plain JSON.
+ */
+async function readProfileSubmission(request: Request): Promise<ProfileSubmission | null> {
+  const contentType = request.headers.get('Content-Type') ?? '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData().catch(() => null);
+    if (!form) return null;
+
+    const photoValue = form.get('photo');
+    const uploadedPhoto =
+      photoValue && isFileLike(photoValue) && photoValue.size > 0 ? photoValue : null;
+
+    return {
+      first_name: readFormValue(form, 'first_name'),
+      last_name: readFormValue(form, 'last_name'),
+      avatar_config: readFormValue(form, 'avatar_config'),
+      year_classification: readFormValue(form, 'year_classification'),
+      unique_classification: readFormArray(form, 'unique_classification'),
+      majors: readFormArray(form, 'majors'),
+      tags: readFormArray(form, 'tags'),
+      uploadedPhoto,
+    };
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') return null;
+  const b = body as Record<string, unknown>;
+  return {
+    first_name: typeof b.first_name === 'string' ? b.first_name : null,
+    last_name: typeof b.last_name === 'string' ? b.last_name : null,
+    avatar_config: b.avatar_config ?? null,
+    year_classification: typeof b.year_classification === 'string' ? b.year_classification : null,
+    unique_classification: Array.isArray(b.unique_classification)
+      ? b.unique_classification.map(String)
+      : null,
+    majors: Array.isArray(b.majors) ? b.majors.map(String) : null,
+    tags: Array.isArray(b.tags) ? b.tags.map(String) : null,
+    uploadedPhoto: null,
+  };
+}
+
+/** Validates and stores an uploaded avatar photo under its own R2 prefix. */
+async function storeAvatarPhoto(
+  env: Env,
+  userId: number,
+  file: File,
+): Promise<{ url: string } | { error: string }> {
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
+    return { error: 'Must be a JPEG, PNG, GIF, or WebP image' };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { error: 'Must be 5 MB or smaller' };
+  }
+  if (!env.EVENT_IMAGES || !env.EVENT_IMAGE_PUBLIC_BASE_URL) {
+    return { error: 'Image upload storage is not configured' };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const extension = extensionForMimeType(file.type, file.name);
+  const key = `users/avatars/${userId}/${crypto.randomUUID()}.${extension}`;
+  await env.EVENT_IMAGES.put(key, bytes, {
+    httpMetadata: { contentType: file.type || 'application/octet-stream' },
+    customMetadata: { userId: String(userId) },
+  });
+
+  const publicBaseUrl = env.EVENT_IMAGE_PUBLIC_BASE_URL.replace(/\/+$/g, '');
+  return { url: `${publicBaseUrl}/${key}` };
+}
+
+// POST /users/me/profile -- save onboarding profile data (majors, tags,
+// avatar customization, etc). Accepts multipart/form-data when a photo is
+// attached, or plain JSON otherwise (see readProfileSubmission).
 userRoutes.post('/me/profile', async (c) => {
   const user = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
   if (!user) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
+  const submission = await readProfileSubmission(c.req.raw);
+  if (!submission) return c.json({ error: 'INVALID_BODY' }, 400);
+
   const {
     first_name,
     last_name,
-    avatar,
+    avatar_config,
     year_classification,
     unique_classification,
     majors,
     tags,
-  } = await c.req.json();
+    uploadedPhoto,
+  } = submission;
 
-  const uniqueClassificationJson = Array.isArray(unique_classification)
+  const uniqueClassificationJson = unique_classification
     ? JSON.stringify(unique_classification)
-    : unique_classification;
+    : null;
 
-  // Upsert user record
+  // Upsert user record. Replaces the six-preset `avatar` integer with the
+  // Bevo customization recipe (migration 0018) — `avatar` itself is untouched
+  // here and stays whatever Edit Profile's preset picker last set it to.
   await c.env.DB.prepare(
-    `INSERT INTO users (email, first_name, last_name, avatar, year_classification, unique_classification)
+    `INSERT INTO users (email, first_name, last_name, year_classification, unique_classification, avatar_config)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(email) DO UPDATE SET
        first_name = excluded.first_name,
        last_name = excluded.last_name,
-       avatar = excluded.avatar,
        year_classification = excluded.year_classification,
-       unique_classification = excluded.unique_classification`,
+       unique_classification = excluded.unique_classification,
+       avatar_config = excluded.avatar_config`,
   )
-    .bind(user.email, first_name, last_name, avatar, year_classification, uniqueClassificationJson)
+    .bind(
+      user.email,
+      first_name,
+      last_name,
+      year_classification,
+      uniqueClassificationJson,
+      serializeAvatarConfig(avatar_config),
+    )
     .run();
 
   // Get user ID
@@ -187,6 +315,19 @@ userRoutes.post('/me/profile', async (c) => {
   if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
+
+  // A photo takes precedence over the Bevo config on display (client-side),
+  // but both are stored — removing the photo later should fall back to
+  // whichever Bevo the user configured rather than to nothing.
+  if (uploadedPhoto) {
+    const stored = await storeAvatarPhoto(c.env, userId, uploadedPhoto);
+    if ('error' in stored) {
+      return c.json({ error: 'INVALID_PHOTO', message: stored.error }, 400);
+    }
+    await c.env.DB.prepare('UPDATE users SET profile_photo_url = ? WHERE id = ?')
+      .bind(stored.url, userId)
+      .run();
+  }
 
   // Replace majors
   await c.env.DB.prepare('DELETE FROM user_majors WHERE user_id = ?').bind(userId).run();
@@ -250,6 +391,7 @@ userRoutes.get('/me', async (c) => {
       // every consumer doesn't have to — and so a legacy plain-string value
       // still comes back as an array rather than exploding.
       unique_classification: parseUniqueClassification(dbUser.unique_classification),
+      avatar_config: parseStoredAvatarConfig(dbUser.avatar_config),
       majors: majors.results.map((r) => r.major),
       tags: tags.results.map((r) => r.tag),
       socials: socials.results,
@@ -1034,7 +1176,7 @@ userRoutes.post('/me/delete/confirm', async (c) => {
 
 /** The subset of a user row a stranger may see. Notably not `email`. */
 const PUBLIC_USER_COLUMNS =
-  'id, first_name, last_name, avatar, bio, year_classification, unique_classification';
+  'id, first_name, last_name, avatar, avatar_config, profile_photo_url, bio, year_classification, unique_classification';
 
 // GET /users/:userId/profile
 //

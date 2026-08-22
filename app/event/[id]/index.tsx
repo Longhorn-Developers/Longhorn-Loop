@@ -11,7 +11,7 @@ import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
-import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
@@ -21,6 +21,7 @@ import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
+import type { AvatarConfig } from '@/shared/avatar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -136,6 +137,8 @@ interface Attendee {
   first_name: string;
   last_name: string;
   avatar: number | null;
+  avatar_config: AvatarConfig | null;
+  profile_photo_url: string | null;
 }
 
 interface AttendeesResponse {
@@ -188,38 +191,35 @@ function AttendeesRow({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row' }}>
-          {attendees.map((attendee, i) => {
-            const avatarSource = getAvatarSource(attendee.avatar ?? undefined);
-            return (
-              <TouchableOpacity
-                key={attendee.id}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${attendee.first_name}’s profile`}
-                onPress={() => router.push(`/user/${attendee.id}`)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  backgroundColor: colors.brand,
-                  borderWidth: 2,
-                  borderColor: colors.surface,
-                  marginLeft: i === 0 ? 0 : -8,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {avatarSource ? (
-                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-                ) : (
-                  // theme-exempt: initial sits on the brand-coloured fill above
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                    {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          {attendees.map((attendee, i) => (
+            <TouchableOpacity
+              key={attendee.id}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${attendee.first_name}’s profile`}
+              onPress={() => router.push(`/user/${attendee.id}`)}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                overflow: 'hidden',
+                backgroundColor: colors.brand,
+                borderWidth: 2,
+                borderColor: colors.surface,
+                marginLeft: i === 0 ? 0 : -8,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {hasAvatar(attendee) ? (
+                <AvatarDisplay user={attendee} size={28} />
+              ) : (
+                // theme-exempt: initial sits on the brand-coloured fill above
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                  {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
         <Text
           style={{
