@@ -1,6 +1,6 @@
 import LhlPillCross from '@/assets/icons/LhlPillCross';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 
 interface TextInputFieldProps extends TextInputProps {
@@ -23,6 +23,17 @@ export default function TextInputField({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // A blur schedules a 100ms timer so handleClear() can still fire. If the
+  // field unmounts inside that window the timer is still pending and will call
+  // setState on a dead component. Harmless in React 19, but it keeps the
+  // component alive for no reason and hides real leaks, so clear it.
+  useEffect(
+    () => () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+    },
+    [],
+  );
 
   // --- HANDLERS ---
   const handleFocus = (e: any) => {

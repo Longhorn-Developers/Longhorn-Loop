@@ -18,7 +18,7 @@ import { ORG_SEARCH_MIN_QUERY } from '@/shared/orgRegistration';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -50,7 +50,7 @@ function matchesEvent(event: ApiEvent, needle: string): boolean {
     event.location_full,
     event.description,
     ...(event.tags ?? []),
-    ...(event.categories ?? []).map((c) => c.name),
+    ...(event.categories ?? []).map((c) => c?.name),
   ];
 
   return haystack.some((field) => field != null && field.toLowerCase().includes(needle));
@@ -69,14 +69,14 @@ export default function ExploreScreen() {
   const [selection, setSelection] = useState<ExploreSelection>({ kind: 'trending' });
   const [query, setQuery] = useState('');
 
+  const listRef = useRef<FlatList<ApiEvent>>(null);
+
   const debouncedQuery = useDebounced(query.trim(), SEARCH_DEBOUNCE_MS);
   const needle = debouncedQuery.toLowerCase();
   const isSearching = debouncedQuery.length >= ORG_SEARCH_MIN_QUERY;
 
-  // The event feed behind the current toggle. `orgs` has no event feed of its
-  // own, so it borrows trending's — searching from the Orgs tab should still
-  // be able to fall back to events without a second round trip.
   const bucketId = selection.kind === 'bucket' ? selection.id : null;
+  const activeSelectionKey = selectionKey(selection);
 
   const eventsQuery = useQuery({
     queryKey: bucketId ? feedKeys.bucket(bucketId) : feedKeys.explore({ limit: '100' }),
@@ -92,7 +92,7 @@ export default function ExploreScreen() {
   // Orgs come from the one org list endpoint that exists (GET /orgs/search).
   // It refuses queries shorter than ORG_SEARCH_MIN_QUERY and has no browse-all
   // mode, which is why the Orgs toggle shows a prompt rather than a directory
-  // until that endpoint grows one.
+  // until that endpoint grows one (LOOP-264).
   const orgsQuery = useQuery({
     queryKey: orgKeys.search(debouncedQuery),
     queryFn: () =>
@@ -110,6 +110,24 @@ export default function ExploreScreen() {
 
   const orgResults = orgsQuery.data?.organizations ?? [];
 
+  /**
+   * Snap back to the top whenever the result set changes.
+   *
+   * Not cosmetic — this is the crash fix. VirtualizedList keeps a render window
+   * of cell frames keyed by index. Editing the query rewrites `data` underneath
+   * that window, and if the list is still scrolled to an offset that only
+   * existed for the LONGER previous list, it asks for a frame at an index the
+   * new data no longer has and throws ("Tried to get frame for out of range
+   * index"). Typing, deleting and retyping quickly is the reliable way to hit
+   * it, because each edit shrinks and regrows `data` before the list settles.
+   *
+   * scrollToOffset (not scrollToIndex) is deliberate: it is safe on an empty
+   * list, where scrollToIndex would throw on its own.
+   */
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [needle, isSearching, activeSelectionKey]);
+
   // Type-narrowed subset: only events with non-null coordinates go on the map.
   // Driven by visibleEvents so the pins honour the search too.
   const locatedEvents: LocatedEvent[] = useMemo(
@@ -118,18 +136,38 @@ export default function ExploreScreen() {
   );
 
   // Toggle: tapping the active pin dismisses the card; tapping a new pin selects it.
-  const handlePinPress = (eventId: number) => {
+  const handlePinPress = useCallback((eventId: number) => {
     setSelectedEventId((prev) => (prev === eventId ? null : eventId));
-  };
+  }, []);
 
-  const handleViewDetails = (eventId: number) => {
-    router.push(`/event/${eventId}`);
-  };
+  const handleViewDetails = useCallback(
+    (eventId: number) => {
+      router.push(`/event/${eventId}`);
+    },
+    [router],
+  );
 
-  const handleSelect = (next: ExploreSelection) => {
+  const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
     setSelectedEventId(null);
-  };
+  }, []);
+
+  const keyExtractor = useCallback(
+    (item: ApiEvent) => `${item.source}-${item.source_event_id}`,
+    [],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: ApiEvent }) => (
+      <EventCard
+        item={item}
+        isSaved={savedIds.has(item.id)}
+        onToggleSave={handleToggleSave}
+        style={{ flex: 1, width: undefined, marginRight: 0 }}
+      />
+    ),
+    [savedIds, handleToggleSave],
+  );
 
   const selectedEvent =
     selectedEventId != null ? (visibleEvents.find((e) => e.id === selectedEventId) ?? null) : null;
@@ -139,9 +177,20 @@ export default function ExploreScreen() {
   const showOrgSection = selection.kind === 'orgs' || isSearching;
   const showEventSection = selection.kind !== 'orgs';
 
-  const header = (
+  /**
+   * The pinned header — title, view toggle, search field, feed toggles.
+   *
+   * Rendered as a SIBLING of the list, never as ListHeaderComponent. It holds a
+   * focused, controlled TextInput, and VirtualizedList reserves the right to
+   * unmount and remount its header as the render window moves. Remounting a
+   * native text input mid-keystroke is how you lose focus, drop characters, and
+   * on Android crash outright. The ticket asks for the search bar "pinned to the
+   * top" anyway, so this is both the correct fix and the requested behaviour.
+   *
+   * Only genuine CONTENT — org results, the Events label — scrolls with the list.
+   */
+  const pinnedHeader = (
     <>
-      {/* Header */}
       <View
         style={{
           paddingHorizontal: 20,
@@ -227,7 +276,6 @@ export default function ExploreScreen() {
       {/* Feed selector (LOOP-177) */}
       <ExploreToggles selection={selection} onSelect={handleSelect} />
 
-      {/* Divider */}
       <View
         style={{
           height: 1,
@@ -240,40 +288,8 @@ export default function ExploreScreen() {
     </>
   );
 
-  if (eventsQuery.isPending) {
-    return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: colors.background }}
-        edges={['left', 'right']}
-      >
-        {header}
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={colors.accent} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (eventsQuery.isError) {
-    return (
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: colors.background }}
-        edges={['left', 'right']}
-      >
-        {header}
-        <View
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
-        >
-          <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
-            Could not load events. Check your connection.
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const orgSection = showOrgSection ? (
-    <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+    <View style={{ paddingBottom: 8 }}>
       <Text
         style={{
           fontSize: 13,
@@ -303,39 +319,46 @@ export default function ExploreScreen() {
     </View>
   ) : null;
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
-      {showList ? (
+  const body = () => {
+    if (eventsQuery.isPending) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      );
+    }
+
+    if (eventsQuery.isError) {
+      return (
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
+        >
+          <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
+            Could not load events. Check your connection.
+          </Text>
+        </View>
+      );
+    }
+
+    if (showList) {
+      return (
         <FlatList
+          ref={listRef}
           key={`explore-grid-${selectionKey(selection)}`}
           data={showEventSection ? visibleEvents : []}
-          keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
+          extraData={savedIds}
+          keyExtractor={keyExtractor}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            <View style={{ marginHorizontal: -16 }}>
-              {header}
-              {orgSection}
-              {showEventSection && showOrgSection && (
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: '700',
-                    color: colors.inkMuted,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.5,
-                    paddingHorizontal: 16,
-                    marginBottom: 8,
-                  }}
-                >
-                  Events
-                </Text>
-              )}
-            </View>
-          }
+          // Android detaches clipped subviews by default. Combined with a data
+          // array that changes on every keystroke, that is the other reliable
+          // way to end up reading a detached cell. Cheap to disable here: the
+          // page is capped at ~100 events.
+          removeClippedSubviews={false}
+          ListHeaderComponent={orgSection}
           ListEmptyComponent={
             showEventSection ? (
               <Text style={{ color: colors.inkMuted, textAlign: 'center', marginTop: 40 }}>
@@ -343,46 +366,43 @@ export default function ExploreScreen() {
               </Text>
             ) : null
           }
-          renderItem={({ item }) => (
-            <EventCard
-              item={item}
-              isSaved={savedIds.has(item.id)}
-              onToggleSave={handleToggleSave}
-              style={{ flex: 1, width: undefined, marginRight: 0 }}
-            />
-          )}
+          renderItem={renderItem}
         />
-      ) : (
-        // Map view — dismissal via MapView.onPress (background tap) or pin toggle.
-        // No overlay needed: MapView.onPress fires only on background taps, not marker taps.
-        <View style={{ flex: 1 }}>
-          {header}
-          <View style={{ flex: 1 }}>
-            <MapViewWrapper
-              events={locatedEvents}
-              selectedEventId={selectedEventId}
-              onPinPress={handlePinPress}
-              onMapPress={() => setSelectedEventId(null)}
-            />
+      );
+    }
 
-            {/* Mini preview card anchored to bottom, rendered above the map */}
-            {selectedEvent != null && (
-              <View
-                style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
-                pointerEvents="box-none"
-              >
-                <EventMiniCard
-                  event={selectedEvent}
-                  isSaved={savedIds.has(selectedEvent.id)}
-                  onToggleSave={handleToggleSave}
-                  onDismiss={() => setSelectedEventId(null)}
-                  onViewDetails={handleViewDetails}
-                />
-              </View>
-            )}
+    return (
+      <View style={{ flex: 1 }}>
+        <MapViewWrapper
+          events={locatedEvents}
+          selectedEventId={selectedEventId}
+          onPinPress={handlePinPress}
+          onMapPress={() => setSelectedEventId(null)}
+        />
+
+        {/* Mini preview card anchored to bottom, rendered above the map */}
+        {selectedEvent != null && (
+          <View
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
+            pointerEvents="box-none"
+          >
+            <EventMiniCard
+              event={selectedEvent}
+              isSaved={savedIds.has(selectedEvent.id)}
+              onToggleSave={handleToggleSave}
+              onDismiss={() => setSelectedEventId(null)}
+              onViewDetails={handleViewDetails}
+            />
           </View>
-        </View>
-      )}
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
+      {pinnedHeader}
+      {body()}
     </SafeAreaView>
   );
 }
