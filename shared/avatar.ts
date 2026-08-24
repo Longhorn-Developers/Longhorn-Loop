@@ -24,7 +24,10 @@ export const BEVO_PALETTES = ['orange', 'beige', 'brown', 'cyan', 'pink', 'grey'
 export const BEVO_INK = '#331400';
 
 /** Role → fill for each palette, pulled straight from the design frames. */
-export const BEVO_PALETTE_COLORS: Record<BevoPalette, { body: string; horns: string; snout: string }> = {
+export const BEVO_PALETTE_COLORS: Record<
+  BevoPalette,
+  { body: string; horns: string; snout: string }
+> = {
   orange: { body: '#CC742A', horns: '#F2E0BA', snout: '#E29E50' },
   beige: { body: '#F2E0BA', horns: '#E29E50', snout: '#E29E50' },
   brown: { body: '#936546', horns: '#9D4A06', snout: '#9D4A06' },
@@ -53,7 +56,11 @@ export interface AvatarConfig {
 }
 
 /** The starter Bevo shown before a user customizes. */
-export const DEFAULT_AVATAR_CONFIG: AvatarConfig = { palette: 'orange', pattern: 'none', hat: 'none' };
+export const DEFAULT_AVATAR_CONFIG: AvatarConfig = {
+  palette: 'orange',
+  pattern: 'none',
+  hat: 'none',
+};
 
 function isPalette(v: unknown): v is BevoPalette {
   return typeof v === 'string' && (BEVO_PALETTES as readonly string[]).includes(v);

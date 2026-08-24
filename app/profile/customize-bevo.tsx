@@ -215,7 +215,11 @@ function HatSwatch({ hat }: { hat: BevoHat }) {
   if (hat === 'none') return <NoneGlyph />;
   const art = HAT_ART[hat];
   return (
-    <Svg width="90%" height="90%" viewBox={`${art.vb.x ?? 0} ${art.vb.y ?? 0} ${art.vb.w} ${art.vb.h}`}>
+    <Svg
+      width="90%"
+      height="90%"
+      viewBox={`${art.vb.x ?? 0} ${art.vb.y ?? 0} ${art.vb.w} ${art.vb.h}`}
+    >
       {art.render}
     </Svg>
   );
@@ -278,7 +282,12 @@ function ColorsTabIcon({ color }: { color: string }) {
 function AccessoriesTabIcon({ color }: { color: string }) {
   const vb = { w: 23.5365, h: 18.8294 };
   return (
-    <Svg width={TAB_ICON_FIT} height={TAB_ICON_FIT * (vb.h / vb.w)} viewBox={`0 0 ${vb.w} ${vb.h}`} fill="none">
+    <Svg
+      width={TAB_ICON_FIT}
+      height={TAB_ICON_FIT * (vb.h / vb.w)}
+      viewBox={`0 0 ${vb.w} ${vb.h}`}
+      fill="none"
+    >
       <Path
         fillRule="evenodd"
         clipRule="evenodd"
@@ -404,7 +413,11 @@ export default function CustomizeBevo() {
           paddingVertical: 12,
         }}
       >
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}
+        >
           <ArrowLeftIcon size={22} color={TILE_LABEL_TEXT} />
         </Pressable>
         <Text style={{ fontFamily: 'Baloo2-Regular', fontSize: 17, color: TILE_LABEL_TEXT }}>
@@ -415,7 +428,9 @@ export default function CustomizeBevo() {
         </Pressable>
       </View>
 
-      <View style={{ backgroundColor: TAN_BG, alignItems: 'center', paddingTop: 8, paddingBottom: 14 }}>
+      <View
+        style={{ backgroundColor: TAN_BG, alignItems: 'center', paddingTop: 8, paddingBottom: 14 }}
+      >
         {/* zIndex keeps Bevo painting over the pedestal in the overlap zone
             below (Pedestal's own negative marginTop) — otherwise the
             pedestal, being the later sibling, paints over Bevo's feet
@@ -447,7 +462,15 @@ export default function CustomizeBevo() {
             open bottom edge paints over that border segment — zIndex above
             the card (a plain sibling here) is what makes that overlap render
             on top instead of getting drawn over by the card. */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: -2, zIndex: 2 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            gap: 4,
+            marginBottom: -2,
+            zIndex: 2,
+          }}
+        >
           <TabButton
             label="Skins"
             icon={<SkinsTabIcon color={SKINS_ICON_COLOR} />}
@@ -571,9 +594,7 @@ export default function CustomizeBevo() {
               justifyContent: 'center',
             }}
           >
-            <Text style={{ fontFamily: 'Baloo2-Bold', fontSize: 15, color: '#FFFFFF' }}>
-              Done
-            </Text>
+            <Text style={{ fontFamily: 'Baloo2-Bold', fontSize: 15, color: '#FFFFFF' }}>Done</Text>
           </Pressable>
         </View>
       </ScrollView>

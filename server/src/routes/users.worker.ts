@@ -65,7 +65,6 @@ function parseUniqueClassification(value: unknown): string[] {
   }
 }
 
-
 /**
  * The "N followers · N following" line on the profile header.
  *
