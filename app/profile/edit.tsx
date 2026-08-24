@@ -35,6 +35,7 @@ import { ApiError, api } from '@/app/lib/api';
 import { ALL_INTEREST_TAGS, INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
+import { YEAR_OPTIONS, normalizeYear } from '@/app/lib/yearOptions';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
 import { getSocialPlatformUI } from '@/app/lib/socialPlatforms';
 import LhlPillCross from '@/assets/icons/LhlPillCross';
@@ -58,7 +59,6 @@ import { useThemeColors } from '@/app/lib/themeColors';
 import type { AvatarConfig } from '@/shared/avatar';
 import { BIO_WARN_REMAINING, MAX_BIO, normalizeBio } from '@/shared/bio';
 
-const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
 const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
 const MAX_NAME = 50;
@@ -137,7 +137,9 @@ export default function EditProfileScreen() {
     if (!loaded) return;
     setFirstName(loaded.first_name ?? '');
     setLastName(loaded.last_name ?? '');
-    setYear(loaded.year_classification ?? '');
+    // normalizeYear, not `?? ''` — a profile saved as "Freshmen" before the
+    // spelling was corrected has to still light its pill. See app/lib/yearOptions.ts.
+    setYear(normalizeYear(loaded.year_classification));
     setBio(loaded.bio ?? '');
     setMajors(loaded.majors ?? []);
     setUniqueClass(loaded.unique_classification ?? []);
@@ -159,7 +161,10 @@ export default function EditProfileScreen() {
     return (
       firstName.trim() !== (loaded.first_name ?? '') ||
       lastName.trim() !== (loaded.last_name ?? '') ||
-      year !== (loaded.year_classification ?? '') ||
+      // Compare against the normalized value too, or a legacy "Freshmen"
+      // profile would open already dirty and trip LeaveWithoutSavingModal on
+      // the way out. The correction still gets written on the next real save.
+      year !== normalizeYear(loaded.year_classification) ||
       (normalizeBio(bio) ?? '') !== (loaded.bio ?? '') ||
       !sameSet(majors, loaded.majors ?? []) ||
       !sameSet(uniqueClass, loaded.unique_classification ?? []) ||
