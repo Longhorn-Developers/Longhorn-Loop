@@ -22,6 +22,8 @@ import { useRouter } from 'expo-router';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { API_BASE_URL } from '@/app/config/api';
+import { notifications as notificationKeys } from '@/app/lib/queryKeys';
+import { useQueryClient } from '@tanstack/react-query';
 
 // ---------- Types ----------
 
@@ -305,6 +307,10 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
+  // This screen owns its list in local state rather than through react-query,
+  // but the home bell badge reads the same endpoint through the cache. Deleting
+  // here has to poke that cache or the badge keeps counting rows that are gone.
+  const queryClient = useQueryClient();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -386,7 +392,9 @@ export default function NotificationsScreen() {
         fetch(`${API_BASE_URL}/notifications/${deletedId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => {});
+        })
+          .then(() => queryClient.invalidateQueries({ queryKey: notificationKeys.list() }))
+          .catch(() => {});
       }
     }, 4000);
   };
@@ -425,7 +433,9 @@ export default function NotificationsScreen() {
       fetch(`${API_BASE_URL}/notifications`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+      })
+        .then(() => queryClient.invalidateQueries({ queryKey: notificationKeys.list() }))
+        .catch(() => {});
     }
   };
 
