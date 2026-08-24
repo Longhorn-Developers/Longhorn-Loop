@@ -1,5 +1,7 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
+import XCloseIcon from '@/assets/images/x-close.svg';
 import { ApiEvent, formatEventDate } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
@@ -52,12 +54,14 @@ export default function EventMiniCard({
           flexShrink: 0,
         }}
       >
-        {event.image_url != null && (
+        {event.image_url != null ? (
           <Image
             source={{ uri: event.image_url }}
             style={{ width: '100%', height: '100%' }}
             resizeMode="cover"
           />
+        ) : (
+          <EventFlyerPlaceholder />
         )}
       </View>
 
@@ -83,20 +87,32 @@ export default function EventMiniCard({
         </View>
       </View>
 
-      {/* Actions column */}
-      <View style={{ alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      {/*
+        Actions column. marginLeft on top of the row's gap: 12 — the title and
+        location lines ran almost into the buttons, which is the bug bash's "need
+        more whitespace to the left of the buttons".
+      */}
+      <View style={{ alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
+        {/*
+          The app's close glyph, not a literal ✕ character in a grey circle.
+          Same asset and size RsvpSuccessToast uses, and the circled variant was
+          called out at the bug bash (see the note in inputs/TextInputField.tsx —
+          it was never in the Figma). The box stays 28px so the column keeps its
+          alignment; only the chip behind it is gone.
+        */}
         <TouchableOpacity
           onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+          hitSlop={8}
           style={{
             width: 28,
             height: 28,
-            borderRadius: 14,
-            backgroundColor: colors.surfaceMuted,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Text style={{ fontSize: 13, color: colors.inkMuted }}>✕</Text>
+          <XCloseIcon width={11} height={12} color={colors.inkMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity

@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // Events tab of the Org Management console (LOOP-136 design, LOOP-240 build).
 //
 // Figma: "Organization Management" frame, Events tab — search field, the
@@ -290,7 +291,9 @@ function OrgEventRow({
             style={{ width: '100%', height: '100%' }}
             resizeMode="cover"
           />
-        ) : null}
+        ) : (
+          <EventFlyerPlaceholder />
+        )}
       </View>
 
       <View className="ml-[10px] flex-1">

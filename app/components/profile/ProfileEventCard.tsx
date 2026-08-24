@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // Event card for the two-column "My Events" grid on the profile
 // (Figma "Profile Main" frame).
 //
@@ -50,7 +51,9 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
               resizeMode="contain"
             />
           </>
-        ) : null}
+        ) : (
+          <EventFlyerPlaceholder />
+        )}
 
         {onToggleSave ? (
           <Pressable

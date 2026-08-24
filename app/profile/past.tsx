@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // Past events (LOOP-200) — the history of events a student created, attended
 // (RSVP'd) or saved, still reachable after those events have ended.
 //
@@ -52,7 +53,9 @@ function PastEventCard({ event, onPress }: { event: ApiEvent; onPress: () => voi
             source={{ uri: event.image_url }}
             style={{ width: '100%', height: '100%', opacity: 0.7 }}
           />
-        ) : null}
+        ) : (
+          <EventFlyerPlaceholder />
+        )}
       </View>
 
       <View className="flex-1 bg-lhlBackgroundColor">

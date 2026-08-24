@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
@@ -96,6 +97,8 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
           justifyContent: 'center',
         }}
       >
+        {!hasImage && <EventFlyerPlaceholder />}
+
         {hasImage && (
           <>
             {/* Blurred copy of the poster fills the card, giving the

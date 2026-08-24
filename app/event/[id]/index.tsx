@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
 // the share button opens the platform share sheet (app/lib/shareEvent.ts).
@@ -528,16 +529,9 @@ export default function EventDetailScreen() {
                     resizeMode="contain"
                   />
                 ) : (
-                  <View
-                    style={{
-                      flex: 1,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.placeholder,
-                    }}
-                  >
-                    <Text style={{ color: colors.inkSecondary, fontSize: 14 }}>No image</Text>
-                  </View>
+                  // Was a grey box reading "No image", which told the user
+                  // nothing and looked like a failed load.
+                  <EventFlyerPlaceholder />
                 )}
               </View>
             </View>
