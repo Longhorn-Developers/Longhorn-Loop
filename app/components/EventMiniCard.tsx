@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
 import { ApiEvent, formatEventDate } from '@/app/components/EventCard';
@@ -52,12 +53,14 @@ export default function EventMiniCard({
           flexShrink: 0,
         }}
       >
-        {event.image_url != null && (
+        {event.image_url != null ? (
           <Image
             source={{ uri: event.image_url }}
             style={{ width: '100%', height: '100%' }}
             resizeMode="cover"
           />
+        ) : (
+          <EventFlyerPlaceholder />
         )}
       </View>
 
