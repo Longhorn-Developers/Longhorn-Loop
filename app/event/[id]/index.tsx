@@ -440,6 +440,17 @@ export default function EventDetailScreen() {
   // raw scraped categories (which surfaced generic labels like "Social").
   const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
 
+  // Scraped events carry a host NAME but no host ID -- they are never linked to
+  // an `organizations` row. Pushing `/org/${undefined}/profile` produced the
+  // literal path "/org/undefined/profile", which Number()s to NaN on the org
+  // screen: a blank page, and then POST /orgs/NaN/follow, which the Worker
+  // correctly refuses with 400 INVALID_ORG_ID. The user just sees
+  // "could not update follow. Try again."
+  //
+  // There is no page to send them to, so the host stops being a link.
+  const hostOrgId = Number(event.host_organization_id);
+  const canOpenHostOrg = Number.isInteger(hostOrgId) && hostOrgId > 0;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView
@@ -536,9 +547,17 @@ export default function EventDetailScreen() {
                 console — most people tapping this are not members, and the
                 console 403s them. */}
             <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={`View ${event.host_organization_name}`}
-              onPress={() => router.push(`/org/${event.host_organization_id}/profile`)}
+              accessibilityRole={canOpenHostOrg ? 'button' : 'text'}
+              accessibilityLabel={
+                canOpenHostOrg
+                  ? `View ${event.host_organization_name}`
+                  : (event.host_organization_name ?? 'Host organization')
+              }
+              disabled={!canOpenHostOrg}
+              // No press feedback when there is nowhere to go -- a row that
+              // dims on touch and then does nothing reads as a broken link.
+              activeOpacity={canOpenHostOrg ? 0.2 : 1}
+              onPress={() => router.push(`/org/${hostOrgId}/profile`)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
               {event.org_profile_picture ? (
