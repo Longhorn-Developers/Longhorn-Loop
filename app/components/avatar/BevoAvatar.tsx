@@ -87,12 +87,7 @@ export default function BevoAvatar({ config, height = 206, width }: BevoAvatarPr
           ))}
         </ClipPath>
         {patternTile != null && (
-          <Pattern
-            id={patternId}
-            patternUnits="userSpaceOnUse"
-            width={tileSize}
-            height={tileSize}
-          >
+          <Pattern id={patternId} patternUnits="userSpaceOnUse" width={tileSize} height={tileSize}>
             <Image
               href={patternTile.src}
               x={0}
