@@ -75,25 +75,39 @@ export default function DiscoveryBucket() {
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        // Step 2 alone pins its header. It is the only step with a list long
+        // enough to scroll — twelve buckets, roughly 940pt against a ~600pt
+        // window — so it is the only one where the pills and the back arrow
+        // leave the screen at all. The other five fit, and pinning there would
+        // spend height to solve nothing.
+        //
+        // The whole block sticks, not just the pills: a progress bar floating
+        // free of the "STEP 2 OF 6" that explains it reads as decoration, and
+        // losing the back arrow mid-scroll is worse than losing the pills.
+        stickyHeaderIndices={[0]}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={goBack} hitSlop={12}>
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create an Event</Text>
-          <View style={styles.headerSpacer} />
+        <View style={styles.stickyHeader}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={goBack} hitSlop={12}>
+              <Text style={styles.backArrow}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Create an Event</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+
+          <View style={styles.stepBlock}>
+            <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
+            <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
+          </View>
+
+          <StepPills step={2} totalSteps={6} />
         </View>
 
-        <View style={styles.stepBlock}>
-          <Text style={styles.stepLabel}>STEP 2 OF 6</Text>
-          <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
-        </View>
+        <Text style={[styles.instruction, styles.gutter]}>
+          Buckets help your event reach the right audience.
+        </Text>
 
-        <StepPills step={2} totalSteps={6} style={{ marginBottom: 20 }} />
-
-        <Text style={styles.instruction}>Buckets help your event reach the right audience.</Text>
-
-        <View style={styles.bucketList}>
+        <View style={[styles.bucketList, styles.gutter]}>
           {BUCKETS.map((bucket) => {
             const isSelected = bucket.id === selectedId;
             const { Icon, iconSize } = bucket;
@@ -127,7 +141,7 @@ export default function DiscoveryBucket() {
           })}
         </View>
 
-        {!canContinue && <View style={styles.inlineFooter}>{continueButton}</View>}
+        {!canContinue && <View style={[styles.inlineFooter, styles.gutter]}>{continueButton}</View>}
       </ScrollView>
 
       {canContinue && <View style={styles.pinnedFooter}>{continueButton}</View>}
@@ -142,14 +156,25 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.background,
     },
     scroll: {
-      paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 40,
+    },
+    // Opaque and full-bleed. Sticky headers are transparent by default, and
+    // the horizontal padding has to live here rather than on the scroll
+    // container — inset by 20pt, cards would show through the gutters as they
+    // pass underneath.
+    stickyHeader: {
+      backgroundColor: c.background,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
     },
     // Button height + its padding, so the list can still be scrolled clear of
     // the pinned bar.
     scrollWithPinnedFooter: {
       paddingBottom: 108,
+    },
+    gutter: {
+      paddingHorizontal: 20,
     },
     inlineFooter: {
       marginTop: 4,
