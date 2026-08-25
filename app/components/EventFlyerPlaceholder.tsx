@@ -27,11 +27,11 @@ import { View, ViewStyle } from 'react-native';
  */
 
 /** Card fill. */
-const FLYER_BG = '#F4B486';
+const FLYER_BG = '#F4B486'; // theme-exempt: artwork, see note above
 /** The slightly darker tile; the 2px gap between tiles is FLYER_BG showing through. */
-const FLYER_TILE = '#F2A56F';
+const FLYER_TILE = '#F2A56F'; // theme-exempt: artwork, see note above
 /** Tower line art. */
-const FLYER_INK = '#F1E7DE';
+const FLYER_INK = '#F1E7DE'; // theme-exempt: artwork, see note above
 
 // The source artboard. Every coordinate below is in this space.
 const VB_W = 198;

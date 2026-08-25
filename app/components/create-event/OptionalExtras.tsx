@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
@@ -190,9 +191,7 @@ export default function OptionalExtras() {
             <Text style={styles.stepTitle}>Optional Extras</Text>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
-          </View>
+          <StepPills step={6} totalSteps={6} style={{ marginBottom: 20 }} />
 
           <Text style={styles.instruction}>
             All fields below are optional — add what makes your event shine.
@@ -324,19 +323,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      width: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instruction: {
       fontSize: 14,

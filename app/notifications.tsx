@@ -1,3 +1,4 @@
+import BellIcon from '@/assets/images/bell.svg';
 import { ArrowLeft } from 'phosphor-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -471,7 +472,14 @@ export default function NotificationsScreen() {
           </View>
         ) : isEmpty ? (
           <View className="flex-1 items-center justify-center px-10">
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+            {/* The app's own bell, not the system emoji — which renders as a
+                different glyph on every platform and cannot take the theme. */}
+            <BellIcon
+              width={44}
+              height={50}
+              color={colors.placeholder}
+              style={{ marginBottom: 16 }}
+            />
             <Text className="text-base text-lhlSecondaryTextGrey font-semibold mb-2 text-center">
               No new notifications
             </Text>
