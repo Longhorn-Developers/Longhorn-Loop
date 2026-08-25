@@ -30,10 +30,49 @@ export default function DiscoveryBucket() {
     goNext();
   };
 
+  // Tapping the selected bucket clears it. Without this there was no way back
+  // to "nothing chosen" once you had touched anything — you could change your
+  // mind about which bucket, but not about having one.
+  const onBucketPress = (id: DiscoveryBucketId) => {
+    const wasSelected = id === data.discoveryBucket;
+    update({
+      discoveryBucket: wasSelected ? null : id,
+      // Step 3's tag list is derived from the bucket's category, so any change
+      // — including clearing it — invalidates whatever was picked there.
+      interestTags: [],
+    });
+  };
+
+  /**
+   * Continue moves rather than duplicating.
+   *
+   * With nothing chosen it sits at the end of the list, where it reads as the
+   * last thing on the page and does not cover a bucket you are still scrolling
+   * to. Once you choose one it pins above the tab bar, because at that point it
+   * is the only thing left to do and you should not have to scroll back down to
+   * find it. Deselecting sends it back.
+   */
+  const continueButton = (
+    <TouchableOpacity
+      onPress={onContinue}
+      activeOpacity={canContinue ? 0.85 : 1}
+      disabled={!canContinue}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !canContinue }}
+      style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
+    >
+      <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>Continue</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          // Clear the pinned bar so the last bucket is never trapped behind it.
+          canContinue && styles.scrollWithPinnedFooter,
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -65,16 +104,7 @@ export default function DiscoveryBucket() {
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={`${bucket.title}. ${bucket.description}`}
-                onPress={() => {
-                  // Clear interest tags when the bucket changes — the tag
-                  // list on step 3 is derived from the bucket's category,
-                  // so previous picks wouldn't be visible anyway.
-                  const changing = bucket.id !== data.discoveryBucket;
-                  update({
-                    discoveryBucket: bucket.id,
-                    ...(changing ? { interestTags: [] } : {}),
-                  });
-                }}
+                onPress={() => onBucketPress(bucket.id)}
                 style={[styles.bucketCard, isSelected && styles.bucketCardSelected]}
               >
                 <View style={[styles.avatar, isSelected && styles.avatarSelected]}>
@@ -97,17 +127,10 @@ export default function DiscoveryBucket() {
           })}
         </View>
 
-        <TouchableOpacity
-          onPress={onContinue}
-          activeOpacity={canContinue ? 0.85 : 1}
-          disabled={!canContinue}
-          style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
-        >
-          <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>
-            Continue
-          </Text>
-        </TouchableOpacity>
+        {!canContinue && <View style={styles.inlineFooter}>{continueButton}</View>}
       </ScrollView>
+
+      {canContinue && <View style={styles.pinnedFooter}>{continueButton}</View>}
     </SafeAreaView>
   );
 }
@@ -122,6 +145,26 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 40,
+    },
+    // Button height + its padding, so the list can still be scrolled clear of
+    // the pinned bar.
+    scrollWithPinnedFooter: {
+      paddingBottom: 108,
+    },
+    inlineFooter: {
+      marginTop: 4,
+    },
+    pinnedFooter: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 16,
+      backgroundColor: c.background,
+      borderTopWidth: 1,
+      borderTopColor: c.divider,
     },
     header: {
       flexDirection: 'row',
