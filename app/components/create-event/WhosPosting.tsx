@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import CheckIcon from '@/assets/images/check-selected.svg';
 import PosterOrgIcon from '@/assets/images/poster-org.svg';
 import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
@@ -119,9 +120,7 @@ export default function WhosPosting() {
           <Text style={styles.stepTitle}>Who&apos;s Posting?</Text>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '16.66%' }]} />
-        </View>
+        <StepPills step={1} totalSteps={6} style={{ marginBottom: 20 }} />
 
         <Text style={styles.instruction}>
           Your event will be attributed to the profile or organization that you select.
@@ -234,18 +233,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instruction: {
       fontSize: 14,

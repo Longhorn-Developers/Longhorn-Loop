@@ -1,3 +1,4 @@
+import BellFilledIcon from '@/assets/images/bell-filled.svg';
 import BellIcon from '@/assets/images/bell.svg';
 import HookemIcon from '@/assets/images/hookem.svg';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
@@ -188,7 +189,16 @@ export default function HomeScreen() {
               unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
             }
           >
-            <BellIcon width={22} height={25} color={colors.ink} />
+            {/* Weight carries the state, not just the count pill. An outline
+                bell means nothing is waiting; a filled one means something is.
+                That reads at a glance and without relying on colour, which
+                matters for the ~8% of men with a red-green deficiency — and it
+                still works if the badge is clipped at the screen edge. */}
+            {unreadCount > 0 ? (
+              <BellFilledIcon width={22} height={25} color={colors.brand} />
+            ) : (
+              <BellIcon width={22} height={25} color={colors.ink} />
+            )}
             {unreadCount > 0 ? (
               <View
                 style={{

@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { EventTypeId } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
@@ -66,9 +67,7 @@ export default function EventDetails() {
             <Text style={styles.stepTitle}>Event Details</Text>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '66.66%' }]} />
-          </View>
+          <StepPills step={4} totalSteps={6} style={{ marginBottom: 20 }} />
 
           <Text style={styles.instruction}>Add some details for your event.</Text>
 
@@ -183,18 +182,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instruction: {
       fontSize: 14,

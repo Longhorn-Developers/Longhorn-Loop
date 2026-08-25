@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
@@ -49,9 +50,7 @@ export default function DiscoveryBucket() {
           <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '33.33%' }]} />
-        </View>
+        <StepPills step={2} totalSteps={6} style={{ marginBottom: 20 }} />
 
         <Text style={styles.instruction}>Buckets help your event reach the right audience.</Text>
 
@@ -157,18 +156,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instruction: {
       fontSize: 14,
