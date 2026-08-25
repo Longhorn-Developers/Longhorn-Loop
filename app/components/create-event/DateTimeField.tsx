@@ -45,6 +45,17 @@ export function formatTime(iso: string | null): string {
   return `${h}:${mm} ${suffix}`;
 }
 
+/** Midnight at the start of `d`, in the device's timezone. */
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function laterOf(a: Date, b: Date): Date {
+  return b > a ? b : a;
+}
+
 // Combine a date portion (year/month/day) with an existing ISO's time,
 // or with 09:00 as a friendly default when the slot is empty.
 export function withDate(existingIso: string | null, picked: Date): string {
@@ -68,7 +79,8 @@ export interface DateTimeFieldProps {
   /** Current value, or null when the slot is empty. */
   iso: string | null;
   onChange: (iso: string) => void;
-  /** Earliest selectable date — pass the start when this field is the end. */
+  /** An ADDITIONAL floor on top of today — pass the start when this field is
+   *  the end. Dates before today are never selectable either way. */
   minimumIso?: string | null;
   /** Seeds an empty slot when the picker opens. Defaults to now. */
   fallbackIso?: string | null;
@@ -105,7 +117,34 @@ export default function DateTimeField({
 
   const pickerValue: Date = iso ? new Date(iso) : fallbackIso ? new Date(fallbackIso) : new Date();
 
-  const minimumDate = picker === 'date' && minimumIso ? new Date(minimumIso) : undefined;
+  const minimumDate = useMemo(() => {
+    // Time pickers are not date-bounded: the constraint is which DAY you may
+    // choose, and applying a floor here would make times before the floor's
+    // clock time unpickable on a valid day.
+    if (picker !== 'date') return undefined;
+
+    // Everything is compared at day granularity. The old code passed the start
+    // datetime through raw as the end field's minimum, which also meant an
+    // event starting at 9am could not end later the same day — the floor
+    // carried a time of day the date picker then enforced.
+    let floor = startOfDay(new Date());
+
+    if (minimumIso) {
+      const lower = new Date(minimumIso);
+      if (!isNaN(lower.getTime())) floor = laterOf(floor, startOfDay(lower));
+    }
+
+    // Never strand a value the field already holds. Editing an event that
+    // already happened is legitimate (the Org console does it), and a picker
+    // whose minimum excludes its own value is an inconsistent state that some
+    // platforms silently clamp.
+    if (iso) {
+      const current = new Date(iso);
+      if (!isNaN(current.getTime()) && startOfDay(current) < floor) floor = startOfDay(current);
+    }
+
+    return floor;
+  }, [picker, minimumIso, iso]);
 
   const dateLabel = formatDate(iso);
   const timeLabel = formatTime(iso);

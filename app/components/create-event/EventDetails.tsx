@@ -80,7 +80,7 @@ export default function EventDetails() {
               placeholder="Enter Event Title"
               placeholderTextColor={colors.inkMuted}
               maxLength={TITLE_MAX}
-              style={styles.input}
+              style={[styles.input, styles.singleLine]}
               returnKeyType="next"
             />
           </View>
@@ -220,6 +220,20 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 12,
       fontSize: 14,
       color: c.ink,
+    },
+    // A single-line TextInput centres its own text when it is given a height.
+    // The shared `input` style sets paddingVertical instead, and on Android the
+    // font's own ascent padding stacks on top of that — which is what left the
+    // placeholder sitting high in the box. Fixed height, no vertical padding,
+    // and font padding off lets the input do the centring itself.
+    //
+    // Only the single-line fields take this. The textarea below wants its text
+    // at the top and keeps the padded version.
+    singleLine: {
+      height: 44,
+      paddingVertical: 0,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
     },
     textarea: {
       minHeight: 140,

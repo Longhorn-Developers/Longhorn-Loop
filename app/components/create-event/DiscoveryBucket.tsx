@@ -1,9 +1,8 @@
-import CheckIcon from '@/assets/images/check-selected.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import type { ThemeColors } from '@/app/lib/themeColors';
-import { useThemeColors, withAlpha } from '@/app/lib/themeColors';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -64,6 +63,9 @@ export default function DiscoveryBucket() {
               <TouchableOpacity
                 key={bucket.id}
                 activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${bucket.title}. ${bucket.description}`}
                 onPress={() => {
                   // Clear interest tags when the bucket changes — the tag
                   // list on step 3 is derived from the bucket's category,
@@ -80,14 +82,17 @@ export default function DiscoveryBucket() {
                   <Icon
                     width={iconSize.width}
                     height={iconSize.height}
-                    color={isSelected ? colors.accent : colors.ink}
+                    color={isSelected ? colors.brand : colors.ink}
                   />
                 </View>
                 <View style={styles.bucketText}>
-                  <Text style={styles.bucketTitle}>{bucket.title}</Text>
-                  <Text style={styles.bucketDescription}>{bucket.description}</Text>
+                  <Text style={[styles.bucketTitle, isSelected && styles.bucketTextSelected]}>
+                    {bucket.title}
+                  </Text>
+                  <Text style={[styles.bucketDescription, isSelected && styles.bucketTextSelected]}>
+                    {bucket.description}
+                  </Text>
                 </View>
-                {isSelected && <CheckIcon width={19} height={14} color={colors.accent} />}
               </TouchableOpacity>
             );
           })}
@@ -185,9 +190,17 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       backgroundColor: c.surface,
     },
+    // Filled, not tinted, and no checkmark. A tick beside a tinted row is the
+    // universal shape of a multi-select list, and people were reading these as
+    // checkboxes — you can only pick one bucket. A solid fill is the shape of a
+    // chosen segment, and it does not need a second marker to say so.
     bucketCardSelected: {
       borderColor: c.brand,
-      backgroundColor: c.brandSoft,
+      backgroundColor: c.brand,
+    },
+    // White on #BD5500 is 4.7:1 — the same pairing PrimaryButton already ships.
+    bucketTextSelected: {
+      color: '#FFFFFF',
     },
     avatar: {
       width: 44,
@@ -197,8 +210,10 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    // The tile inverts with the card: a light plate holding a brand-coloured
+    // icon, so the icon stays legible now that the row behind it is brand.
     avatarSelected: {
-      backgroundColor: withAlpha(c.brand, 0.35),
+      backgroundColor: '#FFFFFF',
     },
     bucketText: {
       flex: 1,
