@@ -16,26 +16,6 @@ const UT_REGION = {
 
 export type LocatedEvent = ApiEvent & { latitude: number; longitude: number };
 
-// Some sources report identical coordinates for multiple events (same
-// building, no per-event geocoding). react-native-maps stacks markers with
-// no offset, so the topmost one silently hides the rest (LOOP-271: "only
-// one pin appears"). Spread exact-coordinate duplicates into a small, tight
-// circle so every event stays visible and tappable.
-//
-// Two dynamic versions of this were tried and both reliably crashed
-// react-native-maps on iOS: a tap-to-expand badge (removing/replacing itself
-// from inside its own tap callback), and a zoom-driven badge/pins swap via
-// onRegionChangeComplete. Different triggers, same failure -- swapping
-// between a custom-view marker (a badge with a count) and plain pinColor
-// markers is what's unstable here, not which event causes the swap. Plain,
-// always-rendered pinColor Markers are the pattern already proven stable
-// everywhere else on this screen, so that's what stays. The offset is kept
-// small (~9m) specifically so it reads as "same spot, a couple of events"
-// rather than "two unrelated locations" at a normal zoom level.
-//
-// UT Austin sits at ~30.28°N; a degree of longitude is shorter than a
-// degree of latitude by cos(latitude), so the longitude offset is scaled up
-// to draw a uniform circle on screen instead of a squashed ellipse.
 const LATITUDE_COS_AT_UT = Math.cos((30.2849 * Math.PI) / 180);
 const OVERLAP_OFFSET_DEGREES = 0.00008; // ~9m radius
 
