@@ -1637,14 +1637,3 @@ eventRoutes.post('/delete-tag-vectors', async (c) => {
   const result = await deleteTagVectors(c.env, ids);
   return c.json({ ok: true, ...result });
 });
-
-// POST /events/scrape/tacc -- manually trigger the TACC scrape (for testing)
-eventRoutes.post('/scrape/tacc', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const maxEvents = (body as any).maxEvents ?? 200;
-  const dryRun = (body as any).dryRun ?? false;
-
-  const result = await scrapeTacc(c.env.DB, { maxEvents, dryRun });
-
-  return c.json(result);
-});
