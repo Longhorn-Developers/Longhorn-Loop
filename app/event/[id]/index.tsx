@@ -1,3 +1,4 @@
+import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
 // the share button opens the platform share sheet (app/lib/shareEvent.ts).
@@ -11,7 +12,7 @@ import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
-import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
@@ -21,6 +22,7 @@ import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
+import type { AvatarConfig } from '@/shared/avatar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -36,7 +38,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Container aspect ratio for the poster. Defaults to portrait since most
 // flyers are vertical.
@@ -109,7 +111,14 @@ function MetaRow({ event }: { event: ApiEvent }) {
     <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={styles.metaIconBadge}>
-          <CalendarIcon width={16} height={16} color={colors.inkSecondary} />
+          {/*
+            theme-exempt: the badge underneath is colors.brand in both themes, so
+            the glyph on top is white in both. calendar.svg paints from
+            currentColor, so without this it inherited inkSecondary and read as a
+            dark grey icon on burnt orange. map.svg next to it has fill="white"
+            baked in, which is why only the calendar looked wrong.
+          */}
+          <CalendarIcon width={16} height={16} color="#FFFFFF" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.metaPrimary}>{formatShortDate(event.start_datetime)}</Text>
@@ -136,6 +145,8 @@ interface Attendee {
   first_name: string;
   last_name: string;
   avatar: number | null;
+  avatar_config: AvatarConfig | null;
+  profile_photo_url: string | null;
 }
 
 interface AttendeesResponse {
@@ -188,38 +199,35 @@ function AttendeesRow({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row' }}>
-          {attendees.map((attendee, i) => {
-            const avatarSource = getAvatarSource(attendee.avatar ?? undefined);
-            return (
-              <TouchableOpacity
-                key={attendee.id}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${attendee.first_name}’s profile`}
-                onPress={() => router.push(`/user/${attendee.id}`)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  backgroundColor: colors.brand,
-                  borderWidth: 2,
-                  borderColor: colors.surface,
-                  marginLeft: i === 0 ? 0 : -8,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {avatarSource ? (
-                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-                ) : (
-                  // theme-exempt: initial sits on the brand-coloured fill above
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                    {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          {attendees.map((attendee, i) => (
+            <TouchableOpacity
+              key={attendee.id}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${attendee.first_name}’s profile`}
+              onPress={() => router.push(`/user/${attendee.id}`)}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                overflow: 'hidden',
+                backgroundColor: colors.brand,
+                borderWidth: 2,
+                borderColor: colors.surface,
+                marginLeft: i === 0 ? 0 : -8,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {hasAvatar(attendee) ? (
+                <AvatarDisplay user={attendee} size={28} />
+              ) : (
+                // theme-exempt: initial sits on the brand-coloured fill above
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                  {attendee.first_name?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
         <Text
           style={{
@@ -257,6 +265,7 @@ type SavedListResponse = { events: ApiEvent[] };
 export default function EventDetailScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
@@ -383,11 +392,27 @@ export default function EventDetailScreen() {
     confirmRsvp();
   };
 
+  // The cached detail row is what re-seeds isRsvped on the next mount, so it has
+  // to move with the RSVP or the button forgets itself. See the comment on
+  // confirmRsvp below.
+  const patchCachedRsvpState = (next: boolean) => {
+    queryClient.setQueryData<ApiEvent>(eventsKeys.detail(String(id)), (old) =>
+      old ? { ...old, is_rsvped: next } : old,
+    );
+  };
+
   const confirmRsvp = async () => {
     if (!event) return;
     await addRsvp(event.id, token);
     setIsRsvped(true);
     setShowToast(true);
+    // isRsvped is local state seeded from the event query, and leaving the screen
+    // unmounts it. staleTime is 30s (app/_layout.tsx), so coming back inside that
+    // window replayed a cached row still saying is_rsvped: false and the button
+    // reverted to "RSVP" — the bug bash's "IM GOING doesn't stay". Writing through
+    // to the cache fixes it without a second round trip; the server already
+    // computes is_rsvped correctly on GET /events/:id.
+    patchCachedRsvpState(true);
     // The caller has just joined the list they're looking at.
     queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
@@ -397,6 +422,7 @@ export default function EventDetailScreen() {
     await removeRsvp(event.id, token);
     setIsRsvped(false);
     setShowCancelModal(false);
+    patchCachedRsvpState(false);
     queryClient.invalidateQueries({ queryKey: eventsKeys.attendees(String(id)) });
   };
 
@@ -439,6 +465,17 @@ export default function EventDetailScreen() {
   // Chips are our own benefits + classifier-assigned taxonomy tags — not the
   // raw scraped categories (which surfaced generic labels like "Social").
   const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
+
+  // Scraped events carry a host NAME but no host ID -- they are never linked to
+  // an `organizations` row. Pushing `/org/${undefined}/profile` produced the
+  // literal path "/org/undefined/profile", which Number()s to NaN on the org
+  // screen: a blank page, and then POST /orgs/NaN/follow, which the Worker
+  // correctly refuses with 400 INVALID_ORG_ID. The user just sees
+  // "could not update follow. Try again."
+  //
+  // There is no page to send them to, so the host stops being a link.
+  const hostOrgId = Number(event.host_organization_id);
+  const canOpenHostOrg = Number.isInteger(hostOrgId) && hostOrgId > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -492,16 +529,9 @@ export default function EventDetailScreen() {
                     resizeMode="contain"
                   />
                 ) : (
-                  <View
-                    style={{
-                      flex: 1,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: colors.placeholder,
-                    }}
-                  >
-                    <Text style={{ color: colors.inkSecondary, fontSize: 14 }}>No image</Text>
-                  </View>
+                  // Was a grey box reading "No image", which told the user
+                  // nothing and looked like a failed load.
+                  <EventFlyerPlaceholder />
                 )}
               </View>
             </View>
@@ -536,9 +566,17 @@ export default function EventDetailScreen() {
                 console — most people tapping this are not members, and the
                 console 403s them. */}
             <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={`View ${event.host_organization_name}`}
-              onPress={() => router.push(`/org/${event.host_organization_id}/profile`)}
+              accessibilityRole={canOpenHostOrg ? 'button' : 'text'}
+              accessibilityLabel={
+                canOpenHostOrg
+                  ? `View ${event.host_organization_name}`
+                  : (event.host_organization_name ?? 'Host organization')
+              }
+              disabled={!canOpenHostOrg}
+              // No press feedback when there is nowhere to go -- a row that
+              // dims on touch and then does nothing reads as a broken link.
+              activeOpacity={canOpenHostOrg ? 0.2 : 1}
+              onPress={() => router.push(`/org/${hostOrgId}/profile`)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
               {event.org_profile_picture ? (
@@ -585,7 +623,15 @@ export default function EventDetailScreen() {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} style={styles.actionBarWrapper}>
+      {/*
+        Deliberately a View and not SafeAreaView edges={['bottom']}. That added the
+        whole bottom inset (~34px on a home-indicator device) and then actionBar's
+        own paddingVertical added 12 more underneath the buttons — two paddings
+        stacked, which is the bug bash's "too much padding under the save button
+        and RSVP button". Now there is one: clear the indicator where there is one,
+        fall back to 12 where there isn't.
+      */}
+      <View style={[styles.actionBarWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <View style={styles.actionBar}>
           <TouchableOpacity onPress={handleToggleSave} style={styles.bookmarkButton}>
             <BookmarkGlyph saved={isSaved} width={14} height={18} idleColor={colors.ink} />
@@ -606,7 +652,7 @@ export default function EventDetailScreen() {
             ) : null}
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* Confirmation: open external RSVP link */}
       <ConfirmModal
@@ -755,7 +801,9 @@ const makeStyles = (c: ThemeColors) => ({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    // Top only. The space below the buttons is the wrapper's safe-area padding —
+    // see the comment where actionBarWrapper is rendered.
+    paddingTop: 12,
     gap: 12,
   },
   bookmarkButton: {

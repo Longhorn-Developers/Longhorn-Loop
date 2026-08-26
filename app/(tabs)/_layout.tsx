@@ -9,6 +9,24 @@ import TabProfileIcon from '@/assets/images/tab-profile.svg';
 import { CreateEventProvider } from '@/app/context/CreateEventContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/**
+ * Height of the bar ABOVE the home indicator — the part the icons live in.
+ *
+ * The bar used to be a flat 72 with paddingBottom: 0, which put the icons
+ * inside the ~34pt gesture strip on a home-indicator iPhone. Reaching for
+ * Profile and getting the app-switcher instead is the bug bash's "move navbar
+ * icons up so the user does not swipe out by accident".
+ *
+ * Instagram (and every well-behaved iOS tab bar) does the same thing: a fixed
+ * content height, plus the device's bottom inset underneath it as padding, so
+ * the icons sit clear of the indicator rather than sharing space with it.
+ */
+const TAB_BAR_CONTENT_HEIGHT = 64;
+
+/** Floor for devices with no inset, so the bar is still taller than it was. */
+const MIN_BOTTOM_PADDING = 10;
 
 // The tab bar sits above every screen, so leaving it white was the most
 // visible thing dark mode missed. The icons are SVGs that used to carry their
@@ -23,8 +41,11 @@ import { Tabs } from 'expo-router';
 // working for the ~8% of men with a red-green deficiency.
 export default function TabsLayout() {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const active = colors.accent;
   const inactive = colors.inkMuted;
+
+  const bottomPadding = Math.max(insets.bottom, MIN_BOTTOM_PADDING);
 
   return (
     <CreateEventProvider>
@@ -40,9 +61,11 @@ export default function TabsLayout() {
             // an edge beyond the hairline.
             backgroundColor: colors.surface,
             borderTopColor: colors.divider,
-            height: 72,
-            paddingTop: 0,
-            paddingBottom: 0,
+            height: TAB_BAR_CONTENT_HEIGHT + bottomPadding,
+            paddingTop: 6,
+            // The inset, as padding rather than height, is what lifts the icons
+            // out of the gesture strip instead of just making the bar bigger.
+            paddingBottom: bottomPadding,
           },
           tabBarItemStyle: {
             paddingVertical: 0,

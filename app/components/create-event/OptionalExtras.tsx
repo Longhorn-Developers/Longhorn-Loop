@@ -1,8 +1,10 @@
+import StepPills from '@/app/components/StepPills';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
+import { appendImageFile } from '@/app/lib/imageForm';
 import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -31,51 +33,13 @@ function appendOptional(form: FormData, key: string, value: string | null | unde
   if (trimmed) form.append(key, trimmed);
 }
 
-function getFileNameFromUri(uri: string): string {
-  const fallback = 'event-image.jpg';
-  const withoutQuery = uri.split('?')[0] ?? uri;
-  const lastSegment = withoutQuery.split('/').filter(Boolean).pop();
-  if (!lastSegment) return fallback;
-
-  try {
-    return decodeURIComponent(lastSegment);
-  } catch {
-    return lastSegment;
-  }
-}
-
-function inferImageMimeType(fileName: string, pickerMimeType: string | null): string {
-  if (pickerMimeType?.startsWith('image/')) return pickerMimeType;
-
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  if (extension === 'png') return 'image/png';
-  if (extension === 'gif') return 'image/gif';
-  if (extension === 'webp') return 'image/webp';
-  return 'image/jpeg';
-}
-
 async function appendImageToForm(form: FormData, data: CreateEventData): Promise<void> {
   if (!data.imageUrl) return;
-
-  const fileName = data.imageName ?? getFileNameFromUri(data.imageUrl);
-  const mimeType = inferImageMimeType(fileName, data.imageMimeType);
-
-  if (Platform.OS === 'web') {
-    const response = await fetch(data.imageUrl);
-    if (!response.ok) throw new Error('IMAGE_READ_FAILED');
-
-    const blob = await response.blob();
-    const uploadBlob =
-      blob.type === mimeType ? blob : new Blob([await blob.arrayBuffer()], { type: mimeType });
-    form.append('image', uploadBlob, fileName);
-    return;
-  }
-
-  form.append('image', {
+  await appendImageFile(form, 'image', {
     uri: data.imageUrl,
-    name: fileName,
-    type: mimeType,
-  } as unknown as Blob);
+    name: data.imageName,
+    mimeType: data.imageMimeType,
+  });
 }
 
 async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
@@ -227,9 +191,7 @@ export default function OptionalExtras() {
             <Text style={styles.stepTitle}>Optional Extras</Text>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={styles.progressFill} />
-          </View>
+          <StepPills step={6} totalSteps={6} style={{ marginBottom: 20 }} />
 
           <Text style={styles.instruction}>
             All fields below are optional — add what makes your event shine.
@@ -361,19 +323,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      width: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instruction: {
       fontSize: 14,

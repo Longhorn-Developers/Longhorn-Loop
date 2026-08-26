@@ -3,6 +3,7 @@
 // edits datetimes through the same control; this step keeps the wizard
 // chrome and the Single Day / Date Range decision, which is create-only.
 
+import StepPills from '@/app/components/StepPills';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DateMode } from '@/app/context/CreateEventContext';
 import DateTimeField from '@/app/components/create-event/DateTimeField';
@@ -49,9 +50,7 @@ export default function WhenIsIt() {
           <Text style={styles.stepTitle}>When is it?</Text>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '83.33%' }]} />
-        </View>
+        <StepPills step={5} totalSteps={6} style={{ marginBottom: 20 }} />
 
         <View style={styles.modeRow}>
           <ModeButton
@@ -171,18 +170,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 24,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     modeRow: {
       flexDirection: 'row',

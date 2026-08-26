@@ -39,6 +39,8 @@ export type Env = {
   // [[send_email]] AND the domain is onboarded in the dashboard.
   EMAIL?: SendEmailBinding;
   POSTMARK_API_TOKEN?: string;
+  CRON_SECRET: string;
+  WORKER_URL: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -160,7 +162,16 @@ export default {
 
     // The 6-hour scrape cron. Fires every scraper in the registry.
     for (const scraper of SCRAPERS) {
-      ctx.waitUntil(scraper.run(env));
+      ctx.waitUntil(
+        fetch(`${env.WORKER_URL}/events/scrape/${scraper.name}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+        })
+          .then((r) => {
+            if (!r.ok) console.error(`[cron] ${scraper.name} dispatch failed: ${r.status}`);
+          })
+          .catch((err) => console.error(`[cron] ${scraper.name} dispatch error:`, err)),
+      );
     }
   },
 };

@@ -37,8 +37,10 @@ crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
+#   wrangler secret put CRON_SECRET
 
 [vars]
+WORKER_URL = "https://loop-db.longhorn-developers.workers.dev"
 EVENT_IMAGE_PUBLIC_BASE_URL = "https://pub-1fa687f6640643bc900bbbc25e3aba0c.r2.dev"
 # Verification-code sender. Must be a domain verified with whichever provider
 # EMAIL_PROVIDER selects, or every send fails.

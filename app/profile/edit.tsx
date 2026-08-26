@@ -28,12 +28,14 @@ import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingM
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import PillDropdownField from '@/app/components/inputs/PillDropdownField';
 import SearchablePillDropdownField from '@/app/components/inputs/SearchablePillDropdownField';
-import AvatarPickerModal, { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import AvatarPickerModal from '@/app/components/profile/AvatarPickerModal';
+import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { ALL_INTEREST_TAGS, INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import { MAJORS } from '@/app/lib/majors';
 import { user as userKeys } from '@/app/lib/queryKeys';
+import { YEAR_OPTIONS, normalizeYear } from '@/app/lib/yearOptions';
 import type { LinkedSocial, SocialPlatformId } from '@/app/lib/socialPlatforms';
 import { getSocialPlatformUI } from '@/app/lib/socialPlatforms';
 import LhlPillCross from '@/assets/icons/LhlPillCross';
@@ -44,7 +46,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -55,9 +56,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
+import type { AvatarConfig } from '@/shared/avatar';
 import { BIO_WARN_REMAINING, MAX_BIO, normalizeBio } from '@/shared/bio';
 
-const YEAR_OPTIONS = ['Freshmen', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
 const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', 'Not Applicable'];
 const MAX_NAME = 50;
@@ -71,6 +72,8 @@ interface MeResponse {
     unique_classification: string[];
     bio: string | null;
     avatar: number | null;
+    avatar_config: AvatarConfig | null;
+    profile_photo_url: string | null;
     majors: string[];
     tags: string[];
     socials: LinkedSocial[];
@@ -134,7 +137,9 @@ export default function EditProfileScreen() {
     if (!loaded) return;
     setFirstName(loaded.first_name ?? '');
     setLastName(loaded.last_name ?? '');
-    setYear(loaded.year_classification ?? '');
+    // normalizeYear, not `?? ''` — a profile saved as "Freshmen" before the
+    // spelling was corrected has to still light its pill. See app/lib/yearOptions.ts.
+    setYear(normalizeYear(loaded.year_classification));
     setBio(loaded.bio ?? '');
     setMajors(loaded.majors ?? []);
     setUniqueClass(loaded.unique_classification ?? []);
@@ -143,7 +148,6 @@ export default function EditProfileScreen() {
 
   const socials = loaded?.socials ?? [];
   const connected = socials.map((s) => s.platform);
-  const avatarSource = getAvatarSource(loaded?.avatar);
 
   const isNameValid =
     firstName.trim().length > 0 &&
@@ -157,7 +161,10 @@ export default function EditProfileScreen() {
     return (
       firstName.trim() !== (loaded.first_name ?? '') ||
       lastName.trim() !== (loaded.last_name ?? '') ||
-      year !== (loaded.year_classification ?? '') ||
+      // Compare against the normalized value too, or a legacy "Freshmen"
+      // profile would open already dirty and trip LeaveWithoutSavingModal on
+      // the way out. The correction still gets written on the next real save.
+      year !== normalizeYear(loaded.year_classification) ||
       (normalizeBio(bio) ?? '') !== (loaded.bio ?? '') ||
       !sameSet(majors, loaded.majors ?? []) ||
       !sameSet(uniqueClass, loaded.unique_classification ?? []) ||
@@ -324,9 +331,7 @@ export default function EditProfileScreen() {
             {/* Avatar + Edit photo */}
             <View className="mt-[14px] items-center">
               <View className="h-[92px] w-[92px] overflow-hidden rounded-full border-2 border-lhlInk bg-lhlPlaceholderGrey">
-                {avatarSource ? (
-                  <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-                ) : null}
+                {loaded ? <AvatarDisplay user={loaded} size={92} /> : null}
               </View>
               <Pressable
                 accessibilityRole="button"

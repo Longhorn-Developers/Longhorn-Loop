@@ -1,5 +1,6 @@
-import LhlXCircleIcon from '@/assets/icons/LhlXCircleIcon';
-import React, { useRef, useState } from 'react';
+import LhlPillCross from '@/assets/icons/LhlPillCross';
+import { useThemeColors } from '@/app/lib/themeColors';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 
 interface TextInputFieldProps extends TextInputProps {
@@ -18,9 +19,21 @@ export default function TextInputField({
   forceFocusStyles = false,
   ...props
 }: TextInputFieldProps) {
+  const colors = useThemeColors();
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // A blur schedules a 100ms timer so handleClear() can still fire. If the
+  // field unmounts inside that window the timer is still pending and will call
+  // setState on a dead component. Harmless in React 19, but it keeps the
+  // component alive for no reason and hides real leaks, so clear it.
+  useEffect(
+    () => () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+    },
+    [],
+  );
 
   // --- HANDLERS ---
   const handleFocus = (e: any) => {
@@ -89,12 +102,17 @@ export default function TextInputField({
         {leftIcon && <View>{leftIcon}</View>}
 
         {/* Text Input */}
+        {/*
+          text-lhlInk is load-bearing: without an explicit colour the platform
+          default is black, which is invisible against the dark-mode surface.
+          That was the "dark mode is not working" report on every search field.
+        */}
         <TextInput
           ref={inputRef}
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`
-            flex-1 font-['Roboto-Flex'] text-[14px]
+            flex-1 font-['Roboto-Flex'] text-[14px] text-lhlInk
             focus:ring-0 focus:outline-none
             placeholder:text-lhlMutedText
           `}
@@ -104,9 +122,20 @@ export default function TextInputField({
           {...props}
         />
         {/* Clear Button */}
+        {/*
+          Bare cross, not LhlXCircleIcon. The circled variant was never in the
+          Figma and the bug bash called it out explicitly. Colour comes from the
+          theme so it survives dark mode.
+        */}
         {clearable && (isFocused || forceFocusStyles) && (
-          <Pressable onPressIn={(e) => e.preventDefault?.()} onPress={handleClear} hitSlop={8}>
-            <LhlXCircleIcon size={13} color={'#000'} />
+          <Pressable
+            onPressIn={(e) => e.preventDefault?.()}
+            onPress={handleClear}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear text"
+          >
+            <LhlPillCross size={11} color={colors.inkSecondary} />
           </Pressable>
         )}
       </Pressable>

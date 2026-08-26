@@ -16,7 +16,7 @@
 // nothing here is written to take a target user id.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
-import { getAvatarSource } from '@/app/components/profile/AvatarPickerModal';
+import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
 import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
@@ -35,10 +35,11 @@ import {
   type ProfileEventFilter,
   type ProfileEventTab,
 } from '@/shared/profileEventFilters';
+import type { AvatarConfig } from '@/shared/avatar';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
@@ -51,6 +52,8 @@ interface MeResponse {
     unique_classification: string[];
     bio: string | null;
     avatar: number | null;
+    avatar_config: AvatarConfig | null;
+    profile_photo_url: string | null;
     majors: string[];
     tags: string[];
     socials: LinkedSocial[];
@@ -108,7 +111,6 @@ export default function ProfileScreen() {
 
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
-  const avatarSource = getAvatarSource(profile?.avatar);
 
   const counts = eventsQuery.data?.counts;
   const activeTab = TABS.find((t) => t.key === tab)!;
@@ -202,9 +204,7 @@ export default function ProfileScreen() {
           {/* --- Header --- */}
           <View className="items-center px-[20px]">
             <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
-              {avatarSource ? (
-                <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-              ) : null}
+              {profile ? <AvatarDisplay user={profile} size={92} /> : null}
             </View>
 
             <Text

@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { EventTypeId } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
@@ -66,9 +67,7 @@ export default function EventDetails() {
             <Text style={styles.stepTitle}>Event Details</Text>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '66.66%' }]} />
-          </View>
+          <StepPills step={4} totalSteps={6} style={{ marginBottom: 20 }} />
 
           <Text style={styles.instruction}>Add some details for your event.</Text>
 
@@ -80,7 +79,7 @@ export default function EventDetails() {
               placeholder="Enter Event Title"
               placeholderTextColor={colors.inkMuted}
               maxLength={TITLE_MAX}
-              style={styles.input}
+              style={[styles.input, styles.singleLine]}
               returnKeyType="next"
             />
           </View>
@@ -184,18 +183,6 @@ const makeStyles = (c: ThemeColors) =>
       fontWeight: '500',
       color: c.ink,
     },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
-    },
     instruction: {
       fontSize: 14,
       color: c.ink,
@@ -220,6 +207,20 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 12,
       fontSize: 14,
       color: c.ink,
+    },
+    // A single-line TextInput centres its own text when it is given a height.
+    // The shared `input` style sets paddingVertical instead, and on Android the
+    // font's own ascent padding stacks on top of that — which is what left the
+    // placeholder sitting high in the box. Fixed height, no vertical padding,
+    // and font padding off lets the input do the centring itself.
+    //
+    // Only the single-line fields take this. The textarea below wants its text
+    // at the top and keeps the padded version.
+    singleLine: {
+      height: 44,
+      paddingVertical: 0,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
     },
     textarea: {
       minHeight: 140,

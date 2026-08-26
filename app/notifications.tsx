@@ -1,3 +1,4 @@
+import BellIcon from '@/assets/images/bell.svg';
 import { ArrowLeft } from 'phosphor-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +23,8 @@ import { useRouter } from 'expo-router';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { API_BASE_URL } from '@/app/config/api';
+import { notifications as notificationKeys } from '@/app/lib/queryKeys';
+import { useQueryClient } from '@tanstack/react-query';
 
 // ---------- Types ----------
 
@@ -305,6 +308,10 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const { data } = useOnboarding();
   const token = data.token || null;
+  // This screen owns its list in local state rather than through react-query,
+  // but the home bell badge reads the same endpoint through the cache. Deleting
+  // here has to poke that cache or the badge keeps counting rows that are gone.
+  const queryClient = useQueryClient();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -386,7 +393,9 @@ export default function NotificationsScreen() {
         fetch(`${API_BASE_URL}/notifications/${deletedId}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => {});
+        })
+          .then(() => queryClient.invalidateQueries({ queryKey: notificationKeys.list() }))
+          .catch(() => {});
       }
     }, 4000);
   };
@@ -425,7 +434,9 @@ export default function NotificationsScreen() {
       fetch(`${API_BASE_URL}/notifications`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+      })
+        .then(() => queryClient.invalidateQueries({ queryKey: notificationKeys.list() }))
+        .catch(() => {});
     }
   };
 
@@ -461,7 +472,14 @@ export default function NotificationsScreen() {
           </View>
         ) : isEmpty ? (
           <View className="flex-1 items-center justify-center px-10">
-            <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+            {/* The app's own bell, not the system emoji — which renders as a
+                different glyph on every platform and cannot take the theme. */}
+            <BellIcon
+              width={44}
+              height={50}
+              color={colors.placeholder}
+              style={{ marginBottom: 16 }}
+            />
             <Text className="text-base text-lhlSecondaryTextGrey font-semibold mb-2 text-center">
               No new notifications
             </Text>

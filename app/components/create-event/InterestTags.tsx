@@ -1,3 +1,4 @@
+import StepPills from '@/app/components/StepPills';
 import ChipCloseIcon from '@/assets/images/chip-close.svg';
 import ChipPlusIcon from '@/assets/images/chip-plus.svg';
 import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
@@ -57,9 +58,7 @@ export default function InterestTags() {
           <Text style={styles.stepTitle}>Add Up to 5 Interest Tags</Text>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: '50%' }]} />
-        </View>
+        <StepPills step={3} totalSteps={6} style={{ marginBottom: 20 }} />
 
         <View style={styles.instructionRow}>
           <Text style={styles.instruction}>
@@ -158,18 +157,6 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 24,
       fontWeight: '500',
       color: c.ink,
-    },
-    progressTrack: {
-      height: 10,
-      backgroundColor: c.placeholder,
-      borderRadius: 999,
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: c.brand,
-      borderRadius: 999,
     },
     instructionRow: {
       flexDirection: 'row',
