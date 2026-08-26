@@ -16,3 +16,5 @@ EVENT_IMAGE_PUBLIC_BASE_URL=
 # emailing them. Lets you test signup locally without a verified Resend
 # domain. Never set this in production.
 RESEND_DEV_MODE=true
+CRON_SECRET=dev-cron-secret
+WORKER_URL=http://localhost:8787

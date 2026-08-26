@@ -1557,8 +1557,23 @@ eventRoutes.post('/:id/report', async (c) => {
 // POST /events/scrape/:name -- manually trigger any registered scraper (for testing)
 eventRoutes.post('/scrape/:name', async (c) => {
   const scraperName = c.req.param('name');
-  const scraper = getManualScraper(scraperName);
+  const auth = c.req.header('Authorization');
 
+  if (auth === `Bearer ${c.env.CRON_SECRET}`) {
+    const scraper = SCRAPERS.find((s) => s.name === scraperName);
+    if (!scraper) {
+      return c.json({ error: 'SCRAPER_NOT_FOUND' }, 404);
+    }
+    try {
+      await scraper.run(c.env);
+      return c.json({ ok: true, name: scraperName });
+    } catch (err) {
+      console.error(`[scrape/${scraperName}] fatal:`, err);
+      return c.json({ ok: false, name: scraperName, error: String(err) }, 500);
+    }
+  }
+
+  const scraper = getManualScraper(scraperName);
   if (!scraper) {
     const available = SCRAPERS.filter((s) => s.manual).map((s) => s.name);
     return c.json({ error: 'UNKNOWN_SCRAPER', available }, 404);
