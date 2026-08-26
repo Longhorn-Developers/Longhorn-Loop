@@ -1622,3 +1622,35 @@ eventRoutes.post('/delete-tag-vectors', async (c) => {
   const result = await deleteTagVectors(c.env, ids);
   return c.json({ ok: true, ...result });
 });
+
+// POST /events/scrape/tacc -- manually trigger the TACC scrape (for testing)
+eventRoutes.post('/scrape/tacc', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const maxEvents = (body as any).maxEvents ?? 200;
+  const dryRun = (body as any).dryRun ?? false;
+
+  const result = await scrapeTacc(c.env.DB, { maxEvents, dryRun });
+
+  return c.json(result);
+});
+
+eventRoutes.post('/scrape/:name', async (c) => {
+  const auth = c.req.header('Authorization');
+  if (auth !== `Bearer ${c.env.CRON_SECRET}`) {
+    return c.json({ error: 'UNAUTHORIZED' }, 401);
+  }
+
+  const name = c.req.param('name');
+  const scraper = SCRAPERS.find((s) => s.name === name);
+  if (!scraper) {
+    return c.json({ error: 'SCRAPER_NOT_FOUND' }, 404);
+  }
+
+  try {
+    await scraper.run(c.env);
+    return c.json({ ok: true, name });
+  } catch (err) {
+    console.error(`[scrape/${name}] fatal:`, err);
+    return c.json({ ok: false, name, error: String(err) }, 500);
+  }
+});
