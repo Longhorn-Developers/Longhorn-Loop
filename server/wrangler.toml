@@ -26,14 +26,18 @@ binding = "VECTORIZE"
 index_name = "loop-event-tags"
 
 [triggers]
-# Both schedules fire the same scheduled() handler in worker.ts, which
+# All schedules fire the same scheduled() handler in worker.ts, which
 # dispatches on event.cron:
 #   "0 */6 * * *"  -> scrapes Texas Today + HornsLink for new/updated events
 #   "*/15 * * * *" -> checks saved/bookmarked events for upcoming start
 #                      times and creates reminder notifications
 #   "0 8 * * *"    -> LOOP-241: sweeps the HornsLink ORG directory (orgs only,
 #                      no events) and tops up missing contact emails
-crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *"]
+#   "0 9 * * *"    -> LOOP-150: archives expired events a user created,
+#                      RSVP'd to, or saved; hard-deletes expired events
+#                      nobody engaged with. One hour after the org sweep so
+#                      the two daily jobs don't share a cron string.
+crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *", "0 9 * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
