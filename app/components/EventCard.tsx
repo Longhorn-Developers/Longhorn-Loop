@@ -97,7 +97,7 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
           justifyContent: 'center',
         }}
       >
-        {!hasImage && <EventFlyerPlaceholder />}
+        {!hasImage && <EventFlyerPlaceholder seed={item.id} />}
 
         {hasImage && (
           <>

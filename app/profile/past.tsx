@@ -54,7 +54,7 @@ function PastEventCard({ event, onPress }: { event: ApiEvent; onPress: () => voi
             style={{ width: '100%', height: '100%', opacity: 0.7 }}
           />
         ) : (
-          <EventFlyerPlaceholder />
+          <EventFlyerPlaceholder seed={event.id} />
         )}
       </View>
 

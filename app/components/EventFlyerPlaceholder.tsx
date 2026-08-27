@@ -21,17 +21,51 @@ import { View, ViewStyle } from 'react-native';
  * would clip the subject on wide containers like the event hero.
  *
  * The palette is fixed in both themes on purpose: it is artwork, not chrome,
- * and the cream tower reads correctly on the orange in light and dark. If
- * design later wants the fill tinted per `events.theme` to break up a wall of
- * identical cards on Explore, `background` is the only prop that has to change.
+ * and the cream tower reads correctly on every colourway in light and dark.
+ *
+ * SIX COLOURWAYS, not one. A grid of flyerless events used to be a wall of
+ * identical orange cards, which is what the design note here anticipated. Each
+ * event gets one of Lasya's palettes, picked from its id so it is stable: the
+ * same event is the same colour on Home, on Explore, in your profile, and
+ * after a refetch. Math.random would reshuffle the grid on every render.
  */
 
-/** Card fill. */
-const FLYER_BG = '#F4B486'; // theme-exempt: artwork, see note above
-/** The slightly darker tile; the 2px gap between tiles is FLYER_BG showing through. */
-const FLYER_TILE = '#F2A56F'; // theme-exempt: artwork, see note above
-/** Tower line art. */
+/** Tower line art. Shared by every colourway. */
 const FLYER_INK = '#F1E7DE'; // theme-exempt: artwork, see note above
+
+/**
+ * Card fill and the slightly darker tile drawn on it. The ~2px gap between
+ * tiles is `bg` showing through, so the pair has to stay a matched set.
+ *
+ * Sampled from the Figma frames Lasya posted. Orange is first and is the
+ * original pair unchanged, so anything that does not pass a seed looks exactly
+ * as it did before.
+ */
+export const FLYER_COLORWAYS = [
+  { bg: '#F4B486', tile: '#F2A56F' }, // orange
+  { bg: '#B4C5E3', tile: '#A9BEE0' }, // blue
+  { bg: '#FADD99', tile: '#FAD786' }, // yellow
+  { bg: '#FDD2FA', tile: '#E9BBE6' }, // lilac
+  { bg: '#BFDBD1', tile: '#B2D4C9' }, // mint
+  { bg: '#E8AEB2', tile: '#E6A1A8' }, // rose
+] as const; // theme-exempt: artwork, see note above
+
+/**
+ * Pick a colourway for an event.
+ *
+ * Hashed rather than `id % 6` because ids are sequential: consecutive events
+ * would walk the palette in lockstep and a two-column grid would show the same
+ * colour down each column. A cheap string hash scatters them instead.
+ */
+export function colorwayFor(seed: string | number | null | undefined) {
+  if (seed == null) return FLYER_COLORWAYS[0];
+  const text = String(seed);
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  }
+  return FLYER_COLORWAYS[Math.abs(hash) % FLYER_COLORWAYS.length];
+}
 
 // The source artboard. Every coordinate below is in this space.
 const VB_W = 198;
@@ -68,19 +102,24 @@ const MAST_PATH =
 type Props = {
   /** Where the artwork anchors when it has to crop. Bottom-left keeps the tower. */
   anchor?: 'xMinYMax' | 'xMidYMid';
-  /** Overrides the card fill. The hook for a future per-theme tint. */
+  /** Usually the event id. Same seed always gives the same colourway. */
+  seed?: string | number | null;
+  /** Overrides the card fill outright, ignoring the seed. */
   background?: string;
   style?: ViewStyle;
 };
 
 export default function EventFlyerPlaceholder({
   anchor = 'xMinYMax',
-  background = FLYER_BG,
+  seed,
+  background,
   style,
 }: Props) {
+  const colorway = colorwayFor(seed);
+  const fill = background ?? colorway.bg;
   return (
     <View
-      style={[{ width: '100%', height: '100%', backgroundColor: background }, style]}
+      style={[{ width: '100%', height: '100%', backgroundColor: fill }, style]}
       // One image to a screen reader, not a pile of rectangles.
       accessible
       accessibilityRole="image"
@@ -94,11 +133,11 @@ export default function EventFlyerPlaceholder({
       >
         {TILE_YS.map((y) =>
           TILE_XS.map((x) => (
-            <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={FLYER_TILE} />
+            <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
           )),
         )}
         <Path d={TOWER_PATH} fill={FLYER_INK} />
-        <Path d={PENNANT_PATH} fill={FLYER_TILE} />
+        <Path d={PENNANT_PATH} fill={colorway.tile} />
         <Path d={MAST_PATH} fill={FLYER_INK} />
       </Svg>
     </View>
