@@ -76,8 +76,9 @@ export default function TermsAndConditions() {
         </View>
       }
     >
-      {/* Checkboxes List */}
-      <View className="mt-[32px] mx-[16px] gap-2">
+      {/* No mx: FlowLayout already supplies the page gutter, and the rows'
+          px-2 -mx-2 cancels out (it widens the press target, not the inset). */}
+      <View className="mt-[32px] gap-2">
         {TERMS.map((term) => {
           const isSelected = checked[term.id];
 

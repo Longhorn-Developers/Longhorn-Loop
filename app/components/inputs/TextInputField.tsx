@@ -75,11 +75,10 @@ export default function TextInputField({
   return (
     <View>
       {/* LABEL */}
+      {/* Label is 600; the input below stays regular. */}
       {label && (
         <Pressable onPress={focusInput}>
-          <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
-            {label}
-          </Text>
+          <Text className="font-roboto-semibold text-[16px] text-lhlInk">{label}</Text>
         </Pressable>
       )}
 

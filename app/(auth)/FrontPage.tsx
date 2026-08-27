@@ -17,42 +17,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PrimaryButton from '../components/buttons/PrimaryButton';
 
-// Side margins from the design: hero card at 45px, copy block at 32px.
 const CARD_MARGIN = 45;
 const TEXT_MARGIN = 32;
 
-/**
- * NOTHING BELOW THE HERO IS ALLOWED TO MOVE BETWEEN SLIDES.
- *
- * Every measurement here that looks over-specified is holding one of the three
- * things that used to shift as you swiped:
- *
- *  1. Each hero declared its own aspect ratio (634/742, 626/656, 624/656), so
- *     slide 1's card was ~10% taller than the other two and everything under it
- *     started lower.
- *  2. Each title declared its own size (30, 26, 30) and the copy wraps to a
- *     different number of lines per slide, so the pagination dots sat at three
- *     different heights.
- *  3. The footer grew by a whole button on the last slide, which pushed the
- *     carousel viewport shorter and moved the artwork up mid-swipe.
- *
- * The fix in each case is to reserve the worst case and let the flexible part
- * absorb the slack, rather than letting content decide the layout.
- */
-
-/** The copy block is a fixed box: eyebrow + up to 2 title lines + up to 3 of
- *  body, measured at the widest phone wrap. Shorter copy leaves space rather
- *  than pulling the dots up. */
-const TEXT_BLOCK_HEIGHT = 194;
-
-/** One size for all three titles. Per-slide sizes were the design compensating
- *  for the longest string; the reserved block does that job now. */
 const TITLE_SIZE = 28;
+
+// The text block is content-sized, not the old fixed 194px (the height of the
+// tallest possible copy), which left ~50px of slack below shorter slides.
+const TEXT_PILL_GAP = 32;
+
+// Keeps the hero from shrinking when the bottom content takes up more room.
+const HERO_HEIGHT_RATIO = 0.86;
 
 const BUTTON_HEIGHT = 55;
 const BUTTON_GAP = 16;
-/** Reserved on EVERY slide, not just the last, so the primary CTA does not jump
- *  when the second button appears. */
+
+// Figma's 90 was measured against the old fixed-height text block; against the
+// content-sized one it drops the CTAs to the bottom edge. Fixed, not a flexible
+// spacer — a growing spacer pins the footer to the bottom of the screen.
+const PAGINATION_BUTTON_GAP = 48;
+
+// Reserve room for both buttons on every slide so the layout doesn't jump when
+// the second one appears. Bottom-aligned below, so the lone "Continue" lands on
+// the same baseline as "Already Have An Account" on the last slide.
 const FOOTER_HEIGHT = BUTTON_HEIGHT * 2 + BUTTON_GAP;
 
 interface Slide {
@@ -74,7 +61,7 @@ const SLIDES: Slide[] = [
   },
   {
     id: 'people',
-    hero: require('@/assets/images/onboarding-people-hero.webp'),
+    hero: require('@/assets/images/onboarding-two-phones-opposite.webp'),
     eyebrow: 'FIND YOUR PEOPLE',
     title: 'Make Campus Feel Smaller',
     subtitle:
@@ -82,7 +69,7 @@ const SLIDES: Slide[] = [
   },
   {
     id: 'yours',
-    hero: require('@/assets/images/onboarding-yours-hero.webp'),
+    hero: require('@/assets/images/onboarding-bevo-walking-path.webp'),
     eyebrow: 'MAKE IT YOURS',
     title: 'Your Loop, Your Path',
     subtitle: 'Loop learns what matters to you and builds a feed around your interests.',
@@ -94,105 +81,174 @@ export default function FrontPage() {
   const { update } = useOnboarding();
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
+
   const listRef = useRef<FlatList<Slide>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const isLastSlide = activeIndex >= SLIDES.length - 1;
+  const activeSlide = SLIDES[activeIndex];
+  const isLastSlide = activeIndex === SLIDES.length - 1;
 
   const goNext = () => {
-    listRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
+    if (isLastSlide) return;
+
+    listRef.current?.scrollToIndex({
+      index: activeIndex + 1,
+      animated: true,
+    });
   };
 
-  // onScroll rather than onMomentumScrollEnd, which doesn't fire on web.
+  // Updates the text and pagination based on which hero is currently visible.
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = Math.round(e.nativeEvent.contentOffset.x / width);
-    setActiveIndex((prev) => (prev === next ? prev : next));
+    const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+
+    if (nextIndex >= 0 && nextIndex < SLIDES.length && nextIndex !== activeIndex) {
+      setActiveIndex(nextIndex);
+    }
   };
 
-  const renderSlide = ({ item, index }: ListRenderItemInfo<Slide>) => (
-    <View style={{ width, height: '100%' }} className="items-center pt-[30px]">
-      {/* The hero takes whatever the fixed blocks below do not, so the card
-          scales with the device instead of overflowing a small one — and it is
-          the same box on all three slides, which is what stops the shift. */}
-      <View style={{ width: width - CARD_MARGIN * 2, flex: 1 }}>
-        <Image source={item.hero} style={{ width: '100%', height: '100%' }} contentFit="contain" />
-      </View>
-
-      <View style={{ width: width - TEXT_MARGIN * 2, height: TEXT_BLOCK_HEIGHT, marginTop: 14 }}>
-        <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
-          {item.eyebrow}
-        </Text>
-
-        <Text
-          style={{ marginTop: 29, fontSize: TITLE_SIZE }}
-          numberOfLines={2}
-          className="text-center font-roboto-bold text-lhlInk"
-        >
-          {item.title}
-        </Text>
-
-        <Text
-          style={{ marginTop: 12 }}
-          numberOfLines={3}
-          className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
-        >
-          {item.subtitle}
-        </Text>
-      </View>
-
-      {/* Active dot is a 32x13 pill, the rest 13px circles. */}
-      <View className="flex-row items-center pb-2" style={{ gap: 10 }}>
-        {SLIDES.map((slide, i) =>
-          i === index ? (
-            <View key={slide.id} className="h-[13px] w-8 rounded-full bg-lhlBurntOrange" />
-          ) : (
-            <View
-              key={slide.id}
-              className="h-[13px] w-[13px] rounded-full"
-              style={{ backgroundColor: colors.placeholder }}
-            />
-          ),
-        )}
+  // Only this hero section physically moves when the user swipes.
+  const renderHero = ({ item }: ListRenderItemInfo<Slide>) => (
+    <View
+      style={{
+        width,
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: width - CARD_MARGIN * 2,
+          height: '100%',
+        }}
+      >
+        <Image
+          source={item.hero}
+          style={{
+            width: '100%',
+            height: '100%',
+          }}
+          contentFit="contain"
+        />
       </View>
     </View>
   );
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top', 'bottom']}>
-      <View className="flex-row items-center pt-6" style={{ gap: 13, paddingLeft: CARD_MARGIN }}>
+      {/* Header stays fixed */}
+      <View
+        className="flex-row items-center pt-6"
+        style={{
+          gap: 13,
+          paddingLeft: CARD_MARGIN - 30,
+        }}
+      >
         <LonghornLoopLogo size={35} />
+
         <Text className="font-roboto-bold text-[22px] text-lhlInk">Longhorn Loop</Text>
       </View>
 
-      <FlatList
-        ref={listRef}
-        className="flex-1"
-        data={SLIDES}
-        keyExtractor={(s) => s.id}
-        renderItem={renderSlide}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        // Every item is exactly one screen wide, so we can tell the list that
-        // instead of making it measure — scrollToIndex warns without this.
-        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-      />
+      {/* Only the image carousel moves */}
+      <View
+        style={{
+          height: width * HERO_HEIGHT_RATIO,
+          marginTop: 30,
+        }}
+      >
+        <FlatList
+          ref={listRef}
+          data={SLIDES}
+          keyExtractor={(item) => item.id}
+          renderItem={renderHero}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          getItemLayout={(_, index) => ({
+            length: width,
+            offset: width * index,
+            index,
+          })}
+        />
+      </View>
 
-      {/* Fixed height: the last slide adds a button, and without the reservation
-          that resize propagates up into the carousel and moves the artwork. */}
-      <View className="px-5 pb-2 pt-4">
-        <View style={{ height: FOOTER_HEIGHT, gap: BUTTON_GAP }}>
+      {/* This stays in place. Only the words change. */}
+      <View
+        style={{
+          width: width - TEXT_MARGIN * 2,
+          alignSelf: 'center',
+          marginTop: 14,
+        }}
+      >
+        <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
+          {activeSlide.eyebrow}
+        </Text>
+
+        <Text
+          style={{
+            marginTop: 29,
+            fontSize: TITLE_SIZE,
+          }}
+          numberOfLines={2}
+          className="text-center font-roboto-bold text-lhlInk"
+        >
+          {activeSlide.title}
+        </Text>
+
+        <Text
+          style={{
+            marginTop: 12,
+          }}
+          numberOfLines={3}
+          className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
+        >
+          {activeSlide.subtitle}
+        </Text>
+      </View>
+
+      {/* Pagination doesn't move. Only the active pill changes. */}
+      <View
+        className="flex-row items-center justify-center"
+        style={{ gap: 10, marginTop: TEXT_PILL_GAP }}
+      >
+        {SLIDES.map((slide, index) =>
+          index === activeIndex ? (
+            <View key={slide.id} className="h-[13px] w-8 rounded-full bg-lhlBurntOrange" />
+          ) : (
+            <View
+              key={slide.id}
+              className="h-[13px] w-[13px] rounded-full"
+              style={{
+                backgroundColor: colors.placeholder,
+              }}
+            />
+          ),
+        )}
+      </View>
+
+      <View style={{ height: PAGINATION_BUTTON_GAP }} />
+
+      {/* Buttons stay fixed */}
+      <View className="px-5 pb-2">
+        <View
+          style={{
+            height: FOOTER_HEIGHT,
+            gap: BUTTON_GAP,
+            justifyContent: 'flex-end',
+          }}
+        >
           <PrimaryButton
             label={isLastSlide ? 'Get Started' : 'Continue'}
             isFilled
             onPress={isLastSlide ? () => router.push('/RegisterPage') : goNext}
           />
+
           {isLastSlide && (
             <Pressable
               style={{ height: BUTTON_HEIGHT }}
-              className="flex-row items-center justify-center rounded-lg border-2 border-lhlBorderColor bg-lhlSurface"
+              className="flex-row items-center justify-center rounded-lg border border-lhlBorderColor bg-lhlSurface"
               onPress={() => router.push('/LoginPage')}
             >
               <Text className="font-roboto-semibold text-xl text-lhlAccent">
@@ -203,15 +259,17 @@ export default function FrontPage() {
         </View>
       </View>
 
-      {/* Dev-only bypass: skip auth and onboarding straight to the feed.
-          Absolutely positioned so a dev build lays out identically to the one
-          testers get — otherwise we tune spacing against a screen 20px shorter
-          than the real thing. */}
+      {/* Dev-only bypass */}
       {__DEV__ && (
         <Pressable
           className="absolute bottom-1 left-0 right-0 items-center"
           onPress={() => {
-            update({ firstName: 'Dev', lastName: 'User', email: 'dev@utexas.edu' });
+            update({
+              firstName: 'Dev',
+              lastName: 'User',
+              email: 'dev@utexas.edu',
+            });
+
             router.replace('/(tabs)/home');
           }}
         >

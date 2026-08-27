@@ -54,7 +54,8 @@
       "expo-web-browser",
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,
