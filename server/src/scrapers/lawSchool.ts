@@ -21,6 +21,7 @@ import { stripHtml, truncateLocation } from '../events/normalize';
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const FEED_URL = 'https://law.utexas.edu/calendar/feed/ics/';
 export const SOURCE = 'ut_law';
@@ -204,6 +205,7 @@ export function parseVevent(block: string, now = Date.now()): NormalizedEvent | 
     description,
     startDatetime,
     endDatetime,
+    venueType: inferVenueType(locationFull, null),
     locationShort: truncateLocation(locationFull),
     locationFull,
     latitude: null,

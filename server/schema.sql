@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS events (
   description TEXT,
   start_datetime TEXT NOT NULL,
   end_datetime TEXT,
+  venue_type TEXT NOT NULL DEFAULT 'in_person',
   location_short TEXT,
   location_full TEXT,
   latitude REAL,
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS events (
 -- Cleanup job (LOOP-150) and past-events view (LOOP-200) both filter on these
 CREATE INDEX IF NOT EXISTS idx_events_is_archived ON events(is_archived);
 CREATE INDEX IF NOT EXISTS idx_events_created_by_user_id ON events(created_by_user_id);
+CREATE INDEX idx_events_venue_type ON events(venue_type);
 
 -- User settings -- preferences, notification toggles, delivery channels
 -- (LOOP-184). Created lazily; absent row means "all defaults".

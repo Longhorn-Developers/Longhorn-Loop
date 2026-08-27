@@ -26,6 +26,7 @@ import {
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://liberalarts.utexas.edu';
 // Explicit page parameters make the API return JSON:API pagination metadata.
@@ -223,6 +224,7 @@ export function parseApiEvent(event: ColaApiEvent, now = Date.now()): Normalized
     description: cleanText(attributes.summary) ?? cleanText(attributes.body_content),
     startDatetime,
     endDatetime,
+    venueType: inferVenueType(locationFull, null),
     locationShort: truncateLocation(locationFull),
     locationFull,
     latitude: null,

@@ -21,6 +21,7 @@ type EventRow = Record<string, unknown> & {
   title: string;
   start_datetime: string;
   end_datetime: string;
+  venue_type: string;
   created_by_user_id: number;
 };
 
@@ -116,27 +117,28 @@ class FakeD1Database {
         description: params[3] as string | null,
         start_datetime: params[4] as string,
         end_datetime: params[5] as string,
-        location_short: params[6] as string | null,
-        location_full: params[7] as string | null,
-        latitude: params[8] as number | null,
-        longitude: params[9] as number | null,
+        venue_type: params[6] as string,
+        location_short: params[7] as string | null,
+        location_full: params[8] as string | null,
+        latitude: params[9] as number | null,
+        longitude: params[10] as number | null,
         host_organization_id: null,
-        host_organization_name: params[10] as string,
-        event_url: params[11] as string | null,
-        rsvp_url: params[12] as string | null,
-        image_url: params[13] as string | null,
-        image_width: params[14] as number | null,
-        image_height: params[15] as number | null,
-        image_aspect_ratio: params[16] as string,
-        image_mime_type: params[17] as string | null,
-        image_alt_text: params[18] as string | null,
-        theme: params[19] as string | null,
+        host_organization_name: params[11] as string,
+        event_url: params[12] as string | null,
+        rsvp_url: params[13] as string | null,
+        image_url: params[14] as string | null,
+        image_width: params[15] as number | null,
+        image_height: params[16] as number | null,
+        image_aspect_ratio: params[17] as string,
+        image_mime_type: params[18] as string | null,
+        image_alt_text: params[19] as string | null,
+        theme: params[20] as string | null,
         visibility: 'Public',
         rsvp_total: 0,
         status: 'active',
-        expires_at: params[20] as string,
+        expires_at: params[21] as string,
         is_featured: 0,
-        created_by_user_id: params[21] as number,
+        created_by_user_id: params[22] as number,
         is_archived: 0,
         archived_at: null,
       };
@@ -261,6 +263,7 @@ describe('POST /events/create', () => {
         title: 'Board Game Night',
         description: 'Bring a friend and a favorite game.',
         start_datetime: '2026-07-07T19:00:00-05:00',
+        venue_type: 'in_person',
         location: 'GDC 2.216',
         rsvp_url: 'https://example.test/rsvp',
         discoveryBucket: 'gaming',
@@ -276,6 +279,7 @@ describe('POST /events/create', () => {
       title: 'Board Game Night',
       start_datetime: '2026-07-08T00:00:00.000Z',
       end_datetime: '2026-07-08T00:00:00.000Z',
+      venue_type: 'in_person',
       location_short: 'GDC 2.216',
       location_full: 'GDC 2.216',
       host_organization_name: 'Bevo Student',
@@ -302,6 +306,7 @@ describe('POST /events/create', () => {
       {
         title: 'Board Game Night',
         start_datetime: '2026-07-07T19:00:00-05:00',
+        venue_type: 'in_person',
         discoveryBucket: 'gaming',
         // 'Board Games' is a real gaming tag; 'Not A Tag' is not and is skipped.
         categories: ['Board Games', 'Not A Tag'],
@@ -356,6 +361,7 @@ describe('POST /events/create', () => {
       {
         title: 'Flyer Event',
         startDatetime: '2026-07-07T19:00:00-05:00',
+        venue_type: 'in_person',
         image: {
           data: `data:image/png;base64,${PNG_1X1_BASE64}`,
           filename: 'flyer.png',

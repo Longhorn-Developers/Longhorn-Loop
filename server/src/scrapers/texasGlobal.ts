@@ -21,6 +21,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://global.utexas.edu';
 const LISTING_URL = `${BASE_URL}/events`;
@@ -199,6 +200,7 @@ export function parseEventCard(cardHtml: string, now = Date.now()): NormalizedEv
     description: null, // filled in by the orchestrator from the detail page
     startDatetime: range.start,
     endDatetime: range.end,
+    venueType: inferVenueType(locationName, null),
     locationShort: locationName ? locationName.slice(0, 40) : null,
     locationFull: locationName,
     latitude: null,

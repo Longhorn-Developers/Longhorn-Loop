@@ -10,6 +10,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://events.moody.utexas.edu';
 const LISTING_URL = `${BASE_URL}/upcoming-events`;
@@ -292,6 +293,7 @@ export function parseMoodyEvent(
     description: schema?.description?.trim() || listing.description,
     startDatetime: listing.startDatetime,
     endDatetime,
+    venueType: inferVenueType(location, null),
     locationShort: location ? location.slice(0, 40) : null,
     locationFull: location,
     latitude: null,
