@@ -1,3 +1,22 @@
+// The preview card that slides up when you tap a pin on the Explore map.
+//
+// THE CARD IS THE BUTTON. It used to carry a small "View" pill in the actions
+// column, which made the primary action the smallest thing on a card the width
+// of the screen — and left the other 90% of it inert, so tapping the title or
+// the thumbnail did nothing. Every map app puts the whole preview under one
+// press. The pill is gone and `onViewDetails` moved onto the card itself; the
+// prop is unchanged, so the caller did not have to move with it.
+//
+// The two remaining controls are the exceptions to that press, which is what
+// nested touchables already do: a tap that lands on close or save is handled
+// there and never reaches the card.
+//
+// Both were well under the platform minimums — an 11x12 glyph in a 28pt box
+// against Apple's 44pt and Android's 48dp. They are 40pt boxes now, with
+// hitSlop taking them past 48, and the glyphs inside grew to match. Dismiss
+// sits above save because it is the one people reach for by muscle memory and
+// the top-right corner is where a dismissible card trains them to look.
+
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import LocationIcon from '@/assets/images/location.svg';
@@ -5,7 +24,11 @@ import XCloseIcon from '@/assets/images/x-close.svg';
 import { ApiEvent, formatEventDate } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Pressable, Text, TouchableOpacity, View } from 'react-native';
+
+/** 40pt visual + 4/6pt hitSlop clears both 44pt (iOS) and 48dp (Android). */
+const ACTION_SIZE = 40;
+const ACTION_HIT_SLOP = { top: 6, bottom: 6, left: 6, right: 6 };
 
 interface EventMiniCardProps {
   event: ApiEvent;
@@ -25,8 +48,11 @@ export default function EventMiniCard({
   const colors = useThemeColors();
 
   return (
-    <View
-      style={{
+    <Pressable
+      onPress={() => onViewDetails(event.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${event.title}`}
+      style={({ pressed }) => ({
         margin: 16,
         backgroundColor: colors.surface,
         borderRadius: 16,
@@ -41,7 +67,10 @@ export default function EventMiniCard({
         elevation: 6,
         borderWidth: 1,
         borderColor: colors.border,
-      }}
+        // The only affordance that the card is pressable at all, now that the
+        // pill is gone.
+        opacity: pressed ? 0.85 : 1,
+      })}
     >
       {/* Thumbnail */}
       <View
@@ -92,55 +121,46 @@ export default function EventMiniCard({
         location lines ran almost into the buttons, which is the bug bash's "need
         more whitespace to the left of the buttons".
       */}
-      <View style={{ alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
+      <View style={{ alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
         {/*
           The app's close glyph, not a literal ✕ character in a grey circle.
-          Same asset and size RsvpSuccessToast uses, and the circled variant was
-          called out at the bug bash (see the note in inputs/TextInputField.tsx —
-          it was never in the Figma). The box stays 28px so the column keeps its
-          alignment; only the chip behind it is gone.
+          Same asset RsvpSuccessToast uses, and the circled variant was called
+          out at the bug bash (see the note in inputs/TextInputField.tsx — it
+          was never in the Figma).
         */}
         <TouchableOpacity
           onPress={onDismiss}
           accessibilityRole="button"
           accessibilityLabel="Dismiss"
-          hitSlop={8}
+          hitSlop={ACTION_HIT_SLOP}
           style={{
-            width: 28,
-            height: 28,
+            width: ACTION_SIZE,
+            height: ACTION_SIZE,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <XCloseIcon width={11} height={12} color={colors.inkMuted} />
+          <XCloseIcon width={15} height={16} color={colors.inkMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => onToggleSave(event.id)}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? 'Remove from saved' : 'Save event'}
+          accessibilityState={{ selected: isSaved }}
+          hitSlop={ACTION_HIT_SLOP}
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 14,
+            width: ACTION_SIZE,
+            height: ACTION_SIZE,
+            borderRadius: ACTION_SIZE / 2,
             backgroundColor: isSaved ? colors.brandSoft : colors.surfaceMuted,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <BookmarkGlyph saved={isSaved} width={10} height={13} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => onViewDetails(event.id)}
-          style={{
-            paddingHorizontal: 10,
-            paddingVertical: 5,
-            backgroundColor: colors.brand,
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF' }}>View</Text>
+          <BookmarkGlyph saved={isSaved} width={14} height={18} />
         </TouchableOpacity>
       </View>
-    </View>
+    </Pressable>
   );
 }
