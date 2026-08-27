@@ -11,6 +11,14 @@
 // nested touchables already do: a tap that lands on close or save is handled
 // there and never reaches the card.
 //
+// TouchableOpacity rather than Pressable, and a plain style object rather than
+// a ({ pressed }) => style function. Every other touchable in this file and on
+// the Explore screen is a TouchableOpacity with an object style; a Pressable
+// carrying a function style and no className is a different path through
+// NativeWind's transform, and the first version of this card lost its
+// background, border and row layout on device while rendering correctly on
+// web. Not worth being clever about — activeOpacity gives the same dimming.
+//
 // Both were well under the platform minimums — an 11x12 glyph in a 28pt box
 // against Apple's 44pt and Android's 48dp. They are 40pt boxes now, with
 // hitSlop taking them past 48, and the glyphs inside grew to match. Dismiss
@@ -24,7 +32,7 @@ import XCloseIcon from '@/assets/images/x-close.svg';
 import { ApiEvent, formatEventDate } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
-import { Image, Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 
 /** 40pt visual + 4/6pt hitSlop clears both 44pt (iOS) and 48dp (Android). */
 const ACTION_SIZE = 40;
@@ -48,11 +56,14 @@ export default function EventMiniCard({
   const colors = useThemeColors();
 
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={() => onViewDetails(event.id)}
       accessibilityRole="button"
       accessibilityLabel={`View ${event.title}`}
-      style={({ pressed }) => ({
+      // The dimming is the only affordance that the card is pressable at all,
+      // now that the pill is gone.
+      activeOpacity={0.85}
+      style={{
         margin: 16,
         backgroundColor: colors.surface,
         borderRadius: 16,
@@ -67,10 +78,7 @@ export default function EventMiniCard({
         elevation: 6,
         borderWidth: 1,
         borderColor: colors.border,
-        // The only affordance that the card is pressable at all, now that the
-        // pill is gone.
-        opacity: pressed ? 0.85 : 1,
-      })}
+      }}
     >
       {/* Thumbnail */}
       <View
@@ -161,6 +169,6 @@ export default function EventMiniCard({
           <BookmarkGlyph saved={isSaved} width={14} height={18} />
         </TouchableOpacity>
       </View>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
