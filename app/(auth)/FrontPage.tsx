@@ -8,6 +8,7 @@ import {
   FlatList,
   ListRenderItemInfo,
   Pressable,
+  StyleSheet,
   Text,
   useWindowDimensions,
   View,
@@ -22,12 +23,37 @@ const TEXT_MARGIN = 32;
 
 const TITLE_SIZE = 28;
 
+// Two lines are reserved for the title whether or not this slide needs them.
+// "Make Campus Feel Smaller" wraps to two; the other two titles are one line —
+// so without the reservation the pagination and the CTA below it sat 33pt lower
+// on slide two and hopped back up on slide three. Only the title is pinned, not
+// the whole copy block: the title is the part that actually varies today, and
+// reserving the block wholesale is what left the slack under the short slides.
+const TITLE_LINE_HEIGHT = 34;
+const TITLE_BLOCK_HEIGHT = TITLE_LINE_HEIGHT * 2;
+
 // The text block is content-sized, not the old fixed 194px (the height of the
 // tallest possible copy), which left ~50px of slack below shorter slides.
 const TEXT_PILL_GAP = 32;
 
 // Keeps the hero from shrinking when the bottom content takes up more room.
 const HERO_HEIGHT_RATIO = 0.86;
+
+// The artwork's own aspect ratio, from the 312x328 Figma card. The hero box is
+// declared at this ratio rather than filling the band, so all three slides draw
+// the card at exactly one size.
+//
+// Without it the box is the full band and `contentFit="contain"` sizes each
+// image against whichever edge it hits first — so an asset exported at a
+// different ratio silently renders taller and narrower than its neighbours, and
+// the art appears to change size as you swipe. That is what happened when slide
+// one was still on the old 634x742 export while slides two and three had moved
+// to 936x984: same box, three different pictures inside it.
+//
+// Declared here it is the box that is fixed. A future asset at the wrong ratio
+// letterboxes inside a constant frame, which reads as a smaller picture rather
+// than as the layout moving.
+const HERO_ASPECT = 312 / 328;
 
 const BUTTON_HEIGHT = 55;
 const BUTTON_GAP = 16;
@@ -53,7 +79,7 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     id: 'campus',
-    hero: require('@/assets/images/onboarding-explore-hero.webp'),
+    hero: require('@/assets/images/onboarding-explore-feed.webp'),
     eyebrow: 'STAY IN THE LOOP',
     title: 'Campus, all in one place',
     subtitle:
@@ -87,6 +113,7 @@ export default function FrontPage() {
 
   const activeSlide = SLIDES[activeIndex];
   const isLastSlide = activeIndex === SLIDES.length - 1;
+  const heroBandHeight = width * HERO_HEIGHT_RATIO;
 
   const goNext = () => {
     if (isLastSlide) return;
@@ -107,11 +134,15 @@ export default function FrontPage() {
   };
 
   // Only this hero section physically moves when the user swipes.
+  //
+  // The cell is the height of the artwork band, not of the list. The list is
+  // taller than the band now (it reaches down over the copy, so that area
+  // swipes too) and a full-height cell would stretch the picture into it.
   const renderHero = ({ item }: ListRenderItemInfo<Slide>) => (
     <View
       style={{
         width,
-        height: '100%',
+        height: heroBandHeight,
         alignItems: 'center',
         justifyContent: 'center',
       }}
@@ -119,7 +150,7 @@ export default function FrontPage() {
       <View
         style={{
           width: width - CARD_MARGIN * 2,
-          height: '100%',
+          aspectRatio: HERO_ASPECT,
         }}
       >
         <Image
@@ -149,15 +180,63 @@ export default function FrontPage() {
         <Text className="font-roboto-bold text-[22px] text-lhlInk">Longhorn Loop</Text>
       </View>
 
-      {/* Only the image carousel moves */}
-      <View
-        style={{
-          height: width * HERO_HEIGHT_RATIO,
-          marginTop: 30,
-        }}
-      >
+      {/* The artwork and the copy share one box, and the carousel is stretched
+          across the whole of it.
+
+          Only the art moved before, because the list was only as tall as the
+          art — so a swipe that started on the heading, which is where a thumb
+          naturally lands, hit a plain View and did nothing. The picture being
+          the only live target is not something a user can see; they just find
+          that the gesture works in one place and not in another an inch below.
+
+          So: the band and the copy sit in normal flow and size this box between
+          them, and the list is laid over the top of both. Its cells draw the
+          art in the band and leave the rest transparent, which is what lets the
+          copy underneath show through. The copy is not inside the list — it
+          still belongs to activeIndex and still stays put while you swipe. The
+          list is only here to catch the gesture. */}
+      <View style={{ marginTop: 30 }}>
+        <View style={{ height: heroBandHeight }} />
+
+        {/* This stays in place. Only the words change. */}
+        <View
+          style={{
+            width: width - TEXT_MARGIN * 2,
+            alignSelf: 'center',
+            marginTop: 14,
+          }}
+        >
+          <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
+            {activeSlide.eyebrow}
+          </Text>
+
+          <Text
+            style={{
+              marginTop: 29,
+              fontSize: TITLE_SIZE,
+              lineHeight: TITLE_LINE_HEIGHT,
+              height: TITLE_BLOCK_HEIGHT,
+            }}
+            numberOfLines={2}
+            className="text-center font-roboto-bold text-lhlInk"
+          >
+            {activeSlide.title}
+          </Text>
+
+          <Text
+            style={{
+              marginTop: 12,
+            }}
+            numberOfLines={3}
+            className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
+          >
+            {activeSlide.subtitle}
+          </Text>
+        </View>
+
         <FlatList
           ref={listRef}
+          style={StyleSheet.absoluteFill}
           data={SLIDES}
           keyExtractor={(item) => item.id}
           renderItem={renderHero}
@@ -172,40 +251,6 @@ export default function FrontPage() {
             index,
           })}
         />
-      </View>
-
-      {/* This stays in place. Only the words change. */}
-      <View
-        style={{
-          width: width - TEXT_MARGIN * 2,
-          alignSelf: 'center',
-          marginTop: 14,
-        }}
-      >
-        <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
-          {activeSlide.eyebrow}
-        </Text>
-
-        <Text
-          style={{
-            marginTop: 29,
-            fontSize: TITLE_SIZE,
-          }}
-          numberOfLines={2}
-          className="text-center font-roboto-bold text-lhlInk"
-        >
-          {activeSlide.title}
-        </Text>
-
-        <Text
-          style={{
-            marginTop: 12,
-          }}
-          numberOfLines={3}
-          className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
-        >
-          {activeSlide.subtitle}
-        </Text>
       </View>
 
       {/* Pagination doesn't move. Only the active pill changes. */}
