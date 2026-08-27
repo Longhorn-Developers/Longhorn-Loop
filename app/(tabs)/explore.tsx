@@ -1,6 +1,6 @@
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
-import MapViewWrapper, { LocatedEvent } from '@/app/components/MapViewWrapper';
+import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
 import ExploreToggles, {
   ExploreSelection,
   selectionKey,
@@ -160,6 +160,21 @@ export default function ExploreScreen() {
     },
     [router],
   );
+
+  /**
+   * Where the map camera was when it last settled.
+   *
+   * Lives up here rather than inside MapViewWrapper because the point is to
+   * survive that component unmounting: body() below returns a spinner instead
+   * of the map whenever the events query has no data yet, which happens every
+   * time the query key changes. A ref inside the map would die with it.
+   *
+   * A ref, not state -- nothing should re-render because the camera moved.
+   */
+  const lastRegion = useRef<MapRegion | null>(null);
+  const handleRegionSettled = useCallback((region: MapRegion) => {
+    lastRegion.current = region;
+  }, []);
 
   const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
@@ -412,6 +427,8 @@ export default function ExploreScreen() {
           selectedEventId={selectedEventId}
           onPinPress={handlePinPress}
           onMapPress={() => setSelectedEventId(null)}
+          initialRegion={lastRegion.current ?? undefined}
+          onRegionSettled={handleRegionSettled}
         />
 
         {/* Mini preview card anchored to bottom, rendered above the map */}
