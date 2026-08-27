@@ -1,6 +1,6 @@
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
-import MapViewWrapper, { LocatedEvent } from '@/app/components/MapViewWrapper';
+import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
 import ExploreToggles, {
   ExploreSelection,
   selectionKey,
@@ -55,6 +55,20 @@ function matchesEvent(event: ApiEvent, needle: string): boolean {
 
   return haystack.some((field) => field != null && field.toLowerCase().includes(needle));
 }
+
+/** The "Explore" title, and the list/map toggle measured against it. */
+const HEADER_TITLE_SIZE = 32;
+
+/**
+ * Matches the title's line box (~1.2x its font size), so the toggle and the
+ * word "Explore" occupy the same vertical band.
+ */
+const TOGGLE_HEIGHT = Math.round(HEADER_TITLE_SIZE * 1.2);
+const TOGGLE_INSET = 3;
+const TOGGLE_ICON_SIZE = 22;
+
+/** Takes each 32x42 button to 44x50 — past the 44pt floor, same control height. */
+const TOGGLE_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 };
 
 export default function ExploreScreen() {
   const colors = useThemeColors();
@@ -147,6 +161,21 @@ export default function ExploreScreen() {
     [router],
   );
 
+  /**
+   * Where the map camera was when it last settled.
+   *
+   * Lives up here rather than inside MapViewWrapper because the point is to
+   * survive that component unmounting: body() below returns a spinner instead
+   * of the map whenever the events query has no data yet, which happens every
+   * time the query key changes. A ref inside the map would die with it.
+   *
+   * A ref, not state -- nothing should re-render because the camera moved.
+   */
+  const lastRegion = useRef<MapRegion | null>(null);
+  const handleRegionSettled = useCallback((region: MapRegion) => {
+    lastRegion.current = region;
+  }, []);
+
   const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
     setSelectedEventId(null);
@@ -203,18 +232,30 @@ export default function ExploreScreen() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <CompassIcon size={28} color={colors.ink} weight="bold" />
-          <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>Explore</Text>
+          <Text style={{ fontSize: HEADER_TITLE_SIZE, fontWeight: '700', color: colors.ink }}>
+            Explore
+          </Text>
         </View>
 
         {/* Toggle hidden on web — react-native-maps has no web renderer — and on
-            the Orgs feed, which has nothing to map. */}
+            the Orgs feed, which has nothing to map.
+
+            Sized against the title rather than by eye: the control is
+            TOGGLE_HEIGHT tall so its box matches the line box of "Explore"
+            beside it, which is what stops it reading as a small thing floating
+            next to a big one. The icons grew with it — 18px glyphs in a 38px
+            control were the smallest tap targets on the screen and the hardest
+            to see. hitSlop takes each button past the 44pt floor without
+            making the control any taller than the title. */}
         {!IS_WEB && selection.kind !== 'orgs' && (
           <View
             style={{
               flexDirection: 'row',
+              alignItems: 'center',
+              height: TOGGLE_HEIGHT,
               backgroundColor: colors.surfaceMuted,
               borderRadius: 10,
-              padding: 3,
+              padding: TOGGLE_INSET,
             }}
           >
             <TouchableOpacity
@@ -225,14 +266,18 @@ export default function ExploreScreen() {
               accessibilityRole="button"
               accessibilityLabel="List view"
               accessibilityState={{ selected: viewMode === 'list' }}
+              hitSlop={TOGGLE_HIT_SLOP}
               style={{
-                padding: 7,
+                height: TOGGLE_HEIGHT - TOGGLE_INSET * 2,
+                paddingHorizontal: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
                 borderRadius: 8,
                 backgroundColor: viewMode === 'list' ? colors.surface : 'transparent',
               }}
             >
               <ListIcon
-                size={18}
+                size={TOGGLE_ICON_SIZE}
                 color={viewMode === 'list' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
@@ -242,14 +287,18 @@ export default function ExploreScreen() {
               accessibilityRole="button"
               accessibilityLabel="Map view"
               accessibilityState={{ selected: viewMode === 'map' }}
+              hitSlop={TOGGLE_HIT_SLOP}
               style={{
-                padding: 7,
+                height: TOGGLE_HEIGHT - TOGGLE_INSET * 2,
+                paddingHorizontal: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
                 borderRadius: 8,
                 backgroundColor: viewMode === 'map' ? colors.surface : 'transparent',
               }}
             >
               <MapPin
-                size={18}
+                size={TOGGLE_ICON_SIZE}
                 color={viewMode === 'map' ? colors.accent : colors.inkMuted}
                 weight="bold"
               />
@@ -378,6 +427,8 @@ export default function ExploreScreen() {
           selectedEventId={selectedEventId}
           onPinPress={handlePinPress}
           onMapPress={() => setSelectedEventId(null)}
+          initialRegion={lastRegion.current ?? undefined}
+          onRegionSettled={handleRegionSettled}
         />
 
         {/* Mini preview card anchored to bottom, rendered above the map */}
