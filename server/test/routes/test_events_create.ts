@@ -361,6 +361,7 @@ describe('POST /events/create', () => {
       {
         title: 'Flyer Event',
         startDatetime: '2026-07-07T19:00:00-05:00',
+        venue_type: 'in_person',
         image: {
           data: `data:image/png;base64,${PNG_1X1_BASE64}`,
           filename: 'flyer.png',

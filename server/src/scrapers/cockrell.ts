@@ -17,6 +17,7 @@ import { classifyAspectRatio, fetchImageMeta, stripHtml } from '../events/normal
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const API_BASE = 'https://cockrell.utexas.edu/wp-json/wp/v2/event';
 export const SOURCE = 'cockrell';

@@ -17,6 +17,7 @@ import { ingestEvents } from '../events/ingest';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://finearts.utexas.edu';
 const LISTING_URL = `${BASE_URL}/events`;

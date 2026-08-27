@@ -10,6 +10,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://events.moody.utexas.edu';
 const LISTING_URL = `${BASE_URL}/upcoming-events`;

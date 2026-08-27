@@ -26,6 +26,7 @@ import {
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://liberalarts.utexas.edu';
 // Explicit page parameters make the API return JSON:API pagination metadata.

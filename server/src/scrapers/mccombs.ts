@@ -18,6 +18,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const SITEMAP_INDEX_URL = 'https://calendar.mccombs.utexas.edu/sitemap.livewhale.xml';
 export const SOURCE = 'mccombs';

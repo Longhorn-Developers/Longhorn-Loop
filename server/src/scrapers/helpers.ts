@@ -1,4 +1,4 @@
-function inferVenueType(location: string | null | undefined, address: string | null | undefined): 'in_person' | 'online' {
+export function inferVenueType(location: string | null | undefined, address: string | null | undefined): 'in_person' | 'online' {
   const text = `${location ?? ''} ${address ?? ''}`.toLowerCase();
 
   const onlineIndicators = [

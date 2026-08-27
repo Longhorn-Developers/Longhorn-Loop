@@ -17,6 +17,7 @@ import {
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { ImageAspectRatio, NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const API_BASE = 'https://calendar.utexas.edu/api/2/events';
 // Confirmed against https://calendar.utexas.edu/department/college-of-pharmacy.

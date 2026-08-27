@@ -13,6 +13,7 @@ import {
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 // Types
 
