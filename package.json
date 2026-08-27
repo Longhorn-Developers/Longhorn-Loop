@@ -38,6 +38,7 @@
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
+    "expo-video": "~3.0.16",
     "expo-web-browser": "~15.0.10",
     "nativewind": "^4.2.2",
     "phosphor-react-native": "^3.0.4",

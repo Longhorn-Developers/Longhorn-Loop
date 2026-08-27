@@ -27,7 +27,7 @@ const ERROR_MESSAGES: Record<ErrorField, string> = {
 
 export default function CreateAccount() {
   const router = useRouter();
-  const { update } = useOnboarding();
+  const { update, reset } = useOnboarding();
 
   const [errorField, setErrorField] = useState<ErrorField | null>(null);
 
@@ -84,11 +84,26 @@ export default function CreateAccount() {
 
   const allFilled = selectedMajors.length > 0 && selectedYear !== '' && selectedUnique.length > 0;
 
+  // index.tsx REDIRECTS here to resume onboarding, which replaces the route
+  // rather than pushing — so there's no history and back() would dispatch an
+  // unhandled GO_BACK. Backing out then means abandoning the half-finished
+  // signup: reset() clears secure storage too, without which index.tsx would
+  // read the same token and redirect straight back.
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    reset();
+    router.replace('/');
+  };
+
   return (
     <FlowLayout
       title="Begin Your Journey"
       subTitle="Let's create your account!"
-      onBackPress={() => router.back()}
+      onBackPress={handleBack}
       showProgressBar={true}
       step={1}
       totalSteps={4}

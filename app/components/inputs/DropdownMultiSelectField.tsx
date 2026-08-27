@@ -55,9 +55,7 @@ export default function DropdownMultiSelectField({
     <View>
       {label && (
         <Pressable onPress={onToggle}>
-          <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
-            {label}
-          </Text>
+          <Text className="font-roboto-semibold text-[16px] text-lhlInk">{label}</Text>
         </Pressable>
       )}
 

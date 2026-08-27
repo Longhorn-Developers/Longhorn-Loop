@@ -138,7 +138,7 @@ export default function RegisterPage() {
         />
       </View>
 
-      <View className="mt-[42px] mx-2">
+      <View className="mt-[42px]">
         <PrimaryButton
           label={loading ? 'Sending...' : 'Sign Up'}
           isFilled={isEmailValid && !loading}

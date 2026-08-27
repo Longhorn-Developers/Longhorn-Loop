@@ -4,11 +4,13 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as NativeSplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
+import AnimatedSplash from './components/AnimatedSplash';
 import { OnboardingProvider } from './context/OnboardingContext';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';
-import { useThemeColors } from './lib/themeColors';
 import { initMonitoring } from './lib/monitoring';
+import { useThemeColors } from './lib/themeColors';
 
 // One QueryClient for the whole app. 30s staleTime means same-key queries
 // won't refetch within 30s of the last fetch. Mutations still force fresh
@@ -108,6 +110,9 @@ export default function RootLayout() {
   // Native can't pick a weight off a single variable font, so a shared family
   // collides and renders one weight everywhere. tailwind maps font-roboto-*
   // onto these.
+
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
   const [fontsLoaded, fontError] = useFonts({
     'Roboto-Flex': require('../assets/fonts/RobotoFlex-VariableFont.ttf'),
     'Roboto-Flex-Medium': require('../assets/fonts/RobotoFlex-Medium.ttf'),
@@ -135,7 +140,15 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <OnboardingProvider>
         <ThemeProvider>
-          <ThemedStack />
+          {/* The splash floats OVER the navigator rather than replacing it. As
+              a ternary it faded out over nothing and the first screen mounted
+              cold afterwards — a pop, not a cross-fade. This also lets session
+              hydration happen behind the video. */}
+          <View className="flex-1">
+            <ThemedStack />
+
+            {showAnimatedSplash && <AnimatedSplash onFinish={() => setShowAnimatedSplash(false)} />}
+          </View>
         </ThemeProvider>
       </OnboardingProvider>
     </QueryClientProvider>

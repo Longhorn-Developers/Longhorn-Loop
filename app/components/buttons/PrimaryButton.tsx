@@ -24,7 +24,9 @@ export default function PrimaryButton({
 }: PrimaryButtonProps) {
   const colors = useThemeColors();
 
-  const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
+  // Unfilled is still a primary action, so it takes the heavier lhlInk outline
+  // rather than the lighter control border.
+  const borderColorClass = isFilled ? 'border-lhlBurntOrange' : 'border-lhlInk';
 
   const backgroundColorClass = isFilled ? 'bg-lhlBurntOrange' : 'bg-lhlSurface';
 
@@ -38,7 +40,7 @@ export default function PrimaryButton({
 
   return (
     <Pressable
-      className={`flex-row items-center justify-center gap-x-2 h-[55px] border-2 rounded-lg px-2 relative ${borderColorClass} ${backgroundColorClass}`}
+      className={`flex-row items-center justify-center gap-x-2 h-[55px] border rounded-lg px-2 relative ${borderColorClass} ${backgroundColorClass}`}
       disabled={disabled || isLoading}
       {...props}
     >
