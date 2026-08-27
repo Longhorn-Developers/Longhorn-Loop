@@ -199,6 +199,7 @@ export function parseEventCard(cardHtml: string, now = Date.now()): NormalizedEv
     description: null, // filled in by the orchestrator from the detail page
     startDatetime: range.start,
     endDatetime: range.end,
+    venueType: inferVenueType(locationName, null),
     locationShort: locationName ? locationName.slice(0, 40) : null,
     locationFull: locationName,
     latitude: null,

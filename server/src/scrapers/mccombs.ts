@@ -181,6 +181,7 @@ export function parseEventFromHtml(html: string, pageUrl: string): NormalizedEve
     description,
     startDatetime: event.startDate,
     endDatetime: event.endDate ?? null,
+    venueType: inferVenueType(locationString, null),
     locationShort: buildLocationShort(locationString),
     locationFull: buildLocationFull(locationString),
     latitude: null,

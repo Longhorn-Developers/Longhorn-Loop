@@ -223,6 +223,7 @@ export function parseApiEvent(event: ColaApiEvent, now = Date.now()): Normalized
     description: cleanText(attributes.summary) ?? cleanText(attributes.body_content),
     startDatetime,
     endDatetime,
+    venueType: inferVenueType(locationFull, null),
     locationShort: truncateLocation(locationFull),
     locationFull,
     latitude: null,

@@ -176,6 +176,7 @@ export function parseEventInstance(
     description: stripHtml(event.description),
     startDatetime: eventInstance.start,
     endDatetime: eventInstance.end ?? null,
+    venueType: inferVenueType(venue, event.address),
     locationShort: buildLocationShort(venue || event.address),
     locationFull: buildLocationFull(venue, event.address),
     latitude: parseCoordinate(event.geo?.latitude ?? null),

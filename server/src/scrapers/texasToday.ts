@@ -141,6 +141,7 @@ export function parseEventInstance(
     endDatetime: inst.end ?? null,
     // Fall back to the street address when Localist has no named venue.
     // Research studies and off-campus events often lack e.location.
+    venueType: inferVenueType(e.location, e.address),
     locationShort: buildLocationShort(e.location || e.address),
     locationFull: buildLocationFull(e.location, e.address),
     latitude: null,

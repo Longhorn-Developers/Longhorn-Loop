@@ -110,6 +110,7 @@ function toNormalizedEvent(raw: HornsLinkEvent): NormalizedEvent {
     description: stripHtml(raw.description),
     startDatetime: raw.startsOn,
     endDatetime: raw.endsOn,
+    venueType: inferVenueType(raw.location, null),
     locationShort: truncateLocation(raw.location),
     locationFull: raw.location,
     latitude: parseCoordinate(raw.latitude),

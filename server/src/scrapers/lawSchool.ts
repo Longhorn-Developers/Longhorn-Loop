@@ -204,6 +204,7 @@ export function parseVevent(block: string, now = Date.now()): NormalizedEvent | 
     description,
     startDatetime,
     endDatetime,
+    venueType: inferVenueType(locationFull, null),
     locationShort: truncateLocation(locationFull),
     locationFull,
     latitude: null,

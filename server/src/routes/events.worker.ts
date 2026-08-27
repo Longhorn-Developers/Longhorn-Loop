@@ -712,6 +712,12 @@ eventRoutes.post('/create', async (c) => {
     errors.end_datetime = 'Must be on or after start_datetime';
   }
 
+  const venueType = readStringField(body, ['venue_type', 'venueType']);
+
+  if (venueType !== 'in_person' && venueType !== 'online') {
+    errors.venue_type = 'Must be either in_person or online';
+  }
+
   const locationObject = isRecord(body.location) ? body.location : null;
   const locationFull =
     parseOptionalString(
@@ -777,7 +783,7 @@ eventRoutes.post('/create', async (c) => {
   const result = await c.env.DB.prepare(
     `INSERT INTO events (
        source, source_event_id, title, description,
-       start_datetime, end_datetime, location_short, location_full,
+       start_datetime, end_datetime, venue_type, location_short, location_full,
        latitude, longitude, host_organization_name,
        event_url, rsvp_url,
        image_url, image_width, image_height,
@@ -786,7 +792,7 @@ eventRoutes.post('/create', async (c) => {
        created_by_user_id
      ) VALUES (
        ?, ?, ?, ?,
-       ?, ?, ?, ?,
+       ?, ?, ?, ?, ?,
        ?, ?, ?,
        ?, ?,
        ?, ?, ?,
@@ -802,6 +808,7 @@ eventRoutes.post('/create', async (c) => {
       description,
       startDatetime,
       endDatetime,
+      venueType,
       locationShort,
       locationFull,
       latitude,

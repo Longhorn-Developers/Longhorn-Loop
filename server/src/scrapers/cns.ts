@@ -153,6 +153,7 @@ export function parseEventInstance(
     startDatetime: inst.start,
     endDatetime: inst.end ?? null,
     // Fall back to the street address when Localist has no named venue.
+    venueType: inferVenueType(e.location, e.address),
     locationShort: buildLocationShort(e.location || e.address),
     locationFull: buildLocationFull(e.location, e.address),
     latitude: null,

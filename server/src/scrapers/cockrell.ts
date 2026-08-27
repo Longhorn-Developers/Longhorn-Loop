@@ -156,6 +156,7 @@ export function parseWpEvent(ev: WpEvent, now = Date.now()): NormalizedEvent | n
     description: stripHtml(decodeHtmlEntities(ev.excerpt.rendered)),
     startDatetime,
     endDatetime,
+    venueType: inferVenueType(location, null),
     locationShort: location?.slice(0, 40) ?? null,
     locationFull: location,
     latitude: null,
