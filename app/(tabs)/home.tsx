@@ -193,9 +193,15 @@ export default function HomeScreen() {
                 bell means nothing is waiting; a filled one means something is.
                 That reads at a glance and without relying on colour, which
                 matters for the ~8% of men with a red-green deficiency — and it
-                still works if the badge is clipped at the screen edge. */}
+                still works if the badge is clipped at the screen edge.
+
+                Both weights are ink. The filled bell used to be brand orange,
+                which made the icon compete with the count pill sitting on top
+                of it — two orange things overlapping, and the state you were
+                meant to read was the shape. Orange stays on the badge, where it
+                is the only thing wearing it. */}
             {unreadCount > 0 ? (
-              <BellFilledIcon width={22} height={25} color={colors.brand} />
+              <BellFilledIcon width={22} height={25} color={colors.ink} />
             ) : (
               <BellIcon width={22} height={25} color={colors.ink} />
             )}
