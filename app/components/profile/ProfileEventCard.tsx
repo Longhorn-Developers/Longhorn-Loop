@@ -52,7 +52,7 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             />
           </>
         ) : (
-          <EventFlyerPlaceholder />
+          <EventFlyerPlaceholder seed={event.id} />
         )}
 
         {onToggleSave ? (

@@ -531,7 +531,7 @@ export default function EventDetailScreen() {
                 ) : (
                   // Was a grey box reading "No image", which told the user
                   // nothing and looked like a failed load.
-                  <EventFlyerPlaceholder />
+                  <EventFlyerPlaceholder seed={event?.id} />
                 )}
               </View>
             </View>

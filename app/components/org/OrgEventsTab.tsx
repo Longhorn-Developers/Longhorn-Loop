@@ -292,7 +292,7 @@ function OrgEventRow({
             resizeMode="cover"
           />
         ) : (
-          <EventFlyerPlaceholder />
+          <EventFlyerPlaceholder seed={event.id} />
         )}
       </View>
 

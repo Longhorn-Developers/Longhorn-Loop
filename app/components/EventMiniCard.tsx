@@ -98,7 +98,7 @@ export default function EventMiniCard({
             resizeMode="cover"
           />
         ) : (
-          <EventFlyerPlaceholder />
+          <EventFlyerPlaceholder seed={event.id} />
         )}
       </View>
 
