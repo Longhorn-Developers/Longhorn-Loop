@@ -27,6 +27,7 @@ import EngagementChart, {
   buildWeeklySeries,
   type WeeklyRow,
 } from '@/app/components/org/EngagementChart';
+import EditOrgProfileModal from '@/app/components/org/EditOrgProfileModal';
 import OrgEventsTab from '@/app/components/org/OrgEventsTab';
 import InviteEditorModal from '@/app/components/modals/InviteEditorModal';
 import ProfileModal, { ModalAction } from '@/app/components/modals/ProfileModal';
@@ -54,6 +55,7 @@ interface OrgHeaderResponse {
     name: string;
     profile_picture: string | null;
     verified: boolean;
+    bio: string | null;
     follower_count: number;
     following_count: number;
     event_count: number;
@@ -131,6 +133,7 @@ export default function OrgConsoleScreen() {
   // Read once, as the initial value: the param seeds where the console opens,
   // it does not pin it, so tapping another tab still works.
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : 'members');
+  const [editingProfile, setEditingProfile] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [eventFilter, setEventFilter] = useState<'all' | number>('all');
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -273,6 +276,38 @@ export default function OrgConsoleScreen() {
                 </Text>
               </View>
             </View>
+          </View>
+
+          {/* --- Description (LOOP-261) ---
+              Admin-only edit, matching PATCH /orgs/:orgId. An editor sees the
+              text but not the affordance; the endpoint re-checks the role
+              regardless, so hiding it is a courtesy rather than the boundary.
+              The empty state is a prompt rather than blank space, because a
+              missing description is the state EVERY org is in today. */}
+          <View className="mt-[12px]">
+            {org?.bio ? (
+              <Text className="font-['Roboto-Flex'] text-[13px] leading-[18px] text-lhlInk">
+                {org.bio}
+              </Text>
+            ) : (
+              <Text className="font-['Roboto-Flex'] text-[13px] italic text-lhlSecondaryTextGrey">
+                No description yet.
+              </Text>
+            )}
+
+            {header.data?.role === 'admin' ? (
+              <Pressable
+                onPress={() => setEditingProfile(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit organization profile"
+                hitSlop={8}
+                className="mt-[8px] self-start rounded-full border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[6px]"
+              >
+                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                  {org?.bio ? 'Edit Profile' : 'Add a description'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <View className="mt-[14px] flex-row gap-[8px]">
@@ -546,6 +581,14 @@ export default function OrgConsoleScreen() {
           ) : null}
         </ScrollView>
       )}
+
+      <EditOrgProfileModal
+        visible={editingProfile}
+        orgId={orgId}
+        token={token}
+        bio={org?.bio ?? null}
+        onClose={() => setEditingProfile(false)}
+      />
 
       {/* Invite Editor (LOOP-182) wired to its real endpoint. */}
       <InviteEditorModal

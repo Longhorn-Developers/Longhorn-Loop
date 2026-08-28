@@ -1,6 +1,7 @@
 import StepPills from '@/app/components/StepPills';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
+import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
@@ -55,6 +56,9 @@ async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
   appendOptional(form, 'rsvp_url', data.rsvpUrl);
   if (data.discoveryBucket) form.append('discoveryBucket', data.discoveryBucket);
   if (data.eventType) form.append('event_type', data.eventType);
+  if (data.benefits.length > 0) {
+    form.append('benefits', JSON.stringify(data.benefits));
+  }
   if (data.interestTags.length > 0) {
     form.append('categories', JSON.stringify(data.interestTags));
   }
@@ -232,6 +236,40 @@ export default function OptionalExtras() {
             />
           </View>
 
+          {/* Perks. Multi-select, because an event can offer more than one and
+              the filter is an OR over the set. Options come from
+              shared/eventBenefits.ts, which is also what the HornsLink scrape
+              writes — so a user event and a scraped one answer the same
+              `?benefit=` query (LOOP-259). */}
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Perks</Text>
+            <View style={styles.perkRow}>
+              {EVENT_BENEFIT_OPTIONS.map((perk) => {
+                const isSelected = data.benefits.includes(perk);
+                return (
+                  <TouchableOpacity
+                    key={perk}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSelected }}
+                    accessibilityLabel={perk}
+                    onPress={() =>
+                      update({
+                        benefits: isSelected
+                          ? data.benefits.filter((b) => b !== perk)
+                          : [...data.benefits, perk],
+                      })
+                    }
+                    style={[styles.perkChip, isSelected && styles.perkChipSelected]}
+                  >
+                    <Text style={[styles.perkText, isSelected && styles.perkTextSelected]}>
+                      {perk}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>RSVP Link</Text>
             <TextInput
@@ -365,6 +403,31 @@ const makeStyles = (c: ThemeColors) =>
     uploadImage: {
       width: '100%',
       height: '100%',
+    },
+    perkRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    perkChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    perkChipSelected: {
+      borderColor: c.brand,
+      backgroundColor: c.brand,
+    },
+    perkText: {
+      fontSize: 14,
+      color: c.ink,
+    },
+    perkTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
     input: {
       backgroundColor: c.surface,

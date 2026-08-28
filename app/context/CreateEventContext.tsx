@@ -56,6 +56,8 @@ export interface CreateEventData {
   endDatetime: string | null;
   locationFull: string;
   rsvpUrl: string;
+  /** Perks offered at the event -- writes event_benefits (LOOP-259). */
+  benefits: string[];
   imageUrl: string | null;
   imageName: string | null;
   imageMimeType: string | null;
@@ -100,6 +102,7 @@ const DEFAULT_DATA: CreateEventData = {
   endDatetime: null,
   locationFull: '',
   rsvpUrl: '',
+  benefits: [],
   imageUrl: null,
   imageName: null,
   imageMimeType: null,
