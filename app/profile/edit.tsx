@@ -28,7 +28,6 @@ import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingM
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import PillDropdownField from '@/app/components/inputs/PillDropdownField';
 import SearchablePillDropdownField from '@/app/components/inputs/SearchablePillDropdownField';
-import AvatarPickerModal from '@/app/components/profile/AvatarPickerModal';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
@@ -56,7 +55,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
-import type { AvatarConfig } from '@/shared/avatar';
+import { DEFAULT_AVATAR_CONFIG, type AvatarConfig } from '@/shared/avatar';
 import { BIO_WARN_REMAINING, MAX_BIO, normalizeBio } from '@/shared/bio';
 
 /** Mirrors UNIQUE_CLASS_OPTIONS in app/(onboarding)/CreateAccount.tsx. */
@@ -123,7 +122,6 @@ export default function EditProfileScreen() {
 
   // --- Modal state ---------------------------------------------------------
   const [showPicker, setShowPicker] = useState(false);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [pendingPlatform, setPendingPlatform] = useState<SocialPlatformId | null>(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
@@ -187,11 +185,6 @@ export default function EditProfileScreen() {
           tags,
         },
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.me() }),
-  });
-
-  const saveAvatar = useMutation({
-    mutationFn: (avatar: number) => api.patch('/users/me/profile', { token, body: { avatar } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.me() }),
   });
 
@@ -336,7 +329,18 @@ export default function EditProfileScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Edit photo"
-                onPress={() => setShowAvatarPicker(true)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/profile/customize-bevo',
+                    params: {
+                      mode: 'edit',
+                      // Same builder as onboarding (LOOP-XXX) — pass the
+                      // committed config as JSON since customize-bevo has no
+                      // other way to read an already-saved profile.
+                      initial: JSON.stringify(loaded?.avatar_config ?? DEFAULT_AVATAR_CONFIG),
+                    },
+                  })
+                }
                 className="mt-[10px] rounded-full border border-lhlInk bg-lhlSurface px-[16px] py-[5px]"
               >
                 <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
@@ -640,13 +644,6 @@ export default function EditProfileScreen() {
       </KeyboardAvoidingView>
 
       {/* --- Modals --- */}
-      <AvatarPickerModal
-        visible={showAvatarPicker}
-        value={loaded?.avatar ?? null}
-        onSelect={(id) => saveAvatar.mutate(id)}
-        onClose={() => setShowAvatarPicker(false)}
-      />
-
       <ChooseApplicationModal
         visible={showPicker}
         connected={connected}

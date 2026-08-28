@@ -399,6 +399,60 @@ userRoutes.get('/me', async (c) => {
   });
 });
 
+/**
+ * PATCH /me/profile accepts multipart/form-data (the Edit Profile Picture
+ * screen's photo upload, app/profile/edit-avatar.tsx) or plain JSON
+ * otherwise — mirrors readProfileSubmission's content-type branch, but
+ * CANNOT reuse it directly: that reader coerces an absent field to `null`,
+ * which is correct for the onboarding upsert (a full-payload write) but
+ * wrong here, where PATCH only touches keys actually present in the body. A
+ * `null` standing in for "wasn't sent" would make every PATCH try to blank
+ * out first_name/last_name/etc.
+ */
+async function readProfilePatchBody(
+  request: Request,
+): Promise<{ body: Record<string, unknown>; uploadedPhoto: File | null } | null> {
+  const contentType = request.headers.get('Content-Type') ?? '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData().catch(() => null);
+    if (!form) return null;
+
+    const photoValue = form.get('photo');
+    const uploadedPhoto =
+      photoValue && isFileLike(photoValue) && photoValue.size > 0 ? photoValue : null;
+
+    const body: Record<string, unknown> = {};
+    const stringField = (key: string) => {
+      const value = readFormValue(form, key);
+      if (value !== null) body[key] = value;
+    };
+    const arrayField = (key: string) => {
+      const value = readFormArray(form, key);
+      if (value !== null) body[key] = value;
+    };
+    stringField('first_name');
+    stringField('last_name');
+    stringField('avatar_config');
+    stringField('year_classification');
+    stringField('bio');
+    // A bare "null" form value is how the client asks to clear the photo
+    // without uploading a new one (Edit Profile Picture's "Remove"), since
+    // FormData can't carry a real null.
+    const profilePhotoUrl = readFormValue(form, 'profile_photo_url');
+    if (profilePhotoUrl === 'null') body.profile_photo_url = null;
+    arrayField('unique_classification');
+    arrayField('majors');
+    arrayField('tags');
+
+    return { body, uploadedPhoto };
+  }
+
+  const json = await request.json().catch(() => null);
+  if (!json || typeof json !== 'object') return null;
+  return { body: json as Record<string, unknown>, uploadedPhoto: null };
+}
+
 // PATCH /users/me/profile -- Edit Profile save (LOOP-181, extends LOOP-130).
 //
 // Distinct from POST /me/profile, which is the onboarding upsert and requires
@@ -411,13 +465,16 @@ userRoutes.patch('/me/profile', async (c) => {
   const userId = await getUserId(c.env.DB, user.email);
   if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
-  const body = await c.req.json().catch(() => null);
-  if (!body || typeof body !== 'object') return c.json({ error: 'INVALID_BODY' }, 400);
+  const submission = await readProfilePatchBody(c.req.raw);
+  if (!submission) return c.json({ error: 'INVALID_BODY' }, 400);
+  const { body, uploadedPhoto } = submission;
 
   const {
     first_name,
     last_name,
     avatar,
+    avatar_config,
+    profile_photo_url,
     year_classification,
     unique_classification,
     bio,
@@ -461,6 +518,13 @@ userRoutes.patch('/me/profile', async (c) => {
   if (avatar !== undefined) {
     sets.push('avatar = ?');
     binds.push(avatar);
+  }
+  if (avatar_config !== undefined) {
+    // Same normalize-then-serialize path as the onboarding upsert (LOOP-XXX
+    // Bevo customization) — total by construction, so a crafted body can't
+    // wedge an invalid palette/hat id into the column.
+    sets.push('avatar_config = ?');
+    binds.push(serializeAvatarConfig(avatar_config));
   }
   if (year_classification !== undefined) {
     sets.push('year_classification = ?');

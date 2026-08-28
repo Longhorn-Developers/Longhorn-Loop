@@ -1,13 +1,25 @@
-// Customize Bevo — Figma "Customize Bevo" (node 3998:6927), reached from the
-// "Customize Bevo Avatar" row on Add a Profile Picture (app/(onboarding)/Avatar.tsx).
+// Customize Bevo — Figma "Customize Bevo" (node 3998:6927).
 //
-// This screen has no return-value mechanism back to Avatar.tsx (expo-router
-// doesn't have one), so "Done" hands its result off through
-// OnboardingContext's `pendingBevoConfig` rather than the committed
-// `avatarConfig` — Avatar.tsx only folds it into the real committed value
-// when ITS OWN "Save Changes" fires, so backing out of Avatar.tsx with
-// "Cancel" still discards it. See the field's doc comment in
-// OnboardingContext.tsx.
+// Reached from two places, distinguished by the `mode` route param:
+//
+//  - Onboarding: pushed from "Customize Bevo Avatar" on Add a Profile
+//    Picture (app/(onboarding)/Avatar.tsx). This screen has no return-value
+//    mechanism back to Avatar.tsx (expo-router doesn't have one), so "Done"
+//    hands its result off through OnboardingContext's `pendingBevoConfig`
+//    rather than the committed `avatarConfig` — Avatar.tsx only folds it
+//    into the real committed value when ITS OWN "Save Changes" fires, so
+//    backing out of Avatar.tsx with "Cancel" still discards it. See the
+//    field's doc comment in OnboardingContext.tsx.
+//  - Edit Profile (`mode=edit`, LOOP-XXX): pushed from the Edit Profile
+//    Picture screen (app/profile/edit-avatar.tsx), which plays the same role
+//    Avatar.tsx plays in onboarding — it's the actual save boundary. "Done"
+//    here stages through `pendingBevoConfig` exactly like onboarding does
+//    (OnboardingContext is mounted at the app root, not just during
+//    onboarding, so it's available post-onboarding too); edit-avatar.tsx
+//    reads it back as its live preview and only hits the server on its own
+//    "Save Changes". The header bar (back/title/reset) is hidden in this
+//    mode: edit-avatar.tsx already has its own back affordance, and a second
+//    one stacked on top of it read as a broken double-header.
 //
 // The warm cream/tan palette here (preview panel, tile chrome) is
 // deliberately fixed rather than themed — it's part of the Bevo illustration
@@ -18,18 +30,22 @@ import BevoAvatar from '@/app/components/avatar/BevoAvatar';
 import { HAT_ART, PATTERN_TILES } from '@/app/components/avatar/bevoAccessories';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import {
+  BEVO_BACKGROUND_COLORS,
+  BEVO_BACKGROUNDS,
   BEVO_PALETTES,
   BEVO_PATTERNS,
   BEVO_PALETTE_COLORS,
+  normalizeAvatarConfig,
   type AvatarConfig,
+  type BevoBackground,
   type BevoHat,
   type BevoPalette,
   type BevoPattern,
 } from '@/shared/avatar';
-import { useRouter } from 'expo-router';
-import { ArrowClockwiseIcon, ArrowLeftIcon } from 'phosphor-react-native';
-import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowClockwiseIcon, ArrowLeftIcon, PaintBucketIcon } from 'phosphor-react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Rect } from 'react-native-svg';
 
@@ -76,6 +92,235 @@ const DRAG_HANDLE = '#B08A4E'; // theme-exempt: fixed Bevo-world drag-handle ind
 const SKINS_ICON_COLOR = '#563427'; // theme-exempt: fixed Bevo-world tab icon colour, from the Figma icon source
 const TAB_ICON_COLOR = '#331400'; // theme-exempt: fixed Bevo-world tab icon colour, from the Figma icon source (Colors, Accessories)
 
+// 'custom' first (opens the hex picker below), then the presets in the order
+// the reference rail shows them.
+const BACKGROUND_RAIL_ORDER: BevoBackground[] = ['custom', 'none', 'seafoam', 'rosy', 'mint', 'slate'];
+const BACKGROUND_SWATCH_SIZE = 34;
+
+function BackgroundSwatchCircle({
+  background,
+  active,
+  customColor,
+  onPress,
+}: {
+  background: BevoBackground;
+  active: boolean;
+  /** Only read when background === 'custom' — previews whatever hex was last applied. */
+  customColor?: string;
+  onPress: () => void;
+}) {
+  const fill =
+    background === 'none'
+      ? CARD_BG // theme-exempt: "no background" swatch renders as a plain outline on the card colour
+      : background === 'custom'
+        ? (customColor ?? CARD_BG)
+        : BEVO_BACKGROUND_COLORS[background];
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        background === 'custom'
+          ? 'Custom background colour'
+          : background === 'none'
+            ? 'No background'
+            : `${background} background`
+      }
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={{
+        width: BACKGROUND_SWATCH_SIZE,
+        height: BACKGROUND_SWATCH_SIZE,
+        borderRadius: BACKGROUND_SWATCH_SIZE / 2,
+        borderWidth: active ? 2.5 : 1.5,
+        borderColor: INK, // theme-exempt: fixed Bevo-world swatch border
+        backgroundColor: fill,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {background === 'custom' ? <PaintBucketIcon size={16} color={INK} /> : null}
+    </Pressable>
+  );
+}
+
+/**
+ * Vertical rail of PFP background swatches, overlaid on the preview panel's
+ * top-right corner (per the reference design). Only sets a value here — this
+ * full-body preview keeps its own fixed Bevo-world tan regardless of what's
+ * picked; the background actually shows up wherever the avatar renders as a
+ * small circular picture elsewhere in the app (profile header, badges).
+ */
+function BackgroundColorRail({
+  value,
+  customColor,
+  onChange,
+  onRequestCustom,
+}: {
+  value: BevoBackground;
+  customColor?: string;
+  onChange: (background: BevoBackground) => void;
+  onRequestCustom: () => void;
+}) {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        gap: 8,
+        backgroundColor: CARD_BG, // theme-exempt: fixed Bevo-world rail chrome
+        borderRadius: BACKGROUND_SWATCH_SIZE,
+        padding: 6,
+        borderWidth: 1.5,
+        borderColor: TILE_BORDER, // theme-exempt: fixed Bevo-world rail border
+      }}
+    >
+      {BACKGROUND_RAIL_ORDER.map((background) => (
+        <BackgroundSwatchCircle
+          key={background}
+          background={background}
+          active={value === background}
+          customColor={customColor}
+          onPress={() => (background === 'custom' ? onRequestCustom() : onChange(background))}
+        />
+      ))}
+    </View>
+  );
+}
+
+/** Simple hex-entry dialog for the rail's "custom" swatch. Not a full HSV/RGB
+ * picker — react-native has no built-in colour picker and this repo doesn't
+ * pull in a component library for one, so a validated hex field is the
+ * pragmatic v1. Easy to swap for a richer picker later without touching
+ * anything else, since callers only ever see a resolved hex string. */
+function CustomColorModal({
+  visible,
+  initialHex,
+  onCancel,
+  onApply,
+}: {
+  visible: boolean;
+  initialHex?: string;
+  onCancel: () => void;
+  onApply: (hex: string) => void;
+}) {
+  const [hex, setHex] = useState(initialHex ?? TAN_BG);
+
+  useEffect(() => {
+    if (visible) setHex(initialHex ?? TAN_BG);
+  }, [visible, initialHex]);
+
+  const isValid = /^#[0-9a-fA-F]{6}$/.test(hex);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.4)', // theme-exempt: fixed modal scrim
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
+      >
+        <View
+          style={{
+            width: '100%',
+            maxWidth: 320,
+            backgroundColor: CARD_BG, // theme-exempt: fixed Bevo-world modal chrome
+            borderRadius: 20,
+            borderWidth: 2,
+            borderColor: INK,
+            padding: 20,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: 'Baloo2-Bold',
+              fontSize: 16,
+              color: TILE_LABEL_TEXT,
+              marginBottom: 12,
+            }}
+          >
+            Custom background colour
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1.5,
+                borderColor: TILE_BORDER,
+                backgroundColor: isValid ? hex : CARD_BG,
+              }}
+            />
+            <TextInput
+              value={hex}
+              onChangeText={setHex}
+              placeholder="#RRGGBB"
+              placeholderTextColor={TILE_BORDER}
+              autoCapitalize="characters"
+              maxLength={7}
+              style={{
+                flex: 1,
+                fontFamily: 'Baloo2-Regular',
+                fontSize: 15,
+                color: TILE_LABEL_TEXT,
+                borderWidth: 1.5,
+                borderColor: TILE_BORDER,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+              }}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              onPress={onCancel}
+              style={{
+                flex: 1,
+                height: 44,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: TILE_BORDER,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontFamily: 'Baloo2-Bold', fontSize: 14, color: TILE_LABEL_TEXT }}>
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Apply"
+              disabled={!isValid}
+              onPress={() => isValid && onApply(hex)}
+              style={{
+                flex: 1,
+                height: 44,
+                borderRadius: 14,
+                backgroundColor: BURNT_ORANGE, // theme-exempt: fixed Bevo-world primary action
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: isValid ? 1 : 0.5,
+              }}
+            >
+              <Text style={{ fontFamily: 'Baloo2-Bold', fontSize: 14, color: '#FFFFFF' }}>
+                Apply
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 /** The universal "no selection" glyph — a rounded-square outline with a diagonal slash, matching Figma's None/Classic tiles. */
 function NoneGlyph() {
   return (
@@ -115,7 +360,16 @@ function Tile({
   onPress: () => void;
   children: React.ReactNode;
 }) {
+  // Swatch ground colour — tan when unselected, the lighter cream card colour
+  // when selected. Applied to both the outer card and the inner swatch box so
+  // there's no seam of white between them.
+  const swatchGround = selected ? '#F2E0BA' : '#DFAB74'; // theme-exempt: fixed Bevo-world tile ground colours, per design spec
+
   return (
+    // Fixed 70x70 per design spec (not flex:1 — a tile keeps its size
+    // regardless of how many share a row), so TileRow spaces them out
+    // instead of stretching them to fill the card width.
+    //
     // Shadow lives on this outer, unclipped view — overflow:hidden (needed to
     // clip the header/body corners below) would also clip the shadow itself
     // if the two were combined on one view.
@@ -125,11 +379,11 @@ function Tile({
       accessibilityState={{ selected }}
       onPress={onPress}
       style={{
-        flex: 1,
+        width: 70,
         borderRadius: 12,
         borderWidth: selected ? 2.5 : 1.5,
         borderColor: selected ? INK : TILE_BORDER, // theme-exempt: fixed Bevo-world tile border
-        backgroundColor: '#FFFFFF',
+        backgroundColor: swatchGround,
         shadowColor: '#3A2410', // theme-exempt: fixed Bevo-world tile drop shadow
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.15,
@@ -158,10 +412,13 @@ function Tile({
         </View>
         <View
           style={{
-            aspectRatio: 1.35,
+            width: 70,
+            height: 70,
+            aspectRatio: 1,
+            flexShrink: 0,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: '#FFFFFF', // theme-exempt: fixed Bevo-world tile swatch ground
+            backgroundColor: swatchGround,
             padding: 9,
           }}
         >
@@ -173,7 +430,13 @@ function Tile({
 }
 
 function TileRow({ children }: { children: React.ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>{children}</View>;
+  return (
+    <View
+      style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}
+    >
+      {children}
+    </View>
+  );
 }
 
 /** Splits a list into rows of 3, padding the last row with invisible spacers so tiles keep their width. */
@@ -383,53 +646,86 @@ function Pedestal({ width = 84 }: { width?: number }) {
 
 export default function CustomizeBevo() {
   const router = useRouter();
+  const { mode, initial: initialParam } = useLocalSearchParams<{
+    mode?: string;
+    /** JSON-encoded AvatarConfig, only set by Edit Profile's push. */
+    initial?: string;
+  }>();
+  const isEditMode = mode === 'edit';
   const { data, update } = useOnboarding();
+
+  // normalizeAvatarConfig is total (falls back to the default Bevo on
+  // anything malformed), so a bad/missing param can't crash this screen.
+  // Only meaningful in edit mode — edit-avatar.tsx passes the profile's real,
+  // server-persisted config, since OnboardingContext's own `avatarConfig`
+  // reflects the onboarding flow, not necessarily what's actually saved.
+  const editInitial = isEditMode
+    ? normalizeAvatarConfig(initialParam ? JSON.parse(initialParam) : undefined)
+    : null;
 
   // The screen's own working copy — nothing here touches OnboardingContext
   // until "Done". initial captures what to revert to on "Reset".
-  const [initial] = useState<AvatarConfig>(data.pendingBevoConfig ?? data.avatarConfig);
+  const [initial] = useState<AvatarConfig>(
+    editInitial ?? data.pendingBevoConfig ?? data.avatarConfig,
+  );
   const [draft, setDraft] = useState<AvatarConfig>(initial);
   const [tab, setTab] = useState<Tab>('skins');
+  const [showCustomColorModal, setShowCustomColorModal] = useState(false);
 
   const setPalette = (palette: BevoPalette) => setDraft((d) => ({ ...d, palette }));
   const setPattern = (pattern: BevoPattern) => setDraft((d) => ({ ...d, pattern }));
   const setHat = (hat: BevoHat) => setDraft((d) => ({ ...d, hat }));
+  const setBackground = (background: BevoBackground) => setDraft((d) => ({ ...d, background }));
 
   const handleReset = () => setDraft(initial);
 
   const handleDone = () => {
+    // Same transport either way — see the header comment on why edit mode
+    // reuses pendingBevoConfig instead of saving directly.
     update({ pendingBevoConfig: draft });
     router.back();
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PAGE_BG }} edges={['top']}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
+      {/* Edit Profile already renders its own back affordance one screen
+          down the stack — a second back/title/reset bar here would double
+          up, so this whole row is onboarding-only. Reset is still reachable
+          via the button pinned above Done at the bottom either way. */}
+      {!isEditMode && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+          }}
         >
-          <ArrowLeftIcon size={22} color={TILE_LABEL_TEXT} />
-        </Pressable>
-        <Text style={{ fontFamily: 'Baloo2-Regular', fontSize: 17, color: TILE_LABEL_TEXT }}>
-          Customize Bevo
-        </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Reset" onPress={handleReset}>
-          <ArrowClockwiseIcon size={20} color={TILE_LABEL_TEXT} />
-        </Pressable>
-      </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => router.back()}
+          >
+            <ArrowLeftIcon size={22} color={TILE_LABEL_TEXT} />
+          </Pressable>
+          <Text style={{ fontFamily: 'Baloo2-Regular', fontSize: 17, color: TILE_LABEL_TEXT }}>
+            Customize Bevo
+          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Reset" onPress={handleReset}>
+            <ArrowClockwiseIcon size={20} color={TILE_LABEL_TEXT} />
+          </Pressable>
+        </View>
+      )}
 
       <View
-        style={{ backgroundColor: TAN_BG, alignItems: 'center', paddingTop: 8, paddingBottom: 14 }}
+        style={{
+          backgroundColor: TAN_BG,
+          alignItems: 'center',
+          paddingTop: 8,
+          paddingBottom: 14,
+          position: 'relative',
+        }}
       >
         {/* zIndex keeps Bevo painting over the pedestal in the overlap zone
             below (Pedestal's own negative marginTop) — otherwise the
@@ -439,6 +735,13 @@ export default function CustomizeBevo() {
           <BevoAvatar config={draft} height={128} />
         </View>
         <Pedestal width={150} />
+
+        <BackgroundColorRail
+          value={draft.background ?? 'none'}
+          customColor={draft.backgroundCustomColor}
+          onChange={setBackground}
+          onRequestCustom={() => setShowCustomColorModal(true)}
+        />
       </View>
 
       <View
@@ -514,7 +817,7 @@ export default function CustomizeBevo() {
                       <PatternSwatch pattern={pattern} />
                     </Tile>
                   ) : (
-                    <View key={j} style={{ flex: 1 }} />
+                    <View key={j} style={{ width: 70 }} />
                   ),
                 )}
               </TileRow>
@@ -534,7 +837,7 @@ export default function CustomizeBevo() {
                       <ColorSwatch palette={palette} />
                     </Tile>
                   ) : (
-                    <View key={j} style={{ flex: 1 }} />
+                    <View key={j} style={{ width: 70 }} />
                   ),
                 )}
               </TileRow>
@@ -554,7 +857,7 @@ export default function CustomizeBevo() {
                       <HatSwatch hat={hat} />
                     </Tile>
                   ) : (
-                    <View key={j} style={{ flex: 1 }} />
+                    <View key={j} style={{ width: 70 }} />
                   ),
                 )}
               </TileRow>
@@ -598,6 +901,16 @@ export default function CustomizeBevo() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <CustomColorModal
+        visible={showCustomColorModal}
+        initialHex={draft.backgroundCustomColor}
+        onCancel={() => setShowCustomColorModal(false)}
+        onApply={(hex) => {
+          setDraft((d) => ({ ...d, background: 'custom', backgroundCustomColor: hex }));
+          setShowCustomColorModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
