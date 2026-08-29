@@ -115,7 +115,7 @@ export default function OptionalExtras() {
   const router = useRouter();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { data, update, reset, goBack } = useCreateEvent();
+  const { data, update, reset, goBack, setPreviewing } = useCreateEvent();
   const { data: onboarding } = useOnboarding();
   const queryClient = useQueryClient();
   const token = onboarding.token || null;
@@ -173,11 +173,10 @@ export default function OptionalExtras() {
     }
   };
 
-  const onPreview = () => {
-    // TODO: build a preview screen that renders the event card from the
-    // current context state (title, description, image, poster, etc).
-    // For now, navigate to a placeholder or noop until that screen exists.
-  };
+  // Opens EventPreview over the wizard. No validation gate: previewing an
+  // unfinished draft is the point, and the preview fills gaps with the same
+  // placeholders the real page would show.
+  const onPreview = () => setPreviewing(true);
 
   const onPost = () => {
     if (createEvent.isPending) return;

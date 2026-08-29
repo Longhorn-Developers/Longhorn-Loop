@@ -1,4 +1,5 @@
 import DiscoveryBucket from '@/app/components/create-event/DiscoveryBucket';
+import EventPreview from '@/app/components/create-event/EventPreview';
 import EventDetails from '@/app/components/create-event/EventDetails';
 import InterestTags from '@/app/components/create-event/InterestTags';
 import OptionalExtras from '@/app/components/create-event/OptionalExtras';
@@ -20,7 +21,11 @@ const STEP_SCREENS: Record<CreateEventStep, React.ComponentType> = {
 // tab bar stays mounted, and the step index lives in CreateEventContext, so
 // switching tabs and coming back lands on the same step with data intact.
 export default function CreateEventTab() {
-  const { step } = useCreateEvent();
+  const { step, previewing } = useCreateEvent();
+  // The preview replaces the step rather than stacking over it, so the tab bar
+  // stays put and Back lands exactly where you left off — the step index never
+  // moved.
+  if (previewing) return <EventPreview />;
   const StepScreen = STEP_SCREENS[step];
   return <StepScreen />;
 }
