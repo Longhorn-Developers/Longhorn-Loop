@@ -29,6 +29,9 @@ import { user as userKeys } from '@/app/lib/queryKeys';
 import { useSavedEvents } from '@/app/lib/useSavedEvents';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import type { ApiEvent } from '@/app/components/EventCard';
+import ManageEventSheet from '@/app/components/modals/ManageEventSheet';
+import PostAnnouncementModal from '@/app/components/modals/PostAnnouncementModal';
+import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import {
   PROFILE_EVENT_FILTERS,
@@ -37,10 +40,18 @@ import {
   type ProfileEventTab,
 } from '@/shared/profileEventFilters';
 import type { AvatarConfig } from '@/shared/avatar';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
@@ -109,6 +120,65 @@ export default function ProfileScreen() {
       return api.get<MyEventsResponse>(`/users/me/events?${params.toString()}`, { token });
     },
     enabled: !!token,
+  });
+
+  /**
+   * Manage Event, from the pencil on a Posted-tab card.
+   *
+   * One piece of state — the event being managed — with three overlays layered
+   * on top of it. Keeping the event separate from which overlay is open is
+   * what lets Delete and Post Announcement open OVER the sheet and still know
+   * what they are acting on, and what makes "cancel" fall back to the sheet
+   * rather than dumping the user back to the grid.
+   */
+  const queryClient = useQueryClient();
+  const [managed, setManaged] = useState<ApiEvent | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [announcing, setAnnouncing] = useState(false);
+
+  const closeAll = () => {
+    setSheetOpen(false);
+    setConfirmingDelete(false);
+    setAnnouncing(false);
+    setManaged(null);
+  };
+
+  const deleteEvent = useMutation({
+    mutationFn: async () => {
+      if (!managed) throw new Error('NO_EVENT');
+      return api.delete(`/events/${managed.id}`, { token });
+    },
+    onSuccess: async () => {
+      closeAll();
+      // The archived event has to leave the Posted grid AND the counts on the
+      // tab pills, and it may have been in someone's Going or Saved list too.
+      await queryClient.invalidateQueries({ queryKey: userKeys.all });
+    },
+    onError: (error) => {
+      Alert.alert(
+        'Could not delete event',
+        error instanceof ApiError && error.status === 403
+          ? 'You do not have permission to delete this event.'
+          : 'Something went wrong. Please try again.',
+      );
+    },
+  });
+
+  const postAnnouncement = useMutation({
+    mutationFn: async ({ body, notify }: { body: string; notify: boolean }) => {
+      if (!managed) throw new Error('NO_EVENT');
+      return api.post(`/events/${managed.id}/announcements`, {
+        token,
+        body: { body, notify },
+      });
+    },
+    onSuccess: () => {
+      closeAll();
+    },
+    onError: () => {
+      Alert.alert('Could not post announcement', 'Something went wrong. Please try again.');
+    },
   });
 
   /**
@@ -461,7 +531,14 @@ export default function ProfileScreen() {
                       key={event.id}
                       event={event}
                       onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
-                      onEdit={tab === 'posted' ? setEditingEvent : undefined}
+                      onManage={
+                        tab === 'posted'
+                          ? () => {
+                              setManaged(event);
+                              setSheetOpen(true);
+                            }
+                          : undefined
+                      }
                     />
                   ))
                 )}
@@ -472,12 +549,76 @@ export default function ProfileScreen() {
       )}
 
       <OpenLinkModal {...openLink.modalProps} />
+      {/*
+        Rohan's edit overlay, reached from the sheet's "Edit Event
+        Details" row rather than from a second pencil on the card. Two entry
+        points to the same editor is one too many, and the sheet is where a
+        host already is when they want to change something.
+      */}
       <EditEventOverlay
         visible={editingEvent !== null}
         event={editingEvent}
         orgId={editingEvent?.host_organization_id}
         token={token}
         onClose={() => setEditingEvent(null)}
+      />
+
+      <ManageEventSheet
+        visible={sheetOpen}
+        event={managed}
+        onClose={closeAll}
+        onViewEventPage={() => {
+          const id = managed?.id;
+          closeAll();
+          if (id) router.push(`/event/${id}`);
+        }}
+        onEditDetails={() => {
+          const event = managed;
+          closeAll();
+          // ApiEvent is a superset of EventEditSource, so the row the sheet was
+          // opened for is already everything the overlay needs — no refetch.
+          if (event) setEditingEvent(event);
+        }}
+        onPostAnnouncement={() => {
+          setSheetOpen(false);
+          setAnnouncing(true);
+        }}
+        onDeleteEvent={() => {
+          setSheetOpen(false);
+          setConfirmingDelete(true);
+        }}
+      />
+
+      <ConfirmModal
+        visible={confirmingDelete}
+        title={`Delete \u201C${managed?.title ?? ''}\u201D?`}
+        emphasis={`You\u2019re about to delete your event \u201C${managed?.title ?? ''}\u201D`}
+        body={
+          'This permanently removes the event from Longhorn Loop. Anyone who saved or ' +
+          "RSVP'd will no longer see it, and users will be notified. This can't be undone."
+        }
+        secondaryLabel="Keep Event"
+        primaryLabel="Delete Event"
+        primaryDestructive
+        emphasisFirst
+        onSecondary={() => {
+          // Back to the sheet, not out to the grid: backing out of a
+          // confirmation should undo the confirmation, not the whole errand.
+          setConfirmingDelete(false);
+          setSheetOpen(true);
+        }}
+        onPrimary={() => deleteEvent.mutate()}
+      />
+
+      <PostAnnouncementModal
+        visible={announcing}
+        eventTitle={managed?.title ?? ''}
+        submitting={postAnnouncement.isPending}
+        onCancel={() => {
+          setAnnouncing(false);
+          setSheetOpen(true);
+        }}
+        onPost={(body, notify) => postAnnouncement.mutate({ body, notify })}
       />
     </SafeAreaView>
   );

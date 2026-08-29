@@ -323,6 +323,24 @@ CREATE TABLE IF NOT EXISTS event_categories (
   UNIQUE(event_id, category_id)
 );
 
+-- Announcements posted by an event's host (Manage Event sheet). Stored rather
+-- than fired-and-forgotten: someone who RSVPs tomorrow should still see that
+-- the room changed, and a swiped-away notification should not be the only
+-- record that the host said anything.
+CREATE TABLE IF NOT EXISTS event_announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  author_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  -- Whether the host asked for this to reach people rather than just sit on
+  -- the event page. Today that means rows in `notifications`; when push
+  -- delivery exists it reads the same flag.
+  notify INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_event_announcements_event
+  ON event_announcements(event_id, created_at DESC);
+
 -- Event perks/benefits (Free Food, Free Stuff, etc.)
 CREATE TABLE IF NOT EXISTS event_benefits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

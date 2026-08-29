@@ -1258,6 +1258,233 @@ eventRoutes.patch('/:id', async (c) => {
   return c.json({ event });
 });
 
+/**
+ * Everyone attached to an event: RSVP'd or saved, deduped.
+ *
+ * Both delete and announcements speak to the same audience — the people who
+ * arranged their week around this event and would otherwise turn up to a
+ * locked door. Saves count, not just RSVPs: saving is the weaker signal but
+ * it is still someone planning to go.
+ */
+async function getEventAudience(db: D1Database, eventId: number): Promise<number[]> {
+  const rows = await db
+    .prepare(
+      `SELECT user_id FROM event_rsvps WHERE event_id = ?
+       UNION
+       SELECT user_id FROM saved_events WHERE event_id = ?`,
+    )
+    .bind(eventId, eventId)
+    .all<{ user_id: number }>();
+  return rows.results.map((r) => r.user_id);
+}
+
+/** Fan a notification out to a set of users. Best-effort, one row each. */
+async function notifyUsers(
+  db: D1Database,
+  userIds: number[],
+  notification: {
+    type: string;
+    title: string;
+    subtitle: string | null;
+    eventId: number | null;
+    thumbnailUrl: string | null;
+  },
+): Promise<void> {
+  for (const userId of userIds) {
+    await db
+      .prepare(
+        `INSERT INTO notifications
+           (user_id, type, title, subtitle, thumbnail_url, event_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        userId,
+        notification.type,
+        notification.title,
+        notification.subtitle,
+        notification.thumbnailUrl,
+        notification.eventId,
+      )
+      .run();
+  }
+}
+
+// DELETE /events/:id -- the host removes their own event.
+//
+// ARCHIVE, NOT A ROW DELETE. `is_archived` already exists and every feed
+// filters on it, so flipping it takes the event out of Explore, the home feed,
+// search and everyone's profile in one write. A hard DELETE would cascade
+// through event_rsvps, saved_events, event_tags and notifications, which means
+// an accidental delete is unrecoverable and the notification telling people it
+// was cancelled would delete itself on the way out.
+//
+// The modal promises "anyone who saved or RSVP'd will no longer see it, and
+// users will be notified" — the archive does the first half, the fan-out below
+// does the second.
+eventRoutes.delete('/:id', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const user = await getUserByEmail(c.env.DB, auth.email);
+  if (!user) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'), 10);
+  if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id, title, image_url, is_archived, host_organization_id, created_by_user_id
+       FROM events WHERE id = ?`,
+  )
+    .bind(eventId)
+    .first();
+  if (!existing) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+
+  // Same grant as editing: the creator owns their event, org admins and
+  // editors manage their org's. Nothing here is looser than the pencil.
+  const allowed = await canEditEvent(
+    c.env.DB,
+    {
+      host_organization_id: (existing.host_organization_id as number | null) ?? null,
+      created_by_user_id: (existing.created_by_user_id as number | null) ?? null,
+    },
+    user.id,
+  );
+  if (!allowed) return c.json({ error: 'FORBIDDEN' }, 403);
+
+  // Already archived: succeed quietly rather than 404. Double-tapping Delete
+  // on a slow connection should not read as an error, and re-notifying the
+  // audience about a second cancellation would be worse than doing nothing.
+  if (Number(existing.is_archived) === 1) {
+    return c.json({ ok: true, alreadyArchived: true });
+  }
+
+  const audience = await getEventAudience(c.env.DB, eventId);
+
+  await c.env.DB.prepare(`UPDATE events SET is_archived = 1, archived_at = ? WHERE id = ?`)
+    .bind(new Date().toISOString(), eventId)
+    .run();
+
+  // After the archive, not before: if the UPDATE fails nobody should have been
+  // told their event was cancelled.
+  await notifyUsers(c.env.DB, audience, {
+    type: 'event_cancelled',
+    title: existing.title as string,
+    subtitle: 'was cancelled by the host',
+    // Deliberately still linked. The event page 404s for a cancelled event,
+    // but the id is what lets a later fix restore the link rather than leaving
+    // an orphan notification.
+    eventId,
+    thumbnailUrl: (existing.image_url as string | null) ?? null,
+  });
+
+  return c.json({ ok: true, notified: audience.length });
+});
+
+/** A short update, not a second description. Matches the Figma counter. */
+const MAX_ANNOUNCEMENT_LENGTH = 200;
+
+// POST /events/:id/announcements -- the host posts an update.
+// Body: { body: string, notify?: boolean }
+eventRoutes.post('/:id/announcements', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const user = await getUserByEmail(c.env.DB, auth.email);
+  if (!user) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'), 10);
+  if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id, title, image_url, is_archived, host_organization_id, created_by_user_id
+       FROM events WHERE id = ?`,
+  )
+    .bind(eventId)
+    .first();
+  if (!existing) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+  if (Number(existing.is_archived) === 1) {
+    return c.json({ error: 'EVENT_ARCHIVED' }, 409);
+  }
+
+  const allowed = await canEditEvent(
+    c.env.DB,
+    {
+      host_organization_id: (existing.host_organization_id as number | null) ?? null,
+      created_by_user_id: (existing.created_by_user_id as number | null) ?? null,
+    },
+    user.id,
+  );
+  if (!allowed) return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const parsed = await c.req.json().catch(() => null);
+  if (!isRecord(parsed)) return c.json({ error: 'INVALID_BODY' }, 400);
+
+  const raw = parsed.body;
+  const body = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim() : '';
+  if (!body) return c.json({ error: 'EMPTY_ANNOUNCEMENT' }, 400);
+  if (body.length > MAX_ANNOUNCEMENT_LENGTH) {
+    return c.json({ error: 'ANNOUNCEMENT_TOO_LONG', max: MAX_ANNOUNCEMENT_LENGTH }, 400);
+  }
+
+  // Defaults to true: the toggle ships on, and a caller that omits the field
+  // is asking for the normal case.
+  const notify = parsed.notify === undefined ? true : parsed.notify === true;
+
+  const inserted = await c.env.DB.prepare(
+    `INSERT INTO event_announcements (event_id, author_user_id, body, notify)
+     VALUES (?, ?, ?, ?)`,
+  )
+    .bind(eventId, user.id, body, notify ? 1 : 0)
+    .run();
+
+  // The toggle is real, and this is what it controls: off, the announcement
+  // still exists on the event; on, everyone attached to the event gets a
+  // notification. Push delivery does not exist server-side yet — when it does
+  // it reads this same flag, so the switch does not change meaning.
+  let notified = 0;
+  if (notify) {
+    const audience = await getEventAudience(c.env.DB, eventId);
+    await notifyUsers(c.env.DB, audience, {
+      type: 'event_announcement',
+      title: existing.title as string,
+      subtitle: body,
+      eventId,
+      thumbnailUrl: (existing.image_url as string | null) ?? null,
+    });
+    notified = audience.length;
+  }
+
+  return c.json({
+    announcement: {
+      id: inserted.meta.last_row_id,
+      event_id: eventId,
+      body,
+      notify,
+    },
+    notified,
+  });
+});
+
+// GET /events/:id/announcements -- newest first. Public: an announcement is
+// part of the event, and someone deciding whether to go should see that the
+// room moved before they RSVP.
+eventRoutes.get('/:id/announcements', async (c) => {
+  const eventId = parseInt(c.req.param('id'), 10);
+  if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+
+  const rows = await c.env.DB.prepare(
+    `SELECT a.id, a.body, a.created_at, u.first_name, u.last_name
+       FROM event_announcements a
+       JOIN users u ON u.id = a.author_user_id
+      WHERE a.event_id = ?
+      ORDER BY a.created_at DESC`,
+  )
+    .bind(eventId)
+    .all();
+
+  return c.json({ announcements: rows.results });
+});
+
 // GET /events -- list upcoming events with optional filters
 eventRoutes.get('/', async (c) => {
   const limit = parseInt(c.req.query('limit') || '20');
