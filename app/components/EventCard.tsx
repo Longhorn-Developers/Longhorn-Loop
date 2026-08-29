@@ -124,12 +124,26 @@ export default function EventCard({ item, isSaved, onToggleSave, style }: EventC
           </>
         )}
 
+        {/*
+          Bottom-RIGHT, not bottom-left. EventFlyerPlaceholder anchors its
+          artwork "xMinYMax" — bottom-left — because that is where the tower
+          sits and centring it would crop the subject on wide containers. The
+          tag used to be pinned to that same corner, so on every flyerless card
+          it landed squarely on the tower. Not an occasional overlap: the two
+          were anchored to the same point, so it happened every time.
+
+          Lasya, in Discord: "can we maybe right align the tags? so it doesn't
+          cover up the logo on the no flyer case!"
+
+          The right side is free — the save button is top-right, and a poster
+          that fills the frame has no subject pinned to a corner either way.
+        */}
         {hasBenefits && (
           <View
             style={{
               position: 'absolute',
               bottom: 8,
-              left: 8,
+              right: 8,
               backgroundColor: colors.brand,
               borderRadius: 12,
               paddingHorizontal: 8,

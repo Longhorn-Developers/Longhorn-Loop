@@ -1,4 +1,5 @@
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
+import ExpandableText from '@/app/components/ExpandableText';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
 // the share button opens the platform share sheet (app/lib/shareEvent.ts).
@@ -11,6 +12,7 @@ import FlagIcon from '@/assets/images/flag.svg';
 import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
 import { ApiEvent } from '@/app/components/EventCard';
+import EventLocationMapModal from '@/app/components/modals/EventLocationMapModal';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay';
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
@@ -103,9 +105,10 @@ function formatShortTime(isoString: string): string {
     : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function MetaRow({ event }: { event: ApiEvent }) {
+function MetaRow({ event, token }: { event: ApiEvent; token: string | null }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [mapOpen, setMapOpen] = useState(false);
 
   return (
     <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
@@ -127,15 +130,26 @@ function MetaRow({ event }: { event: ApiEvent }) {
       </View>
 
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <View style={styles.metaIconBadge}>
+        <TouchableOpacity
+          style={styles.metaIconBadge}
+          onPress={() => setMapOpen(true)}
+          accessibilityLabel="Show location on map"
+        >
           <MapIcon width={16} height={16} />
-        </View>
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.metaPrimary} numberOfLines={2}>
             {event.location_full || event.location_short || 'Location TBD'}
           </Text>
         </View>
       </View>
+
+      <EventLocationMapModal
+        visible={mapOpen}
+        onClose={() => setMapOpen(false)}
+        event={event}
+        token={token}
+      />
     </View>
   );
 }
@@ -541,12 +555,12 @@ export default function EventDetailScreen() {
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
           <Text style={styles.title}>{event.title}</Text>
 
-          <MetaRow event={event} />
+          <MetaRow event={event} token={token} />
 
           {event.description ? (
             <View style={{ marginBottom: 18 }}>
               <Text style={styles.sectionHeader}>About This Event</Text>
-              <Text style={styles.bodyText}>{event.description}</Text>
+              <ExpandableText style={styles.bodyText}>{event.description}</ExpandableText>
             </View>
           ) : null}
 

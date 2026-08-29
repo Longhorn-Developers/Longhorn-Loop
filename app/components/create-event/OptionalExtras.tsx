@@ -2,10 +2,12 @@ import StepPills from '@/app/components/StepPills';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
+import { LOCATION_PLACEHOLDER, VENUE_TYPE_LABELS, VENUE_TYPES } from '@/shared/venueType';
 import type { CreateEventData } from '@/app/context/CreateEventContext';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { appendImageFile } from '@/app/lib/imageForm';
+import { searchPlace } from '@/app/lib/localSearch';
 import { events as eventsKeys, feed as feedKeys } from '@/app/lib/queryKeys';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -53,6 +55,25 @@ async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
     form.append('end_datetime', data.endDatetime);
   }
   appendOptional(form, 'location', data.locationFull);
+  // Not appendOptional: the column is NOT NULL and the server validates the
+  // value, so it is always sent.
+  form.append('venue_type', data.venueType);
+  // Resolve the typed location to coordinates now (iOS MKLocalSearch), so the
+  // event is stored with a real pin instead of relying on a viewer to backfill
+  // it later. No-op on non-iOS or when the place can't be resolved.
+  //
+  // Only for in-person events. An online event's "location" is a meeting link,
+  // and geocoding a URL either misses or -- worse -- matches something and
+  // drops a pin on a Zoom call. LOOP-275 makes the same point for the server
+  // side: venue_type = 'online' has no physical location and must not be pinned.
+  const location = data.venueType === 'in_person' ? data.locationFull.trim() : '';
+  if (location) {
+    const place = await searchPlace(location);
+    if (place) {
+      form.append('latitude', String(place.latitude));
+      form.append('longitude', String(place.longitude));
+    }
+  }
   appendOptional(form, 'rsvp_url', data.rsvpUrl);
   if (data.discoveryBucket) form.append('discoveryBucket', data.discoveryBucket);
   if (data.eventType) form.append('event_type', data.eventType);
@@ -197,9 +218,10 @@ export default function OptionalExtras() {
 
           <StepPills step={6} totalSteps={6} style={{ marginBottom: 20 }} />
 
-          <Text style={styles.instruction}>
-            All fields below are optional — add what makes your event shine.
-          </Text>
+          {/* "All fields below are optional" stopped being true once the venue
+              type moved onto this step — that one is required and pre-answered
+              rather than blank. Saying otherwise trains people to skip the step. */}
+          <Text style={styles.instruction}>Almost done — add what makes your event shine.</Text>
 
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Flyer/Cover Image</Text>
@@ -223,12 +245,55 @@ export default function OptionalExtras() {
             </TouchableOpacity>
           </View>
 
+          {/*
+            Venue type. LOOP-260 made this a hard requirement on the server, but
+            nothing in the wizard ever set it — so posting an event 400'd on a
+            field the user could not see. The server now defaults a missing value
+            to 'in_person', which unbreaks posting; this is the control that lets
+            the answer actually be true.
+
+            Single-select and always one of the two, because the column is NOT
+            NULL and "neither" is not a state an event can be in. It sits
+            directly above Location because it changes what Location means, and
+            the placeholder follows the choice — asking for "GDC 2.216" from
+            someone hosting a Zoom is how a room number ends up in a field that
+            needed a URL.
+
+            Not in the "optional" set despite the step's name: everything else
+            here can be left blank, this cannot. It reads as a normal choice
+            because it is pre-answered with the common case rather than empty.
+          */}
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Location</Text>
+            <Text style={styles.fieldLabel}>Where is it?</Text>
+            <View style={styles.perkRow}>
+              {VENUE_TYPES.map((option) => {
+                const isSelected = data.venueType === option;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={VENUE_TYPE_LABELS[option]}
+                    onPress={() => update({ venueType: option })}
+                    style={[styles.perkChip, isSelected && styles.perkChipSelected]}
+                  >
+                    <Text style={[styles.perkText, isSelected && styles.perkTextSelected]}>
+                      {VENUE_TYPE_LABELS[option]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>
+              {data.venueType === 'online' ? 'Meeting Link' : 'Location'}
+            </Text>
             <TextInput
               value={data.locationFull}
               onChangeText={(text) => update({ locationFull: text })}
-              placeholder="GDC 2.216, Zoom link, etc..."
+              placeholder={LOCATION_PLACEHOLDER[data.venueType]}
               placeholderTextColor={colors.inkMuted}
               style={styles.input}
               autoCapitalize="none"
