@@ -1,4 +1,5 @@
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
+import ExpandableText from '@/app/components/ExpandableText';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
 // the share button opens the platform share sheet (app/lib/shareEvent.ts).
@@ -559,7 +560,7 @@ export default function EventDetailScreen() {
           {event.description ? (
             <View style={{ marginBottom: 18 }}>
               <Text style={styles.sectionHeader}>About This Event</Text>
-              <Text style={styles.bodyText}>{event.description}</Text>
+              <ExpandableText style={styles.bodyText}>{event.description}</ExpandableText>
             </View>
           ) : null}
 
