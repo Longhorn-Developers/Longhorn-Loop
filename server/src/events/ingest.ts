@@ -13,26 +13,83 @@ function computeExpiresAt(endDatetime: string | null, startDatetime: string): st
   return new Date(new Date(base).getTime() + EXPIRES_AFTER_MS).toISOString();
 }
 
-// Only sources with a numeric org id write to organizations. See
-// docs/org-profiles.md.
-async function upsertOrganization(db: D1Database, event: NormalizedEvent): Promise<void> {
+/**
+ * Shared organization shape for anything that needs to write to the
+ * organizations table.
+ *
+ * HornsLink calls the stored contact the primary contact. The database column
+ * is still named president_email for compatibility with the existing claim
+ * flow, so callers pass it here as contactEmail.
+ */
+export interface OrganizationUpsertInput {
+  id: number;
+  name: string;
+  slug?: string | null;
+  profilePicture?: string | null;
+  contactEmail?: string | null;
+  source: string;
+}
+
+/**
+ * Upsert one or more organizations.
+ *
+ * Keeping this here means scrapers only normalize/fetch organization data;
+ * ingest remains the place that knows the organizations table schema.
+ */
+export async function upsertOrganizations(
+  db: D1Database,
+  organizations: OrganizationUpsertInput[],
+): Promise<void> {
+  if (organizations.length === 0) return;
+
+  const statements = organizations.map((org) =>
+    db
+      .prepare(
+        `INSERT INTO organizations (
+          id,
+          name,
+          slug,
+          profile_picture,
+          president_email,
+          source,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(id) DO UPDATE SET
+          name            = excluded.name,
+          slug            = COALESCE(excluded.slug, slug),
+          profile_picture = COALESCE(excluded.profile_picture, profile_picture),
+          president_email = COALESCE(excluded.president_email, president_email),
+          updated_at      = datetime('now')`,
+      )
+      .bind(
+        org.id,
+        org.name.trim(),
+        org.slug ?? null,
+        org.profilePicture ?? null,
+        org.contactEmail ?? null,
+        org.source,
+      ),
+  );
+
+  await db.batch(statements);
+}
+
+// Only event sources with a numeric org id write an event host into
+// organizations. See docs/org-profiles.md.
+async function upsertEventOrganization(db: D1Database, event: NormalizedEvent): Promise<void> {
   if (event.organization.sourceOrgId === null) return;
-  await db
-    .prepare(
-      `INSERT INTO organizations (id, name, profile_picture, source, updated_at)
-       VALUES (?, ?, ?, ?, datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name,
-         profile_picture = excluded.profile_picture,
-         updated_at = datetime('now')`,
-    )
-    .bind(
-      event.organization.sourceOrgId,
-      event.organization.name.trim(),
-      event.organization.profilePicture,
-      event.source,
-    )
-    .run();
+
+  await upsertOrganizations(db, [
+    {
+      id: event.organization.sourceOrgId,
+      name: event.organization.name,
+      slug: null,
+      profilePicture: event.organization.profilePicture,
+      contactEmail: null,
+      source: event.source,
+    },
+  ]);
 }
 
 async function upsertEvent(
@@ -176,16 +233,13 @@ async function replaceCategoriesAndBenefits(
 }
 
 // Per-event errors are isolated so one bad row doesn't sink the batch.
-// Takes the whole env (not just db) because tagging now needs the AI +
-// Vectorize bindings for semantic classification.
+// Takes the whole env (not just db) because tagging now needs Workers AI.
 export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise<IngestResult> {
   const db = env.DB;
   const result: IngestResult = { inserted: 0, updated: 0, errors: [] };
 
-  // Classify ALL events up front in one batched pass. Embedding per-event in the
-  // loop below would exhaust the Workers AI per-invocation cap after a handful
-  // of events, silently dropping the rest to keyword. tagsByIndex[i] lines up
-  // with events[i].
+  // Classify all events up front in one batched LLM pass. tagsByIndex[i]
+  // lines up with events[i].
   const tagsByIndex = await classifyEventsBatch(
     env,
     events.map((e) => ({ title: e.title, description: e.description })),
@@ -194,7 +248,7 @@ export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise
   for (let i = 0; i < events.length; i++) {
     const event = events[i];
     try {
-      await upsertOrganization(db, event);
+      await upsertEventOrganization(db, event);
       const { eventId, isNew } = await upsertEvent(db, event);
       await replaceCategoriesAndBenefits(db, eventId, event);
       await writeEventTags(db, eventId, tagsByIndex[i]);
