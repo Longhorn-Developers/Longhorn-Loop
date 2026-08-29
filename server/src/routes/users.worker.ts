@@ -774,12 +774,38 @@ userRoutes.get('/me/events', async (c) => {
     counts[key] = (row?.c as number) ?? 0;
   }
 
+  // Perks. This was the one event read path that never returned them: GET
+  // /events, GET /events/:id and the home feed all attach benefits, so the
+  // same event showed its Free Food tag in the carousels and a blank corner
+  // on your own profile. ProfileEventCard had nothing to render.
+  //
+  // One query for the whole page rather than one per event. The list is
+  // capped at 100, and the per-event loop in GET /events is already the
+  // slowest thing about that route -- no reason to copy it here.
+  const rows = results as Record<string, unknown>[];
+  const benefitsByEvent = new Map<number, string[]>();
+  if (rows.length > 0) {
+    const eventIds = rows.map((e) => Number(e.id));
+    const benefitRows = await c.env.DB.prepare(
+      `SELECT event_id, benefit_name FROM event_benefits
+       WHERE event_id IN (${eventIds.map(() => '?').join(',')})`,
+    )
+      .bind(...eventIds)
+      .all<{ event_id: number; benefit_name: string }>();
+    for (const r of benefitRows.results) {
+      const list = benefitsByEvent.get(r.event_id);
+      if (list) list.push(r.benefit_name);
+      else benefitsByEvent.set(r.event_id, [r.benefit_name]);
+    }
+  }
+
   return c.json({
     tab,
-    events: (results as Record<string, unknown>[]).map((e) => ({
+    events: rows.map((e) => ({
       ...e,
       is_saved: Number(e.is_saved) === 1,
       org_verified: Number(e.org_verified) === 1,
+      benefits: benefitsByEvent.get(Number(e.id)) ?? [],
     })),
     counts,
   });
