@@ -469,9 +469,7 @@ export async function scrapeHornsLinkOrgs(
 
     if (dryRun) {
       for (const org of currentBatch) {
-        console.log(
-          `[DRY RUN] ${org.id} ${org.name} (${org.websiteKey ?? 'no slug'})`,
-        );
+        console.log(`[DRY RUN] ${org.id} ${org.name} (${org.websiteKey ?? 'no slug'})`);
       }
     } else if (currentBatch.length > 0) {
       try {
@@ -493,9 +491,7 @@ export async function scrapeHornsLinkOrgs(
     }
 
     const nextSkip = skip + currentBatch.length;
-    result.done =
-      currentBatch.length === 0 ||
-      (result.total !== null && nextSkip >= result.total);
+    result.done = currentBatch.length === 0 || (result.total !== null && nextSkip >= result.total);
     result.nextSkip = result.done ? null : nextSkip;
   } catch (err) {
     result.errors.push(`directory page at skip=${skip}: ${String(err)}`);
@@ -505,24 +501,21 @@ export async function scrapeHornsLinkOrgs(
 
   // Phase 2: enrich only organizations from the directory batch we just read.
   if (!options.skipDetails && !dryRun && currentBatch.length > 0) {
-    const ids = currentBatch
-      .filter((org) => org.websiteKey !== null)
-      .map((org) => org.id);
+    const ids = currentBatch.filter((org) => org.websiteKey !== null).map((org) => org.id);
 
     if (ids.length > 0) {
       const placeholders = ids.map(() => '?').join(',');
 
       try {
-        const { results } = await env.DB
-          .prepare(
-            `SELECT id, slug
+        const { results } = await env.DB.prepare(
+          `SELECT id, slug
                FROM organizations
               WHERE id IN (${placeholders})
                 AND president_email IS NULL
                 AND slug IS NOT NULL
                 AND source = 'hornslink'
               ORDER BY id`,
-          )
+        )
           .bind(...ids)
           .all();
 
@@ -530,14 +523,8 @@ export async function scrapeHornsLinkOrgs(
 
         // detailLimit is mainly useful for testing. If omitted, every missing
         // primary contact in this directory batch is attempted.
-        if (
-          typeof options.detailLimit === 'number' &&
-          Number.isFinite(options.detailLimit)
-        ) {
-          rows = rows.slice(
-            0,
-            Math.max(0, Math.trunc(options.detailLimit)),
-          );
+        if (typeof options.detailLimit === 'number' && Number.isFinite(options.detailLimit)) {
+          rows = rows.slice(0, Math.max(0, Math.trunc(options.detailLimit)));
         }
 
         for (let i = 0; i < rows.length; i += DETAIL_FETCH_CONCURRENCY) {
@@ -562,9 +549,7 @@ export async function scrapeHornsLinkOrgs(
 
           for (const item of fetched) {
             if (item.error) {
-              result.errors.push(
-                `detail for org ${item.row.id}: ${item.error}`,
-              );
+              result.errors.push(`detail for org ${item.row.id}: ${item.error}`);
               continue;
             }
 
@@ -575,14 +560,12 @@ export async function scrapeHornsLinkOrgs(
             result.emailsFound++;
 
             updates.push(
-              env.DB
-                .prepare(
-                  `UPDATE organizations
+              env.DB.prepare(
+                `UPDATE organizations
                       SET president_email = ?,
                           updated_at = datetime('now')
                     WHERE id = ?`,
-                )
-                .bind(item.email, item.row.id),
+              ).bind(item.email, item.row.id),
             );
           }
 
@@ -590,9 +573,7 @@ export async function scrapeHornsLinkOrgs(
             try {
               await env.DB.batch(updates);
             } catch (err) {
-              result.errors.push(
-                `batch email update: ${String(err)}`,
-              );
+              result.errors.push(`batch email update: ${String(err)}`);
             }
           }
 
@@ -601,9 +582,7 @@ export async function scrapeHornsLinkOrgs(
           }
         }
       } catch (err) {
-        result.errors.push(
-          `load current-batch contacts: ${String(err)}`,
-        );
+        result.errors.push(`load current-batch contacts: ${String(err)}`);
       }
     }
   }
