@@ -76,6 +76,13 @@ export const LOCATION_ALIASES: Record<string, string> = {
   'GREGORY GYMNASIUM': 'GRE',
   'PERRY CASTANEDA LIBRARY': 'PCL',
   'JESTER CENTER': 'JES',
+  // From the production dry run. UNB is "UNION BUILDING" in UT's data and
+  // "Texas Union" everywhere else, and it was the single most common miss.
+  'TEXAS UNION': 'UNB',
+  // The Benson is a collection inside Sid Richardson Hall, so it has no code
+  // of its own and no listing ever writes SRH.
+  'BENSON LATIN AMERICAN COLLECTION': 'SRH',
+  'BENSON COLLECTION': 'SRH',
 };
 
 /**
@@ -132,10 +139,20 @@ for (const raw of Object.values(RAW)) {
   if (isPlausible(raw)) BY_CODE.set(raw.code.toUpperCase(), toBuilding(raw));
 }
 
-/** Uppercase, punctuation to spaces, whitespace collapsed. */
+/**
+ * Uppercase, punctuation to spaces, whitespace collapsed.
+ *
+ * Ampersands, periods and apostrophes are DELETED rather than spaced, because
+ * they sit inside words. "AT&T" spaced becomes "AT T" and the ATT code token
+ * never appears -- which is how the AT&T Conference Center went unresolved
+ * against a file that contains it. Deleting gives "ATT". Room numbers survive
+ * either way: "GSB 2.126" becomes "GSB 2126" and the code is still its own
+ * token.
+ */
 function normalize(value: string): string {
   return value
     .toUpperCase()
+    .replace(/[&.'\u2019]/g, '')
     .replace(/[^A-Z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
@@ -157,6 +174,64 @@ for (const building of BY_CODE.values()) {
   if (key.length >= 9) BY_NAME.push({ key, building });
 }
 BY_NAME.sort((a, b) => b.key.length - a.key.length);
+
+/**
+ * Official names carry donors; students do not.
+ *
+ * BEL is "L. THEO BELLMONT HALL" in UT's data and "Bellmont Hall" in every
+ * event listing, so full-name matching misses it. Same for SRH ("SID
+ * RICHARDSON HALL" vs "Benson ... Sid Richardson"), PCL, WEL and a dozen more.
+ *
+ * So each name also gets indexed by its last two words -- the distinguishing
+ * word plus the building type -- under three guards, because a loose key here
+ * mislabels events rather than merely missing them:
+ *
+ *   the last word is a building type   HALL, CENTER, LIBRARY...
+ *   the word before it is >= 5 chars   drops "AND MUSEUM", "CONF CENTER"
+ *   and appears in no OTHER name       drops "CONFERENCE CENTER", which would
+ *                                      have sent a Pickle-campus event to
+ *                                      Thompson, and "RESIDENCE HALL", which
+ *                                      is thirteen different dorms
+ *
+ * That leaves 18 keys, all of them a surname plus a type.
+ */
+const BUILDING_TYPE_WORDS = new Set([
+  'HALL',
+  'CENTER',
+  'LIBRARY',
+  'COMPLEX',
+  'AUDITORIUM',
+  'GYMNASIUM',
+  'MUSEUM',
+  'LABORATORIES',
+  'LABS',
+  'THEATRE',
+  'STADIUM',
+  'PAVILION',
+]);
+
+const wordUse = new Map<string, number>();
+for (const building of BY_CODE.values()) {
+  for (const word of new Set(normalize(building.name).split(' '))) {
+    wordUse.set(word, (wordUse.get(word) ?? 0) + 1);
+  }
+}
+
+const SHORT_NAMES = new Map<string, UtBuilding | null>();
+for (const building of BY_CODE.values()) {
+  const words = normalize(building.name)
+    .replace(/\s+(BLDG|BUILDING)$/, '')
+    .split(' ');
+  if (words.length < 3) continue;
+  const type = words[words.length - 1];
+  const distinguishing = words[words.length - 2];
+  if (!BUILDING_TYPE_WORDS.has(type)) continue;
+  if (distinguishing.length < 5) continue;
+  if ((wordUse.get(distinguishing) ?? 0) !== 1) continue;
+  const key = `${distinguishing} ${type}`;
+  // null marks a collision, so a key two buildings claim is used by neither.
+  SHORT_NAMES.set(key, SHORT_NAMES.has(key) ? null : building);
+}
 
 /**
  * Aliases split by shape, because one word and several behave differently.
@@ -232,6 +307,10 @@ export function resolveBuilding(location: string | null | undefined): UtBuilding
 
   for (const { key, building } of BY_NAME) {
     if (normalized.includes(key)) return building;
+  }
+
+  for (const [key, building] of SHORT_NAMES) {
+    if (building && normalized.includes(key)) return building;
   }
 
   return null;

@@ -108,6 +108,44 @@ describe('UT building resolver', () => {
     });
   });
 
+  describe('the production dry run', () => {
+    // Every case below came out of POST /events/backfill-coordinates?dryRun=1
+    // against the real table: 348 candidates, 278 resolved, 20 distinct misses.
+    // These are the misses that were BUGS, and the ones that were correct.
+
+    it.each([
+      // UNB is "UNION BUILDING" in UT's data and "Texas Union" everywhere
+      // else. Six events, the single most common miss.
+      ['Texas Union Ballroom', 'UNB'],
+      // "AT&T" normalised to "AT T", so the ATT token never appeared.
+      ['AT&T Hotel & Conference Center Zlotnik Family Ballroom 1900 University Ave', 'ATT'],
+      // BEL is "L. THEO BELLMONT HALL"; nobody writes the donor.
+      ['Bellmont Hall 962', 'BEL'],
+      // A collection inside Sid Richardson Hall, with no code of its own.
+      ['Benson Latin American Collection, second floor', 'SRH'],
+    ])('now resolves %j to %s', (location, code) => {
+      expect(resolveBuilding(location)?.code).toBe(code);
+    });
+
+    it.each([
+      'Patton Center for Marine Science Education 855 E. Cotter Ave. Port Aransas, TX 78373',
+      'Commons Conference Center, 2901 Read Granberry Trail Austin, TX 78758',
+      'Cadillac Bar 1802 Shepherd Dr. Houston, TX 77007',
+      'The Hyatt Place Chicago',
+      'Columbia University',
+      "Dirty Martin's Place",
+      'The University of Texas at Austin',
+      'UT Austin campus',
+      'yeah',
+    ])('correctly refuses %j', (location) => {
+      // These are not main-campus buildings, and a pin on one would be a
+      // wrong answer rather than a missing one. Port Aransas is 200 miles
+      // away; the Commons is on the Pickle campus, and an earlier draft of
+      // the short-name index sent it to Thompson Conference Center.
+      expect(resolveBuilding(location)).toBeNull();
+    });
+  });
+
   describe('full names', () => {
     it('resolves a written-out building name with no code present', () => {
       expect(resolveBuilding('Perry-Castaneda Library')?.code).toBe('PCL');
