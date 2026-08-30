@@ -31,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
@@ -258,7 +259,8 @@ export default function SettingsPreferencesScreen() {
           {visibleSections.map((section) => {
             // While searching, force every surviving section open — the whole
             // point of the search is to reveal the matching row.
-            const isOpen = isSearching || manuallyOpen[section.title];
+            const isAlwaysOpen = section.title === 'Account';
+            const isOpen = isAlwaysOpen || isSearching || manuallyOpen[section.title];
 
             return (
               <View
@@ -266,8 +268,9 @@ export default function SettingsPreferencesScreen() {
                 className="mb-[12px] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-lhlSurface"
               >
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: !!isOpen }}
+                  accessibilityRole={isAlwaysOpen ? undefined : 'button'}
+                  accessibilityState={isAlwaysOpen ? undefined : { expanded: !!isOpen }}
+                  disabled={isAlwaysOpen}
                   onPress={() =>
                     setManuallyOpen((prev) => ({ ...prev, [section.title]: !prev[section.title] }))
                   }
@@ -276,9 +279,16 @@ export default function SettingsPreferencesScreen() {
                   <Text className="font-['Roboto-Flex'] text-[14px] font-semibold text-lhlInk">
                     {section.title}
                   </Text>
-                  <Text className="font-['Roboto-Flex'] text-[13px] text-lhlSecondaryTextGrey">
-                    {isOpen ? '⌃' : '⌄'}
-                  </Text>
+                  {!isAlwaysOpen ? (
+                    // Same fix as the reminder row below: the section chevron was
+                    // a pair of Unicode glyphs, misaligned for the same reason.
+                    // One icon rotated 180° also guarantees the open and closed
+                    // states are the same shape, which ⌃ and ⌄ were not.
+                    <LhlCaretDownIcon
+                      color={colors.inkSecondary}
+                      style={{ transform: [{ rotate: isOpen ? '180deg' : '0deg' }] }}
+                    />
+                  ) : null}
                 </Pressable>
 
                 {isOpen ? (
@@ -292,7 +302,7 @@ export default function SettingsPreferencesScreen() {
                               index > 0 ? 'border-t border-lhlSurfaceGrey' : ''
                             }`}
                           >
-                            <View className="flex-1 pr-[12px] bg-lhlBackgroundColor">
+                            <View className="flex-1 pr-[12px]">
                               <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
                                 {row.label}
                               </Text>
@@ -329,9 +339,19 @@ export default function SettingsPreferencesScreen() {
                             <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
                               {row.label}
                             </Text>
-                            <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
-                              {leadLabel(values?.reminder_lead_minutes ?? 1440)} ⌄
-                            </Text>
+                            {/* The caret is a laid-out icon, not a "⌄" typed
+                                into the label. As text it sat on the label's
+                                baseline at whatever metrics the fallback font
+                                had — Roboto-Flex has no U+2304 — so it never
+                                lined up with "15 minutes before", and being
+                                inside the Text put it beyond the reach of the
+                                row's items-center. */}
+                            <View className="flex-row items-center gap-[6px]">
+                              <Text className="font-['Roboto-Flex'] text-[12px] text-lhlSecondaryTextGrey">
+                                {leadLabel(values?.reminder_lead_minutes ?? 1440)}
+                              </Text>
+                              <LhlCaretDownIcon color={colors.inkSecondary} />
+                            </View>
                           </Pressable>
                         );
                       }
@@ -424,7 +444,7 @@ export default function SettingsPreferencesScreen() {
             <ModalAction label="Cancel" variant="outline" onPress={() => setConfirmLogout(false)} />
             <ModalAction
               label="Log out"
-              variant="ink"
+              variant="brand"
               onPress={() => {
                 setConfirmLogout(false);
                 reset();

@@ -18,9 +18,10 @@ import { Image, Pressable, Text, View } from 'react-native';
 export interface ProfileEventCardProps {
   event: ApiEvent & { org_verified?: boolean; is_saved?: boolean };
   onToggleSave?: (eventId: number) => void;
+  onEdit?: (event: ApiEvent) => void;
 }
 
-export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCardProps) {
+export default function ProfileEventCard({ event, onToggleSave, onEdit }: ProfileEventCardProps) {
   const router = useRouter();
   const colors = useThemeColors();
   const isSaved = !!event.is_saved;
@@ -96,6 +97,23 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
             <BookmarkGlyph saved={isSaved} width={13} height={13} />
+          </Pressable>
+        ) : null}
+
+        {onEdit ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${event.title}`}
+            hitSlop={8}
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit(event);
+            }}
+            className="absolute left-[8px] top-[8px] flex-row items-center rounded-full bg-lhlSurface/90 px-[9px] py-[5px]"
+          >
+            <Text className="font-['Roboto-Flex'] text-[10px] font-semibold text-lhlAccent">
+              Edit
+            </Text>
           </Pressable>
         ) : null}
       </View>

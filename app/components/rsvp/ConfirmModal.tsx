@@ -41,7 +41,9 @@ export default function ConfirmModal({
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const primaryBg = primaryDestructive ? colors.destructive : colors.brand;
+  // `destructiveFill`, not `destructive`: the label on this button is white, and
+  // `destructive` lightens to #FF6B63 in dark, where white on it is 2.79:1.
+  const primaryBg = primaryDestructive ? colors.destructiveFill : colors.brand;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onSecondary}>

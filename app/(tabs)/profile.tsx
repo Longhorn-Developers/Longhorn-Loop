@@ -16,6 +16,7 @@
 // nothing here is written to take a target user id.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
+import EditEventOverlay, { type EventEditSource } from '@/app/components/org/EditEventOverlay';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
@@ -88,6 +89,7 @@ export default function ProfileScreen() {
   const [filter, setFilter] = useState<ProfileEventFilter>('all');
   const [sortRecent, setSortRecent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventEditSource | null>(null);
 
   const profileQuery = useQuery({
     queryKey: userKeys.me(),
@@ -193,7 +195,7 @@ export default function ProfileScreen() {
           }
         >
           {/* --- Hamburger: org management + settings --- */}
-          <View className="flex-row justify-end px-[20px] pt-[6px]">
+          <View className="absolute right-[20px] top-[6px] z-20 items-end">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Menu"
@@ -208,28 +210,30 @@ export default function ProfileScreen() {
                 <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
               ))}
             </Pressable>
-          </View>
 
-          {menuOpen ? (
-            <View className="mx-[20px] mb-[6px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-lhlSurface">
-              {[
-                { label: 'Manage Organizations', to: '/settings' },
-                { label: 'Settings', to: '/settings/preferences' },
-              ].map((item, i) => (
-                <Pressable
-                  key={item.to}
-                  accessibilityRole="button"
-                  onPress={() => {
-                    setMenuOpen(false);
-                    router.push(item.to as never);
-                  }}
-                  className={`px-[14px] py-[12px] ${i > 0 ? 'border-t border-lhlSurfaceGrey' : ''}`}
-                >
-                  <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">{item.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+            {menuOpen ? (
+              <View className="mt-[6px] w-[220px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-lhlSurface">
+                {[
+                  { label: 'Manage Organizations', to: '/settings' },
+                  { label: 'Settings', to: '/settings/preferences' },
+                ].map((item, i) => (
+                  <Pressable
+                    key={item.to}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setMenuOpen(false);
+                      router.push(item.to as never);
+                    }}
+                    className={`px-[14px] py-[12px] ${i > 0 ? 'border-t border-lhlSurfaceGrey' : ''}`}
+                  >
+                    <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
 
           {/* --- Header --- */}
           <View className="items-center px-[20px]">
@@ -457,6 +461,7 @@ export default function ProfileScreen() {
                       key={event.id}
                       event={event}
                       onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
+                      onEdit={tab === 'posted' ? setEditingEvent : undefined}
                     />
                   ))
                 )}
@@ -467,6 +472,13 @@ export default function ProfileScreen() {
       )}
 
       <OpenLinkModal {...openLink.modalProps} />
+      <EditEventOverlay
+        visible={editingEvent !== null}
+        event={editingEvent}
+        orgId={editingEvent?.host_organization_id}
+        token={token}
+        onClose={() => setEditingEvent(null)}
+      />
     </SafeAreaView>
   );
 }

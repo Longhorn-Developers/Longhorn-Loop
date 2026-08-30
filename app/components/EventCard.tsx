@@ -20,8 +20,8 @@ export interface ApiEvent {
   location_full: string | null;
   latitude: number | null;
   longitude: number | null;
-  host_organization_id: number;
-  host_organization_name: string;
+  host_organization_id: number | null;
+  host_organization_name: string | null;
   event_url: string | null;
   rsvp_url: string | null;
   image_url: string | null;
@@ -36,6 +36,7 @@ export interface ApiEvent {
   categories: { id: string; name: string }[];
   // Classifier-assigned taxonomy tags (Phase 2). Rendered as chips.
   tags: string[];
+  discovery_bucket?: string | null;
   benefits: string[];
   expires_at: string | null;
   is_featured: number;

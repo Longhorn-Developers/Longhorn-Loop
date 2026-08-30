@@ -6,6 +6,7 @@ import * as NativeSplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import './globals.css';
 import AnimatedSplash from './components/AnimatedSplash';
 import { OnboardingProvider } from './context/OnboardingContext';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';

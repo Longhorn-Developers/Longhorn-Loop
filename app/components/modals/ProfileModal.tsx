@@ -34,26 +34,28 @@ interface ModalActionProps {
 
 // `destructive` is the "Yes, Delete" button (LOOP-131).
 //
-// Figma draws it as solid red with a white label. It ships as a red-on-tint
-// button instead, because solid red cannot survive dark mode: --lhl-destructive
-// lightens to #FF6B63 there so it stays legible AS TEXT, and white on #FF6B63
-// is 2.8:1 — well under AA, on the one button in the app you least want
-// misread. Red on its own tint is 5.9:1 in light and 5.2:1 in dark, and
-// test_theme_tokens pins both. Still unmistakably the destructive action next
-// to an outline Cancel; the alternative was a fourth red token existing only
-// to carry white text.
+// Solid red with a white label, as Figma draws it, and matching the "Yes,
+// cancel RSVP" button in rsvp/ConfirmModal — the two destructive confirms had
+// drifted into different treatments.
+//
+// It fills with `destructive-fill`, NOT `destructive`. That distinction is the
+// whole point of the extra token: `destructive` is tuned to be read as text and
+// lightens to #FF6B63 in dark so it clears 4.5:1 on the page, at which point
+// white sitting ON it is 2.79:1 — well under AA, on the one button in the app
+// you least want misread. `destructive-fill` stays dark enough to carry white
+// in both themes (7.15:1 light, 4.98:1 dark). test_theme_tokens pins it.
 const CONTAINER_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'bg-lhlSurface border border-lhlMutedBorder',
   ink: 'bg-lhlInk border border-lhlInk',
   brand: 'bg-lhlBurntOrange border border-lhlBurntOrange',
-  destructive: 'bg-lhlDestructiveSoft border border-lhlDestructiveRed',
+  destructive: 'bg-lhlDestructiveFill border border-lhlDestructiveFill',
 };
 
 const TEXT_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'text-lhlInk',
   ink: 'text-white',
   brand: 'text-white',
-  destructive: 'text-lhlDestructiveRed',
+  destructive: 'text-white',
 };
 
 /** Pill button used inside ProfileModal. */
@@ -77,7 +79,12 @@ export function ModalAction({
       disabled={disabled}
       onPress={onPress}
       className={[
-        'h-[36px] items-center justify-center rounded-full px-[24px]',
+        // px-[12px], not the 24 this started with. Width comes from `flex-1` /
+        // `w-full`, so horizontal padding sets no minimum here — it only eats
+        // into the label. At 24 the two buttons in a 266pt card got 110pt each
+        // and left 62pt of text room, which truncated "Yes, Delete" to an
+        // ellipsis while the shorter "Cancel" beside it looked fine.
+        'h-[36px] items-center justify-center rounded-full px-[12px]',
         fullWidth ? 'w-full' : 'flex-1',
         CONTAINER_BY_VARIANT[variant],
         disabled ? 'opacity-40' : '',
@@ -85,6 +92,12 @@ export function ModalAction({
     >
       <Text
         numberOfLines={1}
+        // The label must never wrap (the pill is a fixed 36pt tall) but it also
+        // must never truncate — these buttons say what they will do. Shrinking
+        // slightly is the better failure mode, and it keeps a long label
+        // readable at the larger system font sizes too.
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
         className={`font-['Roboto-Flex'] text-center ${textClass} ${TEXT_BY_VARIANT[variant]}`}
       >
         {label}
