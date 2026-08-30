@@ -51,6 +51,23 @@ const CONTAINER_BY_VARIANT: Record<ModalActionVariant, string> = {
   destructive: 'bg-lhlDestructiveFill border border-lhlDestructiveFill',
 };
 
+/**
+ * The same pill while a finger is on it.
+ *
+ * These buttons had NO press feedback at all -- the only thing that happened
+ * on a tap was whatever the tap did, which on a slow request meant a dialog
+ * that appeared to have ignored you. The outline variant deepens to the muted
+ * surface with a darker edge; the filled ones deepen their own colour rather
+ * than fading, so a destructive button still reads as destructive at the
+ * moment of commitment.
+ */
+const PRESSED_BY_VARIANT: Record<ModalActionVariant, string> = {
+  outline: 'bg-lhlSurfaceGrey border border-lhlSecondaryTextGrey',
+  ink: 'bg-lhlSecondaryTextGrey border border-lhlSecondaryTextGrey',
+  brand: 'bg-lhlAccent border border-lhlAccent',
+  destructive: 'bg-lhlDestructiveRed border border-lhlDestructiveRed',
+};
+
 const TEXT_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'text-lhlInk',
   ink: 'text-white',
@@ -67,6 +84,10 @@ export function ModalAction({
   fullWidth = false,
   size = 'default',
 }: ModalActionProps) {
+  // Ordinary state, not a `({ pressed }) => ...` callback: NativeWind's jsx
+  // runtime drops a function-valued style prop, silently.
+  const [pressed, setPressed] = React.useState(false);
+
   // Figma draws these at 29–36pt tall. We settle on 36 so every action clears a
   // comfortable touch target without visibly departing from the design.
   const textClass = size === 'large' ? 'text-[20px] font-bold' : 'text-[13px] font-medium';
@@ -78,6 +99,8 @@ export function ModalAction({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       className={[
         // px-[12px], not the 24 this started with. Width comes from `flex-1` /
         // `w-full`, so horizontal padding sets no minimum here — it only eats
@@ -86,7 +109,7 @@ export function ModalAction({
         // ellipsis while the shorter "Cancel" beside it looked fine.
         'h-[36px] items-center justify-center rounded-full px-[12px]',
         fullWidth ? 'w-full' : 'flex-1',
-        CONTAINER_BY_VARIANT[variant],
+        pressed && !disabled ? PRESSED_BY_VARIANT[variant] : CONTAINER_BY_VARIANT[variant],
         disabled ? 'opacity-40' : '',
       ].join(' ')}
     >
@@ -122,6 +145,19 @@ export interface ProfileModalProps {
   actions?: React.ReactNode;
   /** Android back button and scrim tap. Must behave like the safe action. */
   onDismiss: () => void;
+  /**
+   * Widens the card from 266 to 320.
+   *
+   * 266 is the Figma's width and right for a title, a sentence and two
+   * buttons. It is not enough once a dialog carries an input: the delete
+   * confirmation has to show a full @my.utexas.edu address inside a text field
+   * and be typed into, and at 266 the field is narrower than the address it is
+   * asking for.
+   *
+   * A prop rather than a new width for everyone, because four other modals
+   * share this shell and none of them needs the room.
+   */
+  wide?: boolean;
   /** Set false for flows where an accidental tap shouldn't discard state. */
   dismissOnBackdropPress?: boolean;
 }
@@ -137,6 +173,7 @@ export default function ProfileModal({
   actions,
   onDismiss,
   dismissOnBackdropPress = true,
+  wide = false,
 }: ProfileModalProps) {
   return (
     <Modal
@@ -156,7 +193,9 @@ export default function ProfileModal({
         {/* Absorbs taps so pressing the card itself never closes the modal. */}
         <Pressable
           onPress={() => {}}
-          className="w-[266px] items-center rounded-[10px] bg-lhlSurface px-[20px] py-[30px]"
+          className={`${
+            wide ? 'w-[320px] max-w-full' : 'w-[266px]'
+          } items-center rounded-[10px] bg-lhlSurface px-[20px] py-[30px]`}
         >
           {icon || showIconPlaceholder ? (
             <View className="mb-[14px]">

@@ -3,13 +3,14 @@
 // edits datetimes through the same control; this step keeps the wizard
 // chrome and the Single Day / Date Range decision, which is create-only.
 
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
+import { FieldError, RequiredMark } from '@/app/components/create-event/RequiredField';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DateMode } from '@/app/context/CreateEventContext';
 import DateTimeField from '@/app/components/create-event/DateTimeField';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function WhenIsIt() {
@@ -25,8 +26,17 @@ export default function WhenIsIt() {
     update({ dateMode: mode, ...(mode === 'single' ? { endDatetime: null } : {}) });
   };
 
+  /**
+   * Set by a Continue press, never by selecting. Marking the step red before
+   * anyone has tried to leave it is scolding them for not having started.
+   */
+  const [attempted, setAttempted] = useState(false);
+
   const onContinue = () => {
-    if (!canContinue) return;
+    if (!canContinue) {
+      setAttempted(true);
+      return;
+    }
     goNext();
   };
 
@@ -50,7 +60,16 @@ export default function WhenIsIt() {
           <Text style={styles.stepTitle}>When is it?</Text>
         </View>
 
-        <StepPills step={5} totalSteps={6} style={{ marginBottom: 20 }} />
+        <StepIndicator style={{ marginBottom: 20 }} />
+
+        <FieldError
+          show={attempted && !canContinue}
+          message={
+            data.dateMode === 'range' && data.startDatetime !== null
+              ? 'Add an end date for a multi-day event.'
+              : 'Set a start date and time.'
+          }
+        />
 
         <View style={styles.modeRow}>
           <ModeButton
@@ -90,8 +109,9 @@ export default function WhenIsIt() {
 
         <TouchableOpacity
           onPress={onContinue}
-          activeOpacity={canContinue ? 0.85 : 1}
-          disabled={!canContinue}
+          activeOpacity={0.85}
+          // NOT disabled: a disabled button cannot explain itself.
+          accessibilityState={{ disabled: !canContinue }}
           style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
         >
           <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>

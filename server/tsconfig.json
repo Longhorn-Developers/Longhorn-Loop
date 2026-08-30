@@ -2,6 +2,8 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
+    // ut-buildings.json is imported directly by lib/utBuildings.ts.
+    "resolveJsonModule": true,
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,

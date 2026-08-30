@@ -1,4 +1,4 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
@@ -222,7 +222,7 @@ export default function OptionalExtras() {
             <Text style={styles.stepTitle}>Optional Extras</Text>
           </View>
 
-          <StepPills step={6} totalSteps={6} style={{ marginBottom: 20 }} />
+          <StepIndicator style={{ marginBottom: 20 }} />
 
           {/* "All fields below are optional" stopped being true once the venue
               type moved onto this step — that one is required and pre-answered

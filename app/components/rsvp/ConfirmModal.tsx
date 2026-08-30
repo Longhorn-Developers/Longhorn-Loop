@@ -13,7 +13,7 @@
 
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 interface ConfirmModalProps {
@@ -38,6 +38,17 @@ interface ConfirmModalProps {
   primaryDestructive?: boolean;
 }
 
+/**
+ * Pressed fills, pinned rather than derived.
+ *
+ * Both are ~12% darker than the resting colour and are the same in light and
+ * dark: these sit on a filled button carrying a white label, so lightening
+ * them in dark mode would push the label's contrast down at exactly the moment
+ * the user is committing to something irreversible.
+ */
+const DESTRUCTIVE_PRESSED = '#8F0303'; // theme-exempt: white label, 9.62:1
+const BRAND_PRESSED = '#7C3B05'; // theme-exempt: white label, 8.45:1
+
 export default function ConfirmModal({
   visible,
   title,
@@ -53,9 +64,32 @@ export default function ConfirmModal({
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  /**
+   * Pressed state as component state, not a `({ pressed }) => ...` callback.
+   * Every element here goes through NativeWind's jsx runtime and a
+   * function-valued style is silently dropped by it -- see the note in
+   * components/profile/ProfileEventCard, which cost two rounds to find.
+   */
+  const [pressed, setPressed] = useState<'primary' | 'secondary' | null>(null);
+
   // `destructiveFill`, not `destructive`: the label on this button is white, and
   // `destructive` lightens to #FF6B63 in dark, where white on it is 2.79:1.
   const primaryBg = primaryDestructive ? colors.destructiveFill : colors.brand;
+
+  /**
+   * Pressed feedback that CHANGES COLOUR rather than fading.
+   *
+   * These two buttons are the whole decision, and they are full-width -- under
+   * a thumb, most of the one being pressed is hidden. An opacity dip is read
+   * through the finger covering it; a colour that deepens and holds for the
+   * frames after the finger lifts is not.
+   *
+   * The destructive one deepens toward its own red rather than going grey, so
+   * the feedback still says "this is the delete" at the moment of commitment.
+   * Keep Event fills with the muted surface, the same press language as the
+   * Manage Event rows behind this modal.
+   */
+  const primaryPressedBg = primaryDestructive ? DESTRUCTIVE_PRESSED : BRAND_PRESSED;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onSecondary}>
@@ -67,13 +101,30 @@ export default function ConfirmModal({
           {body ? <Text style={styles.body}>{body}</Text> : null}
           {!emphasisFirst && emphasis ? <Text style={styles.emphasis}>{emphasis}</Text> : null}
 
-          <Pressable onPress={onSecondary} style={styles.secondaryButton}>
+          <Pressable
+            onPress={onSecondary}
+            onPressIn={() => setPressed('secondary')}
+            onPressOut={() => setPressed(null)}
+            accessibilityRole="button"
+            style={[
+              styles.secondaryButton,
+              pressed === 'secondary'
+                ? { backgroundColor: colors.surfaceMuted, borderColor: colors.inkSecondary }
+                : null,
+            ]}
+          >
             <Text style={styles.secondaryText}>{secondaryLabel}</Text>
           </Pressable>
 
           <Pressable
             onPress={onPrimary}
-            style={[styles.primaryButton, { backgroundColor: primaryBg }]}
+            onPressIn={() => setPressed('primary')}
+            onPressOut={() => setPressed(null)}
+            accessibilityRole="button"
+            style={[
+              styles.primaryButton,
+              { backgroundColor: pressed === 'primary' ? primaryPressedBg : primaryBg },
+            ]}
           >
             <Text style={styles.primaryText}>{primaryLabel}</Text>
           </Pressable>

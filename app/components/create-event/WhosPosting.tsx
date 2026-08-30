@@ -1,4 +1,5 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
+import { FieldError, RequiredMark } from '@/app/components/create-event/RequiredField';
 import CheckIcon from '@/assets/images/check-selected.svg';
 import PosterOrgIcon from '@/assets/images/poster-org.svg';
 import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
@@ -10,7 +11,7 @@ import { org as orgKeys, user as userKeys } from '@/app/lib/queryKeys';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors, withAlpha } from '@/app/lib/themeColors';
 import { useQuery } from '@tanstack/react-query';
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   SafeAreaView,
@@ -97,8 +98,17 @@ export default function WhosPosting() {
   const canContinue = selectedId !== null;
   const isLoading = meQuery.isLoading || orgsQuery.isLoading;
 
+  /**
+   * Set by a Continue press, never by selecting. Marking the step red before
+   * anyone has tried to leave it is scolding them for not having started.
+   */
+  const [attempted, setAttempted] = useState(false);
+
   const onContinue = () => {
-    if (!canContinue) return;
+    if (!canContinue) {
+      setAttempted(true);
+      return;
+    }
     goNext();
   };
 
@@ -120,11 +130,17 @@ export default function WhosPosting() {
           <Text style={styles.stepTitle}>Who&apos;s Posting?</Text>
         </View>
 
-        <StepPills step={1} totalSteps={6} style={{ marginBottom: 20 }} />
+        <StepIndicator style={{ marginBottom: 20 }} />
 
         <Text style={styles.instruction}>
           Your event will be attributed to the profile or organization that you select.
+          <RequiredMark />
         </Text>
+
+        <FieldError
+          show={attempted && !canContinue}
+          message="Choose who is posting this event."
+        />
 
         {isLoading && (
           <View style={styles.loading}>
@@ -176,8 +192,9 @@ export default function WhosPosting() {
 
         <TouchableOpacity
           onPress={onContinue}
-          activeOpacity={canContinue ? 0.85 : 1}
-          disabled={!canContinue}
+          activeOpacity={0.85}
+          // NOT disabled: a disabled button cannot explain itself.
+          accessibilityState={{ disabled: !canContinue }}
           style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
         >
           <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>

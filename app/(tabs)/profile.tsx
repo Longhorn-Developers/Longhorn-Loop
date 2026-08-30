@@ -16,6 +16,7 @@
 // nothing here is written to take a target user id.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
+import SettingsDrawer from '@/app/components/SettingsDrawer';
 import EditEventOverlay, { type EventEditSource } from '@/app/components/org/EditEventOverlay';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import ProfileBio from '@/app/components/profile/ProfileBio';
@@ -306,6 +307,13 @@ export default function ProfileScreen() {
   }
 
   return (
+    /*
+      The settings drawer WRAPS the screen rather than sitting over it.
+      An overlay big enough to catch a right-edge drag is also big enough to
+      swallow every tap underneath it; as a wrapper the gesture sees the touch
+      first and hands it on when it turns out not to be a drag.
+    */
+    <SettingsDrawer open={menuOpen} onOpenChange={setMenuOpen}>
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
       {profileQuery.isLoading ? (
         <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
@@ -325,13 +333,15 @@ export default function ProfileScreen() {
             />
           }
         >
-          {/* --- Hamburger: org management + settings --- */}
+          {/* --- Hamburger: opens the settings drawer --- */}
           <View className="absolute right-[20px] top-[6px] z-20 items-end">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Menu"
               accessibilityState={{ expanded: menuOpen }}
-              onPress={() => setMenuOpen((v) => !v)}
+              // Opens the drawer. It also pulls in from the right edge, but a
+              // gesture nobody has discovered yet still needs a control.
+              onPress={() => setMenuOpen(true)}
               hitSlop={10}
               className="h-[28px] w-[28px] items-center justify-center"
             >
@@ -341,29 +351,6 @@ export default function ProfileScreen() {
                 <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
               ))}
             </Pressable>
-
-            {menuOpen ? (
-              <View className="mt-[6px] w-[220px] overflow-hidden rounded-[10px] border border-lhlMutedBorder bg-lhlSurface">
-                {[
-                  { label: 'Manage Organizations', to: '/settings' },
-                  { label: 'Settings', to: '/settings/preferences' },
-                ].map((item, i) => (
-                  <Pressable
-                    key={item.to}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setMenuOpen(false);
-                      router.push(item.to as never);
-                    }}
-                    className={`px-[14px] py-[12px] ${i > 0 ? 'border-t border-lhlSurfaceGrey' : ''}`}
-                  >
-                    <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
           </View>
 
           {/* --- Header --- */}
@@ -716,5 +703,6 @@ export default function ProfileScreen() {
         onPost={(body, notify) => postAnnouncement.mutate({ body, notify })}
       />
     </SafeAreaView>
+    </SettingsDrawer>
   );
 }

@@ -64,6 +64,12 @@ function leadLabel(minutes: number): string {
 type Row =
   | { kind: 'toggle'; key: ToggleKey; label: string; hint?: string }
   | { kind: 'lead'; label: string }
+  /**
+   * A read-only fact about the account. Not a link, and deliberately not
+   * styled like one -- there is nothing to tap and a chevron would promise
+   * otherwise.
+   */
+  | { kind: 'info'; label: string }
   | { kind: 'link'; label: string; onPressKey: string }
   | { kind: 'danger'; label: string; onPressKey: string };
 
@@ -99,6 +105,16 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
   {
     title: 'Account',
     rows: [
+      /**
+       * Which account you are actually in.
+       *
+       * Above Log Out on purpose: those two rows answer the same question in
+       * sequence -- "who am I signed in as" and "get me out of it" -- and
+       * anyone who signed in twice on one phone needs the first before the
+       * second is safe to press. It is also the address the delete flow will
+       * ask you to type back, so seeing it here first is not a coincidence.
+       */
+      { kind: 'info', label: 'Email' },
       { kind: 'link', label: 'Log Out', onPressKey: 'logout' },
       { kind: 'danger', label: 'Delete Account', onPressKey: 'delete' },
     ],
@@ -326,6 +342,33 @@ export default function SettingsPreferencesScreen() {
                         );
                       }
 
+                      if (row.kind === 'info') {
+                        return (
+                          <View
+                            key={row.label}
+                            className={`flex-row items-center justify-between px-[14px] py-[13px] ${
+                              index > 0 ? 'border-t border-lhlSurfaceGrey' : ''
+                            }`}
+                          >
+                            <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
+                              {row.label}
+                            </Text>
+                            <Text
+                              // Shrinks and truncates from the LEFT. A long
+                              // address should lose its start, not its domain
+                              // -- "...@my.utexas.edu" still tells you which
+                              // account this is, "mew4343@my.utex..." does not.
+                              numberOfLines={1}
+                              ellipsizeMode="head"
+                              selectable
+                              className="font-['Roboto-Flex'] ml-[12px] shrink text-right text-[13px] text-lhlSecondaryTextGrey"
+                            >
+                              {onboarding.email || '—'}
+                            </Text>
+                          </View>
+                        );
+                      }
+
                       if (row.kind === 'lead') {
                         return (
                           <Pressable
@@ -461,6 +504,7 @@ export default function SettingsPreferencesScreen() {
           once that code is entered. */}
       <DeleteAccountModal
         visible={confirmDelete}
+        email={onboarding.email}
         onClose={() => setConfirmDelete(false)}
         onConfirm={async () => {
           try {
