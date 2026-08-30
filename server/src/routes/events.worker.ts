@@ -17,6 +17,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../lib/images';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { isNonPhysicalLocation, resolveBuilding } from '../lib/utBuildings';
 import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
 
@@ -1882,6 +1883,98 @@ eventRoutes.post('/:id/coordinates', async (c) => {
     .run();
 
   return c.json({ ok: true, updated: updated.meta.changes > 0 });
+});
+
+/**
+ * POST /events/backfill-coordinates -- resolve UT buildings for rows that
+ * already exist.
+ *
+ * ingestEvents resolves buildings for events as they arrive, which fixes the
+ * future and does nothing for the past: every event already in the table was
+ * written before that code existed and still has NULL coordinates. The
+ * six-hour scrape does re-upsert and would fill them in eventually, but
+ * "eventually" is not a deploy verification step, and events no longer in
+ * their source feed are never re-upserted at all and would stay pinless
+ * forever.
+ *
+ * Guarded by CRON_SECRET rather than a user token: it is an operator action,
+ * and the same secret already guards the scrape routes.
+ *
+ * `?dryRun=1` reports what WOULD resolve and writes nothing. Run that first --
+ * it prints the unresolved locations, which is the list worth reading before
+ * committing 200 rows to a coordinate.
+ */
+eventRoutes.post('/backfill-coordinates', async (c) => {
+  if (c.req.header('Authorization') !== `Bearer ${c.env.CRON_SECRET}`) {
+    return c.json({ error: 'UNAUTHORIZED' }, 401);
+  }
+
+  const dryRun = c.req.query('dryRun') === '1';
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, location_short, location_full, venue_type
+       FROM events
+      WHERE latitude IS NULL
+        AND longitude IS NULL
+        AND COALESCE(location_full, location_short) IS NOT NULL`,
+  ).all<{
+    id: number;
+    location_short: string | null;
+    location_full: string | null;
+    venue_type: string | null;
+  }>();
+
+  const updates: { id: number; latitude: number; longitude: number }[] = [];
+  const unresolved = new Map<string, number>();
+  let skippedOnline = 0;
+
+  for (const row of results ?? []) {
+    const location = row.location_full ?? row.location_short;
+    if (row.venue_type === 'online' || isNonPhysicalLocation(location)) {
+      skippedOnline++;
+      continue;
+    }
+    const building = resolveBuilding(location);
+    if (!building) {
+      const key = (location ?? '').trim();
+      unresolved.set(key, (unresolved.get(key) ?? 0) + 1);
+      continue;
+    }
+    updates.push({ id: row.id, latitude: building.latitude, longitude: building.longitude });
+  }
+
+  if (!dryRun && updates.length > 0) {
+    // Batched: one round trip per chunk rather than per event. D1 caps a batch,
+    // and a few hundred statements at a time stays well inside it.
+    const CHUNK = 100;
+    for (let i = 0; i < updates.length; i += CHUNK) {
+      await c.env.DB.batch(
+        updates.slice(i, i + CHUNK).map((u) =>
+          c.env.DB.prepare(
+            `UPDATE events SET latitude = ?, longitude = ?
+              WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
+          ).bind(u.latitude, u.longitude, u.id),
+        ),
+      );
+    }
+  }
+
+  // Most frequent first: the location appearing 40 times is the alias worth
+  // adding, and the one-off typo is not.
+  const topUnresolved = [...unresolved.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 40)
+    .map(([location, count]) => ({ location, count }));
+
+  return c.json({
+    ok: true,
+    dryRun,
+    candidates: results?.length ?? 0,
+    resolved: updates.length,
+    skippedNonPhysical: skippedOnline,
+    unresolvedDistinct: unresolved.size,
+    topUnresolved,
+  });
 });
 
 // POST /events/:id/report -- user reports an event for moderation.
