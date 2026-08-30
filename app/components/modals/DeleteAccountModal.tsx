@@ -100,6 +100,9 @@ export default function DeleteAccountModal({
       // An accidental backdrop tap mid-request would leave a code sent and the
       // user with no screen explaining it.
       dismissOnBackdropPress={!isSubmitting}
+      // The one dialog in this shell that holds an input. At the shared 266pt
+      // the field is narrower than the address it is asking you to type.
+      wide
       title="Delete Account?"
       body="This cannot be undone. Your profile, events, RSVPs and saved events are permanently removed."
       actions={
