@@ -20,9 +20,40 @@ import PencilIcon from '@/assets/images/pencil.svg';
 import TrashIcon from '@/assets/images/trash.svg';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
-import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Image,
+  Modal,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { SvgProps } from 'react-native-svg';
+
+/**
+ * The icon column, and the reason it exists.
+ *
+ * The Figma gives each row its own icon size and its own gap -- eye 24 at
+ * gap 14, pencil 20 at 16, megaphone 19 at 16, trash 20 at 16. Laid out
+ * literally that puts the four labels at x = 38, 36, 35 and 36: the design is
+ * itself misaligned, by up to 3px, because the icons came from three different
+ * icon sets and nobody normalised them.
+ *
+ * So the icons keep their Figma sizes -- they are drawn with different amounts
+ * of internal padding and forcing them all to 20 would make the eye look
+ * shrunken -- but they are centred in a fixed 24pt column. Centres line up,
+ * every label starts at the same x, and the row no longer reads as ragged.
+ */
+const ICON_COLUMN = 24;
+const ICON_GAP = 14;
+
+/** Drag further than this and the sheet closes instead of springing back. */
+const DISMISS_DISTANCE = 90;
+/** Or flick faster than this, however far you actually got. */
+const DISMISS_VELOCITY = 0.6;
 
 export interface ManageEventSheetProps {
   visible: boolean;
@@ -36,6 +67,7 @@ export interface ManageEventSheetProps {
 
 function ActionRow({
   Icon,
+  iconSize,
   label,
   onPress,
   destructive,
@@ -43,6 +75,7 @@ function ActionRow({
   colors,
 }: {
   Icon: React.FC<SvgProps>;
+  iconSize: number;
   label: string;
   onPress: () => void;
   destructive?: boolean;
@@ -56,7 +89,13 @@ function ActionRow({
       accessibilityLabel={label}
       style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
     >
-      <Icon width={20} height={20} color={destructive ? colors.destructive : colors.ink} />
+      <View style={styles.iconColumn}>
+        <Icon
+          width={iconSize}
+          height={iconSize}
+          color={destructive ? colors.destructive : colors.ink}
+        />
+      </View>
       <Text style={[styles.actionLabel, destructive && { color: colors.destructive }]}>
         {label}
       </Text>
@@ -76,19 +115,127 @@ export default function ManageEventSheet({
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  /**
+   * Entrance, drag and exit all run through one value, which is why the Modal
+   * is animationType="none". Letting the Modal do its own slide and layering a
+   * drag transform on top means two animations fighting over the same pixels on
+   * dismiss -- the sheet drops, then the Modal slides the already-gone sheet
+   * down again.
+   */
+  const translateY = useRef(new Animated.Value(0)).current;
+  // Height lives in both a ref and state on purpose: the interpolation below
+  // needs a re-render to pick up a new value, while the PanResponder is built
+  // once and would otherwise close over the first render's zero forever.
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const sheetHeightRef = useRef(0);
+
+  useEffect(() => {
+    if (!visible) return;
+    // Start below the fold and come up. Until the first layout lands we do not
+    // know how far "below" is, so the sheet simply appears in place for that
+    // one frame rather than flying in from an arbitrary distance.
+    translateY.setValue(sheetHeightRef.current || 0);
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 26,
+      stiffness: 260,
+      mass: 0.9,
+    }).start();
+    // sheetHeight is deliberately not a dependency: re-running this on a
+    // measurement change would replay the entrance mid-interaction.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Held in a ref so the PanResponder, which is built once, always calls the
+  // current version rather than the one from mount.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  const closeWithSlide = () => {
+    Animated.timing(translateY, {
+      toValue: sheetHeightRef.current || 400,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) closeRef.current();
+    });
+  };
+
+  const closeRefSlide = useRef(closeWithSlide);
+  closeRefSlide.current = closeWithSlide;
+
+  /**
+   * The grabber was decorative, which is the one thing a grabber must never be.
+   * It is the universal "drag me" affordance, so a sheet that draws one and
+   * then ignores the drag reads as broken rather than as fixed.
+   *
+   * PanResponder rather than react-native-gesture-handler: GH needs its own
+   * root view inside a Modal to receive touches on Android, and this is a
+   * single-axis drag that the core responder system handles fine.
+   */
+  const pan = useRef(
+    PanResponder.create({
+      // Claim the gesture only once it is clearly a downward drag. A lower
+      // threshold steals taps meant for the rows underneath.
+      onMoveShouldSetPanResponder: (_evt, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_evt, g) => {
+        // Downward only. Dragging up would peel the sheet off the bottom edge
+        // and show the backdrop underneath it.
+        translateY.setValue(Math.max(0, g.dy));
+      },
+      onPanResponderRelease: (_evt, g) => {
+        if (g.dy > DISMISS_DISTANCE || g.vy > DISMISS_VELOCITY) {
+          closeRefSlide.current();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            damping: 26,
+            stiffness: 260,
+          }).start();
+        }
+      },
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+
+  // The scrim fades with the drag, so a half-dismissed sheet looks half
+  // dismissed rather than fully modal right up until it vanishes.
+  const backdropOpacity = translateY.interpolate({
+    inputRange: [0, Math.max(sheetHeight, 1)],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   // The sheet is driven by which card was tapped, so `event` is null between
   // dismissal and the next open. Rendering nothing is better than rendering a
   // sheet about no event for one frame.
   if (!event) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={closeWithSlide}>
       {/* Tapping the dimmed area closes, which is what a bottom sheet trains
           people to expect. The sheet itself swallows the press so a stray tap
           inside it does not dismiss. */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
-      <View style={styles.sheet}>
-        <View style={styles.grabber} />
+      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeWithSlide} accessibilityLabel="Close" />
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.sheet, { transform: [{ translateY }] }]}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          sheetHeightRef.current = h;
+          setSheetHeight(h);
+        }}
+      >
+        {/* The drag handle is this whole band, not the 5pt pill. A 5pt-tall
+            target is under half the platform minimum, so the affordance would
+            be visible and still essentially unusable. */}
+        <View {...pan.panHandlers} style={styles.grabberArea}>
+          <View style={styles.grabber} />
+        </View>
 
         <Text style={styles.heading}>Manage Event</Text>
 
@@ -126,6 +273,7 @@ export default function ManageEventSheet({
         <View style={styles.actions}>
           <ActionRow
             Icon={EyeIcon}
+            iconSize={24}
             label="View Event Page"
             onPress={onViewEventPage}
             styles={styles}
@@ -133,6 +281,7 @@ export default function ManageEventSheet({
           />
           <ActionRow
             Icon={PencilIcon}
+            iconSize={20}
             label="Edit Event Details"
             onPress={onEditDetails}
             styles={styles}
@@ -140,6 +289,7 @@ export default function ManageEventSheet({
           />
           <ActionRow
             Icon={MegaphoneIcon}
+            iconSize={19}
             label="Post Announcement"
             onPress={onPostAnnouncement}
             styles={styles}
@@ -147,6 +297,7 @@ export default function ManageEventSheet({
           />
           <ActionRow
             Icon={TrashIcon}
+            iconSize={20}
             label="Delete Event"
             onPress={onDeleteEvent}
             destructive
@@ -154,7 +305,7 @@ export default function ManageEventSheet({
             colors={colors}
           />
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -174,16 +325,20 @@ const makeStyles = (c: ThemeColors) =>
       borderTopLeftRadius: 14,
       borderTopRightRadius: 14,
       paddingHorizontal: 20,
-      paddingTop: 12,
       paddingBottom: 34,
     },
+    grabberArea: {
+      // 12 above + 13 below reproduces the Figma's spacing around the pill
+      // while giving the drag a 30pt band to start in.
+      paddingTop: 12,
+      paddingBottom: 13,
+      alignItems: 'center',
+    },
     grabber: {
-      alignSelf: 'center',
       width: 81,
       height: 5,
       borderRadius: 999,
       backgroundColor: c.ink,
-      marginBottom: 13,
     },
     heading: {
       fontSize: 16,
@@ -222,15 +377,24 @@ const makeStyles = (c: ThemeColors) =>
       marginTop: 2,
     },
     actions: {
-      gap: 16,
+      // No gap. Each row is already a 44pt tap target, which sets an even
+      // 44pt pitch on its own; adding the Figma's 16 on top of that spaced
+      // them 60 apart and the list read as four separate things.
+      gap: 0,
     },
     actionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
+      gap: ICON_GAP,
       // The row is the tap target, not the label. 44 clears the platform
       // minimum without the list looking airy.
       minHeight: 44,
+    },
+    iconColumn: {
+      width: ICON_COLUMN,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
     },
     actionLabel: {
       fontSize: 14,
