@@ -52,6 +52,27 @@ export const ORG_SEARCH_LIMIT = 10;
 export const ORG_SEARCH_MAX_LIMIT = 25;
 
 /**
+ * ?sort= options for GET /orgs/search (LOOP-264), in the order the Explore
+ * "Orgs" toggle offers them.
+ *
+ *   trending -- most new org_followers rows in the past 7 days
+ *   newest   -- most recently updated organizations first
+ *   az       -- alphabetical by name
+ *
+ * 'trending' is the default: it's what a directory should open on when nobody
+ * has typed a search yet.
+ */
+export const ORG_SORT_OPTIONS = ['trending', 'newest', 'az'] as const;
+
+export type OrgSortOption = (typeof ORG_SORT_OPTIONS)[number];
+
+export function isOrgSort(value: unknown): value is OrgSortOption {
+  return typeof value === 'string' && (ORG_SORT_OPTIONS as readonly string[]).includes(value);
+}
+
+export const ORG_SEARCH_DEFAULT_SORT: OrgSortOption = 'trending';
+
+/**
  * Whether an org can still be claimed, and if not, why.
  *
  * Derived server-side from two signals rather than one, because neither alone
