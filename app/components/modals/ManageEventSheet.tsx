@@ -20,7 +20,7 @@ import PencilIcon from '@/assets/images/pencil.svg';
 import TrashIcon from '@/assets/images/trash.svg';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
@@ -118,18 +118,37 @@ function ActionRow({
   styles: ReturnType<typeof makeStyles>;
   colors: ThemeColors;
 }) {
+  const [pressed, setPressed] = useState(false);
+
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       accessibilityRole="button"
       accessibilityLabel={label}
-      // Pressed state is a full-bleed grey band, not a dimmed row. Opacity
-      // fades the label as well, which reads as "disabled" at a glance; a
-      // highlight behind unchanged text reads as "this is the one you hit".
-      style={({ pressed }) => [
-        styles.actionRow,
-        pressed && { backgroundColor: colors.surfaceMuted },
-      ]}
+      /*
+        NO `style={({ pressed }) => ...}` CALLBACK, and this is the third place
+        in this feature that has had to learn it.
+
+        babel.config runs babel-preset-expo with jsxImportSource: 'nativewind',
+        so every JSX element in the app goes through NativeWind's jsx runtime --
+        className or not. A `style` prop given as a FUNCTION does not survive
+        that: whatever the callback returns is dropped, silently.
+
+        Here that took the whole row style with it, not just the pressed colour,
+        because the callback was returning [styles.actionRow, ...]. Losing
+        actionRow means losing flexDirection: 'row', so the label rendered
+        UNDERNEATH the icon instead of beside it, and the pressed highlight
+        never appeared either. One dropped prop, two symptoms, and neither of
+        them looks like "your style prop was ignored".
+
+        Pressed is ordinary state and the style is a plain object.
+      */
+      style={{
+        ...styles.actionRow,
+        ...(pressed ? { backgroundColor: colors.surfaceMuted } : null),
+      }}
     >
       <View style={styles.iconColumn}>
         <Icon
@@ -139,7 +158,7 @@ function ActionRow({
           style={{ marginLeft: inkNudge(iconSize, inkLeftRatio) }}
         />
       </View>
-      <Text style={[styles.actionLabel, destructive && { color: colors.destructive }]}>
+      <Text style={destructive ? { ...styles.actionLabel, color: colors.destructive } : styles.actionLabel}>
         {label}
       </Text>
     </Pressable>
