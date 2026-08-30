@@ -1311,16 +1311,26 @@ async function notifyUsers(
 
 // DELETE /events/:id -- the host removes their own event.
 //
-// ARCHIVE, NOT A ROW DELETE. `is_archived` already exists and every feed
-// filters on it, so flipping it takes the event out of Explore, the home feed,
-// search and everyone's profile in one write. A hard DELETE would cascade
-// through event_rsvps, saved_events, event_tags and notifications, which means
-// an accidental delete is unrecoverable and the notification telling people it
-// was cancelled would delete itself on the way out.
+// CANCEL, NOT A ROW DELETE, AND NOT AN ARCHIVE. `events.status` already exists
+// (DEFAULT 'active') and the read paths that matter already filter on it — the
+// feed, the event detail, the org console, and the worker's reminder query — so
+// flipping it to 'cancelled' takes the event out of discovery everywhere in one
+// write.
+//
+// `is_archived` was the other candidate and is the wrong one: it cannot tell an
+// attendee that an event was CANCELLED apart from one that merely EXPIRED.
+// Someone who RSVP'd and would otherwise turn up to a locked door deserves that
+// distinction, and the column that carries it is status. (LOOP-277.)
+//
+// A hard DELETE is the third option and the worst: it cascades through
+// event_rsvps, saved_events, event_tags and notifications, so an accidental
+// delete is unrecoverable and the notice telling people it was cancelled
+// deletes itself on the way out.
 //
 // The modal promises "anyone who saved or RSVP'd will no longer see it, and
-// users will be notified" — the archive does the first half, the fan-out below
-// does the second.
+// users will be notified" — the status change does the first half, the fan-out
+// below does the second. The event stays visible to its creator, and RSVP
+// history stays intact.
 eventRoutes.delete('/:id', async (c) => {
   const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
   if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
@@ -1332,7 +1342,7 @@ eventRoutes.delete('/:id', async (c) => {
   if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
 
   const existing = await c.env.DB.prepare(
-    `SELECT id, title, image_url, is_archived, host_organization_id, created_by_user_id
+    `SELECT id, title, image_url, status, host_organization_id, created_by_user_id
        FROM events WHERE id = ?`,
   )
     .bind(eventId)
@@ -1351,20 +1361,18 @@ eventRoutes.delete('/:id', async (c) => {
   );
   if (!allowed) return c.json({ error: 'FORBIDDEN' }, 403);
 
-  // Already archived: succeed quietly rather than 404. Double-tapping Delete
+  // Already cancelled: succeed quietly rather than 404. Double-tapping Delete
   // on a slow connection should not read as an error, and re-notifying the
   // audience about a second cancellation would be worse than doing nothing.
-  if (Number(existing.is_archived) === 1) {
-    return c.json({ ok: true, alreadyArchived: true });
+  if (existing.status === 'cancelled') {
+    return c.json({ ok: true, alreadyCancelled: true });
   }
 
   const audience = await getEventAudience(c.env.DB, eventId);
 
-  await c.env.DB.prepare(`UPDATE events SET is_archived = 1, archived_at = ? WHERE id = ?`)
-    .bind(new Date().toISOString(), eventId)
-    .run();
+  await c.env.DB.prepare(`UPDATE events SET status = 'cancelled' WHERE id = ?`).bind(eventId).run();
 
-  // After the archive, not before: if the UPDATE fails nobody should have been
+  // After the write, not before: if the UPDATE fails nobody should have been
   // told their event was cancelled.
   await notifyUsers(c.env.DB, audience, {
     type: 'event_cancelled',
@@ -1396,14 +1404,14 @@ eventRoutes.post('/:id/announcements', async (c) => {
   if (!Number.isFinite(eventId)) return c.json({ error: 'INVALID_EVENT_ID' }, 400);
 
   const existing = await c.env.DB.prepare(
-    `SELECT id, title, image_url, is_archived, host_organization_id, created_by_user_id
+    `SELECT id, title, image_url, status, host_organization_id, created_by_user_id
        FROM events WHERE id = ?`,
   )
     .bind(eventId)
     .first();
   if (!existing) return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
-  if (Number(existing.is_archived) === 1) {
-    return c.json({ error: 'EVENT_ARCHIVED' }, 409);
+  if (existing.status === 'cancelled') {
+    return c.json({ error: 'EVENT_CANCELLED' }, 409);
   }
 
   const allowed = await canEditEvent(

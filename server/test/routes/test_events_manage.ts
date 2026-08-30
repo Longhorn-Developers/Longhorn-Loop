@@ -2,6 +2,11 @@
  * DELETE /events/:id and POST /events/:id/announcements — the two destructive
  * halves of the Manage Event sheet.
  *
+ * Delete sets `status = 'cancelled'`. It does NOT archive and does NOT drop the
+ * row: is_archived cannot tell an attendee that an event was cancelled apart
+ * from one that merely expired, and someone who RSVP'd deserves that
+ * distinction (LOOP-277).
+ *
  * Same harness as test_events_patch.ts: the REAL Hono handlers against a REAL
  * SQLite database built from schema.sql, through a thin D1 shim. That matters
  * more here than anywhere else in the suite, because every claim worth making
@@ -215,14 +220,17 @@ describeOrSkip('Manage Event: delete + announcements', () => {
   });
 
   describe('DELETE /events/:id', () => {
-    it('archives rather than deleting, so the row and its RSVPs survive', async () => {
+    it('cancels rather than deleting, so the row and its RSVPs survive', async () => {
       const res = await del(ORG_EVENT, ADMIN);
       expect(res.status).toBe(200);
 
       const after = row(ORG_EVENT);
       expect(after).toBeDefined();
-      expect(after.is_archived).toBe(1);
-      expect(after.archived_at).toBeTruthy();
+      expect(after.status).toBe('cancelled');
+      // Explicitly NOT archived. Archiving is what the cleanup job does to
+      // events that have simply expired, and conflating the two is the bug
+      // this endpoint was rewritten to avoid.
+      expect(after.is_archived).toBe(0);
 
       // A hard delete would have cascaded these away.
       const rsvps = db
@@ -249,18 +257,18 @@ describeOrSkip('Manage Event: delete + announcements', () => {
 
       const res = await del(ORG_EVENT, ADMIN);
       expect(res.status).toBe(200);
-      expect((await res.json()).alreadyArchived).toBe(true);
+      expect((await res.json()).alreadyCancelled).toBe(true);
       expect(notifications()).toHaveLength(before);
     });
 
     it('lets an org editor delete, matching who may edit', async () => {
       expect((await del(ORG_EVENT, EDITOR)).status).toBe(200);
-      expect(row(ORG_EVENT).is_archived).toBe(1);
+      expect(row(ORG_EVENT).status).toBe('cancelled');
     });
 
     it('lets the creator delete their own personal event', async () => {
       expect((await del(PERSONAL_EVENT, CREATOR)).status).toBe(200);
-      expect(row(PERSONAL_EVENT).is_archived).toBe(1);
+      expect(row(PERSONAL_EVENT).status).toBe('cancelled');
     });
 
     it('refuses an outsider, a rival org editor, and the anonymous caller', async () => {
@@ -268,7 +276,7 @@ describeOrSkip('Manage Event: delete + announcements', () => {
       expect((await del(ORG_EVENT, RIVAL)).status).toBe(403);
       expect((await del(ORG_EVENT)).status).toBe(401);
       // Nothing moved, and nobody was told anything.
-      expect(row(ORG_EVENT).is_archived).toBe(0);
+      expect(row(ORG_EVENT).status).toBe('active');
       expect(notifications()).toHaveLength(0);
     });
 
@@ -317,7 +325,7 @@ describeOrSkip('Manage Event: delete + announcements', () => {
       expect(notifications()).toHaveLength(0);
     });
 
-    it('refuses an archived event -- a cancelled event has nothing to announce', async () => {
+    it('refuses a cancelled event -- it has nothing left to announce', async () => {
       await del(ORG_EVENT, ADMIN);
       const res = await announce(ORG_EVENT, { body: 'still on!' }, ADMIN);
       expect(res.status).toBe(409);

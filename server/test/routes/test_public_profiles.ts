@@ -809,6 +809,67 @@ describeOrSkip('public profiles + Follow/Block (LOOP-180)', () => {
       expect(after.counts.going).toBe(0);
     });
 
+    it('KEEPS past events on the Posted tab, and in its count', async () => {
+      // Reported as "I posted an event and it is not in my profile". The event
+      // was there and was mine; it had simply started, and Posted filtered on
+      // the same upcoming-only window as Going and Saved.
+      //
+      // Posted is the record of what you have hosted, not a to-do list. It is
+      // also where the Manage Event sheet lives, so an upcoming-only filter
+      // takes edit/announce/delete away at the moment a host most needs them:
+      // the event has begun and something has gone wrong.
+      db.exec(
+        `INSERT INTO events (id, source, source_event_id, title, start_datetime,
+                             created_by_user_id, is_archived, status)
+         VALUES
+           (9101, 'user_created', 'e9101', 'Mine Yesterday',
+            datetime('now', '-1 days'), ${ME}, 0, 'active'),
+           (9102, 'user_created', 'e9102', 'Mine Tomorrow',
+            datetime('now', '+1 days'), ${ME}, 0, 'active')`,
+      );
+
+      const body = (await (await users('/me/events?tab=posted', { as: ME })).json()) as any;
+      const posted = titles(body.events);
+      expect(posted).toContain('Mine Tomorrow');
+      expect(posted).toContain('Mine Yesterday');
+      // Upcoming first, past after -- a host opening Posted should not land on
+      // last semester.
+      expect(posted.indexOf('Mine Tomorrow')).toBeLessThan(posted.indexOf('Mine Yesterday'));
+      // The pill has to agree with the grid under it.
+      expect(body.counts.posted).toBeGreaterThanOrEqual(2);
+    });
+
+    it('still hides a DELETED (archived) event from Posted', async () => {
+      // Relaxing the window must not resurrect events the host deleted.
+      db.exec(
+        `INSERT INTO events (id, source, source_event_id, title, start_datetime,
+                             created_by_user_id, is_archived, status)
+         VALUES (9103, 'user_created', 'e9103', 'Mine Deleted',
+                 datetime('now', '+1 days'), ${ME}, 1, 'active')`,
+      );
+
+      const body = (await (await users('/me/events?tab=posted', { as: ME })).json()) as any;
+      expect(titles(body.events)).not.toContain('Mine Deleted');
+    });
+
+    it('keeps Going and Saved upcoming-only', async () => {
+      // The relaxation is Posted-specific. Nobody needs a list of parties they
+      // already went to.
+      db.exec(
+        `INSERT INTO events (id, source, source_event_id, title, start_datetime,
+                             created_by_user_id, is_archived, status)
+         VALUES (9104, 'user_created', 'e9104', 'Went Yesterday',
+                 datetime('now', '-1 days'), ${TODD}, 0, 'active')`,
+      );
+      db.exec(`INSERT INTO event_rsvps (event_id, user_id) VALUES (9104, ${ME})`);
+      db.exec(`INSERT INTO saved_events (event_id, user_id) VALUES (9104, ${ME})`);
+
+      for (const tab of ['going', 'saved']) {
+        const body = (await (await users(`/me/events?tab=${tab}`, { as: ME })).json()) as any;
+        expect(titles(body.events)).not.toContain('Went Yesterday');
+      }
+    });
+
     it('drops it from the Past view', async () => {
       const before = (await (await users('/me/past-events', { as: ME })).json()) as any;
       expect(titles(before.attended)).toContain('Todd Past');
