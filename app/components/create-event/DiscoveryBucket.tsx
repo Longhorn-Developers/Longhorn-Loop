@@ -1,10 +1,11 @@
 import StepIndicator from '@/app/components/create-event/StepIndicator';
+import { FieldError, RequiredMark } from '@/app/components/create-event/RequiredField';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
@@ -25,8 +26,17 @@ export default function DiscoveryBucket() {
   const selectedId = data.discoveryBucket;
   const canContinue = selectedId !== null;
 
+  /**
+   * Set by a Continue press, never by selecting. Marking the step red before
+   * anyone has tried to leave it is scolding them for not having started.
+   */
+  const [attempted, setAttempted] = useState(false);
+
   const onContinue = () => {
-    if (!canContinue) return;
+    if (!canContinue) {
+      setAttempted(true);
+      return;
+    }
     goNext();
   };
 
@@ -55,8 +65,8 @@ export default function DiscoveryBucket() {
   const continueButton = (
     <TouchableOpacity
       onPress={onContinue}
-      activeOpacity={canContinue ? 0.85 : 1}
-      disabled={!canContinue}
+      activeOpacity={0.85}
+      // NOT disabled: a disabled button cannot explain itself.
       accessibilityRole="button"
       accessibilityState={{ disabled: !canContinue }}
       style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
@@ -105,7 +115,12 @@ export default function DiscoveryBucket() {
 
         <Text style={[styles.instruction, styles.gutter]}>
           Buckets help your event reach the right audience.
+          <RequiredMark />
         </Text>
+
+        <View style={styles.gutter}>
+          <FieldError show={attempted && !canContinue} message="Pick one bucket to continue." />
+        </View>
 
         <View style={[styles.bucketList, styles.gutter]}>
           {BUCKETS.map((bucket) => {

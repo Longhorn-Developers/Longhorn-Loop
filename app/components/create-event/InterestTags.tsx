@@ -1,11 +1,12 @@
 import StepIndicator from '@/app/components/create-event/StepIndicator';
+import { FieldError, RequiredMark } from '@/app/components/create-event/RequiredField';
 import ChipCloseIcon from '@/assets/images/chip-close.svg';
 import ChipPlusIcon from '@/assets/images/chip-plus.svg';
 import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function InterestTags() {
@@ -33,8 +34,17 @@ export default function InterestTags() {
     update({ interestTags: [...data.interestTags, tag] });
   };
 
+  /**
+   * Set by a Continue press, never by selecting. Marking the step red before
+   * anyone has tried to leave it is scolding them for not having started.
+   */
+  const [attempted, setAttempted] = useState(false);
+
   const onContinue = () => {
-    if (!canContinue) return;
+    if (!canContinue) {
+      setAttempted(true);
+      return;
+    }
     goNext();
   };
 
@@ -63,6 +73,7 @@ export default function InterestTags() {
         <View style={styles.instructionRow}>
           <Text style={styles.instruction}>
             Pick interests so the right people find your event.
+            <RequiredMark />
           </Text>
           <View style={styles.counterPill}>
             <Text style={styles.counterText}>
@@ -70,6 +81,11 @@ export default function InterestTags() {
             </Text>
           </View>
         </View>
+
+        <FieldError
+          show={attempted && !canContinue}
+          message="Pick at least one tag so people can find your event."
+        />
 
         <View style={styles.chipWrap}>
           {tags.map((tag) => {
@@ -100,8 +116,9 @@ export default function InterestTags() {
 
         <TouchableOpacity
           onPress={onContinue}
-          activeOpacity={canContinue ? 0.85 : 1}
-          disabled={!canContinue}
+          activeOpacity={0.85}
+          // NOT disabled: a disabled button cannot explain itself.
+          accessibilityState={{ disabled: !canContinue }}
           style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
         >
           <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>

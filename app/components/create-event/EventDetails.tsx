@@ -1,9 +1,10 @@
 import StepIndicator from '@/app/components/create-event/StepIndicator';
+import { FieldError, RequiredMark } from '@/app/components/create-event/RequiredField';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { EventTypeId } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -35,11 +36,26 @@ export default function EventDetails() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { data, update, goNext, goBack } = useCreateEvent();
 
-  const canContinue =
-    data.title.trim().length > 0 && data.description.trim().length > 0 && data.eventType !== null;
+  const missingTitle = data.title.trim().length === 0;
+  const missingDescription = data.description.trim().length === 0;
+  const missingType = data.eventType === null;
+  const canContinue = !missingTitle && !missingDescription && !missingType;
+
+  /**
+   * Set by a Continue press, never by typing.
+   *
+   * The step opens with three empty required fields, and marking them red on
+   * arrival would be scolding someone for not having started. Pressing
+   * Continue is the moment they claim to be finished, and that is when naming
+   * what is missing is help rather than nagging.
+   */
+  const [attempted, setAttempted] = useState(false);
 
   const onContinue = () => {
-    if (!canContinue) return;
+    if (!canContinue) {
+      setAttempted(true);
+      return;
+    }
     goNext();
   };
 
@@ -72,34 +88,56 @@ export default function EventDetails() {
           <Text style={styles.instruction}>Add some details for your event.</Text>
 
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Event Title</Text>
+            <Text style={styles.fieldLabel}>
+              Event Title
+              <RequiredMark />
+            </Text>
             <TextInput
               value={data.title}
               onChangeText={(text) => update({ title: text })}
               placeholder="Enter Event Title"
               placeholderTextColor={colors.inkMuted}
               maxLength={TITLE_MAX}
-              style={[styles.input, styles.singleLine]}
+              style={[
+                styles.input,
+                styles.singleLine,
+                attempted && missingTitle ? { borderColor: colors.destructive } : null,
+              ]}
               returnKeyType="next"
             />
+            <FieldError show={attempted && missingTitle} message="Add a title for your event." />
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Description of the Event</Text>
+            <Text style={styles.fieldLabel}>
+              Description of the Event
+              <RequiredMark />
+            </Text>
             <TextInput
               value={data.description}
               onChangeText={(text) => update({ description: text })}
               placeholder="Tell people what your event is about..."
               placeholderTextColor={colors.inkMuted}
               maxLength={DESCRIPTION_MAX}
-              style={[styles.input, styles.textarea]}
+              style={[
+                styles.input,
+                styles.textarea,
+                attempted && missingDescription ? { borderColor: colors.destructive } : null,
+              ]}
               multiline
               textAlignVertical="top"
+            />
+            <FieldError
+              show={attempted && missingDescription}
+              message="Tell people what your event is about."
             />
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Event Type</Text>
+            <Text style={styles.fieldLabel}>
+              Event Type
+              <RequiredMark />
+            </Text>
             <View style={styles.chipWrap}>
               {EVENT_TYPES.map((type) => {
                 const isSelected = type.id === data.eventType;
@@ -117,12 +155,15 @@ export default function EventDetails() {
                 );
               })}
             </View>
+            <FieldError show={attempted && missingType} message="Pick an event type." />
           </View>
 
           <TouchableOpacity
             onPress={onContinue}
-            activeOpacity={canContinue ? 0.85 : 1}
-            disabled={!canContinue}
+            activeOpacity={0.85}
+            // NOT disabled. A disabled button cannot tell you why it is
+            // disabled, and this step has three required fields.
+            accessibilityState={{ disabled: !canContinue }}
             style={[styles.continueButton, canContinue && styles.continueButtonEnabled]}
           >
             <Text style={[styles.continueText, canContinue && styles.continueTextEnabled]}>
