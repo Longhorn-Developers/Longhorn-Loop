@@ -21,7 +21,7 @@ import TrashIcon from '@/assets/images/trash.svg';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -78,6 +78,14 @@ const VELOCITY_PROJECTION_S = 0.14;
 const DRAG_SLOP = 8;
 
 const SPRING = { damping: 26, stiffness: 260, mass: 0.9 };
+
+/**
+ * Where "offscreen" is before the sheet has ever been measured. Only ever a
+ * fallback -- onLayout replaces it with the real height on the first frame --
+ * but it has to be a real distance rather than 0, or the first open has
+ * nowhere to travel from and simply appears.
+ */
+const OFFSCREEN = Dimensions.get('window').height;
 
 /**
  * iOS's rubber band. Pulling UP past the top yields less and less,
@@ -197,22 +205,40 @@ export default function ManageEventSheet({
    * silently does nothing inside a Modal: a Modal is its own native view
    * hierarchy, so the root view at the top of the app does not cover it.
    */
-  const translateY = useSharedValue(0);
+  /**
+   * STARTS OFFSCREEN, NOT AT REST, and that is the whole fix for the flash on
+   * open.
+   *
+   * This was useSharedValue(0) -- the sheet's resting position. Effects run
+   * AFTER paint, so the Modal mounted and painted one frame of the finished
+   * sheet sitting exactly where it ends up, and only then did the effect yank
+   * it down to spring back up. A single frame of the completed thing before it
+   * animates in, which is what "freeze frame" describes precisely.
+   */
+  const translateY = useSharedValue(OFFSCREEN);
   const startY = useSharedValue(0);
   const sheetH = useSharedValue(0);
 
   const finishClose = useCallback(() => {
-    translateY.value = 0;
+    // Deliberately does NOT reset translateY. It used to, and that was the
+    // afterimage on dismiss: the slide-down finished with the sheet offscreen,
+    // this snapped it back to fully visible, and the Modal only unmounted once
+    // React had processed onClose -- painting the sheet back in place for those
+    // frames in between. Parking it offscreen is the effect's job below.
     onClose();
-  }, [onClose, translateY]);
+  }, [onClose]);
 
   useEffect(() => {
-    if (!visible) return;
-    // Start below the fold and come up. Until the first layout lands we do not
-    // know how far "below" is, so the sheet appears in place for that one frame
-    // rather than flying in from an arbitrary distance.
-    translateY.value = sheetH.value;
-    translateY.value = withSpring(0, SPRING);
+    if (visible) {
+      translateY.value = sheetH.value || OFFSCREEN;
+      translateY.value = withSpring(0, SPRING);
+    } else {
+      // Park it offscreen while hidden, so the next open cannot paint a frame
+      // at rest before its effect runs. Without this the flash comes back on
+      // every open after the first, because translateY is still 0 from
+      // whatever closed it.
+      translateY.value = sheetH.value || OFFSCREEN;
+    }
   }, [visible, translateY, sheetH]);
 
   const closeWithSlide = useCallback(() => {
@@ -258,9 +284,13 @@ export default function ManageEventSheet({
 
   // The scrim fades with the drag, so a half-dismissed sheet looks half
   // dismissed rather than fully modal right up until it vanishes.
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: sheetH.value > 0 ? Math.max(0, 1 - translateY.value / sheetH.value) : 1,
-  }));
+  const backdropStyle = useAnimatedStyle(() => {
+    // Same fallback as the sheet. Reading a bare 1 before measurement made the
+    // scrim snap to full black on the first open while the sheet was still
+    // sliding, so the two halves of the entrance disagreed for a few frames.
+    const height = sheetH.value || OFFSCREEN;
+    return { opacity: Math.max(0, 1 - translateY.value / height) };
+  });
 
   // The sheet is driven by which card was tapped, so `event` is null between
   // dismissal and the next open. Rendering nothing is better than rendering a
