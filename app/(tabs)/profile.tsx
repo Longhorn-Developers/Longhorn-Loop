@@ -21,6 +21,8 @@ import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
 import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
+import OutlinedButton from '@/app/components/profile/OutlinedButton';
+import PencilIcon from '@/assets/images/pencil.svg';
 import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
@@ -384,35 +386,56 @@ export default function ProfileScreen() {
               following
             </Text>
 
-            {/* Edit Profile + linked socials, one row */}
+            {/*
+              Edit Profile + linked socials, one row, all 30pt tall.
+
+              Everything here was a size or two under the Figma and drawn with
+              the wrong hairline. The pill was a rounded-full chip sized by its
+              padding, so its height moved with the font; it is now the Figma's
+              fixed 100x30 with an 8pt radius, which is also what lets it and
+              the squares share a baseline instead of nearly sharing one.
+
+              The squares went from a 7pt radius to the Figma's 4, and their
+              glyphs from 16 to 20 -- a 16pt glyph in a 30pt box left more
+              padding than icon, which is the "it's small" being reported.
+
+              Border is lhlBorderSoft, not lhlMutedBorder. The design draws
+              these as white cards on the cream page, where the fill does the
+              separating and the edge only softens the join; lhlMutedBorder is
+              a control outline and was two steps too dark for that job.
+            */}
             <View className="mt-[10px] flex-row items-center gap-[8px]">
-              <Pressable
-                accessibilityRole="button"
+              <OutlinedButton
                 accessibilityLabel="Edit profile"
                 onPress={() => router.push('/profile/edit')}
-                className="flex-row items-center gap-[5px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[6px]"
+                borderRadius={8}
+                width={100}
+                gap={5}
               >
-                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                <Text className="font-['Roboto-Flex'] text-[12px] font-medium leading-[14px] text-lhlInk">
                   Edit Profile
                 </Text>
-                <Text className="text-[10px] text-lhlSecondaryTextGrey">✎</Text>
-              </Pressable>
+                {/* Was the text glyph "✎", which is a font character: it did
+                    not follow the ink colour, sat off the text baseline, and
+                    rendered differently per platform. */}
+                <PencilIcon width={12} height={12} color={colors.ink} />
+              </OutlinedButton>
 
               {profile?.socials?.map((social) => {
                 const meta = getSocialPlatformUI(social.platform);
                 if (!meta) return null;
                 const Icon = meta.icon;
                 return (
-                  <Pressable
+                  <OutlinedButton
                     key={social.platform}
                     accessibilityRole="link"
                     accessibilityLabel={`Open ${meta.label}`}
                     // Routed through the Open Link warning (LOOP-182).
                     onPress={() => openLink.request(social.url)}
-                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-lhlSurface"
+                    borderRadius={4}
                   >
-                    <Icon size={16} />
-                  </Pressable>
+                    <Icon size={20} color={colors.ink} />
+                  </OutlinedButton>
                 );
               })}
             </View>

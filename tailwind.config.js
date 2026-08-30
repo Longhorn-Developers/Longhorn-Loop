@@ -38,6 +38,8 @@ module.exports = {
         lhlPlaceholderGrey: 'rgb(var(--lhl-placeholder) / <alpha-value>)',
         // Segmented-control groove; the selected pill uses lhlBackgroundColor.
         lhlSegmentTrack: 'rgb(var(--lhl-segment-track) / <alpha-value>)',
+        // Softer hairline than lhlMutedBorder, for white outlined controls.
+        lhlBorderSoft: 'rgb(var(--lhl-border-soft) / <alpha-value>)',
 
         // Filled buttons; white text sits on this in both themes.
         lhlBurntOrange: 'rgb(var(--lhl-brand) / <alpha-value>)',
