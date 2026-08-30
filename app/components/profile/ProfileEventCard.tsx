@@ -39,17 +39,17 @@ export interface ProfileEventCardProps {
  * Shared geometry for the card's top-right control. One constant because the
  * pencil and the bookmark are the same button wearing different glyphs, and
  * two copies of these numbers is how they came apart in the first place.
+ *
+ * It is a className and NOT a style object, which matters. Moving this to an
+ * inline style -- which is what a `style={({ pressed }) => ...}` callback
+ * invites, since you are already writing style there -- dropped the
+ * positioning on device and both buttons fell to the bottom-left corner of the
+ * poster. Layout stays in NativeWind, where it demonstrably works; the style
+ * prop carries the one thing className cannot express, which is a colour that
+ * depends on the pressed argument.
  */
-const cornerButtonStyle = {
-  position: 'absolute' as const,
-  right: 8,
-  top: 8,
-  height: 26,
-  width: 26,
-  alignItems: 'center' as const,
-  justifyContent: 'center' as const,
-  borderRadius: 999,
-};
+const CORNER_BUTTON =
+  'absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full';
 
 export default function ProfileEventCard({
   event,
@@ -155,16 +155,14 @@ export default function ProfileEventCard({
               e.stopPropagation();
               onManage(event.id);
             }}
-            style={({ pressed }) => [
-              cornerButtonStyle,
-              {
-                backgroundColor: managing
-                  ? colors.brand
-                  : pressed
-                    ? colors.surfaceMuted
-                    : colors.surface,
-              },
-            ]}
+            className={CORNER_BUTTON}
+            style={({ pressed }) => ({
+              backgroundColor: managing
+                ? colors.brand
+                : pressed
+                  ? colors.surfaceMuted
+                  : colors.surface,
+            })}
           >
             {/* theme-exempt: white on the filled brand circle, as on every
                 other brand-filled control. */}
@@ -180,10 +178,10 @@ export default function ProfileEventCard({
               e.stopPropagation();
               onToggleSave(event.id);
             }}
-            style={({ pressed }) => [
-              cornerButtonStyle,
-              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
-            ]}
+            className={CORNER_BUTTON}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+            })}
           >
             <BookmarkGlyph saved={isSaved} width={13} height={13} />
           </Pressable>
