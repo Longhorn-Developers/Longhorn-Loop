@@ -33,17 +33,23 @@ import { orgInviteEmail, orgVerificationEmail } from '../email/templates';
 import { PAST_EVENT_CONDITION, UPCOMING_CONDITION } from './users.worker';
 import type { Env } from '../worker';
 import {
+  ORG_CATEGORIES,
   ORG_EMAIL_MISMATCH,
   ORG_EMAIL_NOT_ON_FILE,
   ORG_REFRESH_MIN_INTERVAL_MS,
+  ORG_SEARCH_DEFAULT_SORT,
   ORG_SEARCH_LIMIT,
   ORG_SEARCH_MAX_LIMIT,
   ORG_SEARCH_MIN_QUERY,
+  ORG_SORT_OPTIONS,
   isOrgCategory,
+  isOrgSort,
   type OrgClaimState,
+  type OrgSortOption,
 } from '../../../shared/orgRegistration';
 import { refreshOrgContactEmail } from '../scrapers/hornslinkOrgs';
 import { UT_EMAIL_ERROR, isAllowedUTEmail } from '../../../shared/utEmail';
+import { decodeCursor, encodeCursor } from '../lib/cursor';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -164,61 +170,232 @@ function claimStateOf(row: {
   return 'available';
 }
 
-// GET /orgs/search?q=&limit= -- "Find your organization" (LOOP-141).
+/** One ORDER BY column, shared between the query's ORDER BY and its keyset WHERE. */
+type SortKey = { expr: string; dir: 'ASC' | 'DESC'; field: string };
+
+/**
+ * The column list, in priority order, for each ?sort= option (LOOP-264).
+ *
+ * "Search relevance is a tie-breaker only when otherwise tied" (see the route
+ * below) is implemented by splicing the same three columns -- match tier,
+ * then name length, then name itself, mirroring the old single-purpose
+ * ranking this replaces -- into every sort's chain right after its primary
+ * criterion. For `trending`, that block's trailing "name ASC" is already the
+ * exact tie-break the spec defines for ties with no search running, so
+ * nothing further is added before the final `id`. For `az`, name is already
+ * the primary key, so only the tier/length prefix (not another name column)
+ * is spliced in. `id ASC` is the final tie-breaker everywhere, searching or
+ * not, because it is the only column guaranteed unique.
+ */
+function sortKeysFor(sort: OrgSortOption, searching: boolean): SortKey[] {
+  const id: SortKey = { expr: 'id', dir: 'ASC', field: 'id' };
+  const name: SortKey = { expr: 'name COLLATE NOCASE', dir: 'ASC', field: 'name' };
+  const relevance: SortKey[] = [
+    { expr: 'search_tier', dir: 'ASC', field: 'search_tier' },
+    { expr: 'name_length', dir: 'ASC', field: 'name_length' },
+    name,
+  ];
+
+  if (sort === 'newest') {
+    const updatedAt: SortKey = { expr: 'updated_at', dir: 'DESC', field: 'updated_at' };
+    return searching ? [updatedAt, ...relevance, id] : [updatedAt, id];
+  }
+  if (sort === 'az') {
+    return searching ? [name, relevance[0], relevance[1], id] : [name, id];
+  }
+  const trending: SortKey = { expr: 'trending_score', dir: 'DESC', field: 'trending_score' };
+  return searching ? [trending, ...relevance, id] : [trending, name, id];
+}
+
+/**
+ * Standard multi-column keyset predicate: "strictly after the cursor row in
+ * this exact column order." Built as an OR of AND-chains (equal on every
+ * earlier column, strictly past on this one) rather than a SQLite row-value
+ * comparison, so the shape stays obvious without relying on that syntax.
+ */
+function buildKeysetCondition(
+  keys: SortKey[],
+  cursorValues: (string | number)[],
+): { sql: string; binds: unknown[] } {
+  const orClauses: string[] = [];
+  const binds: unknown[] = [];
+  for (let i = 0; i < keys.length; i++) {
+    const andParts: string[] = [];
+    for (let j = 0; j < i; j++) andParts.push(`${keys[j].expr} = ?`);
+    andParts.push(`${keys[i].expr} ${keys[i].dir === 'ASC' ? '>' : '<'} ?`);
+    orClauses.push(`(${andParts.join(' AND ')})`);
+    binds.push(...cursorValues.slice(0, i + 1));
+  }
+  return { sql: orClauses.join(' OR '), binds };
+}
+
+interface OrgSearchCursor {
+  sort: OrgSortOption;
+  hasQuery: boolean;
+  k: (string | number)[];
+}
+
+// GET /orgs/search -- the org directory (LOOP-141 "Find your organization",
+// grown by LOOP-264 into the browsable list behind Explore's Orgs toggle).
 //
 // MUST stay above /:orgId (see above).
 //
-// KNOWN LIMITATION, and the reason the "skip for now" affordance on the client
-// is a real branch rather than decoration: `organizations` is populated as a
-// side effect of event ingestion (src/events/ingest.ts), so an org that has
+// KNOWN LIMITATION, unchanged since LOOP-141: `organizations` is populated as
+// a side effect of event ingestion (src/events/ingest.ts), so an org that has
 // never posted an event is not in the table and cannot be found here. This
 // endpoint searches what we have; it is not a HornsLink directory lookup.
+//
+// Query params, all optional:
+//   q                  keyword search on org name. Omitted (or empty) means
+//                      "no search" -- filters and sort still apply to the
+//                      whole directory. See ORG_SEARCH_MIN_QUERY below for
+//                      the one case that still short-circuits to [].
+//   verified           'true' -- only verified orgs.
+//   category           one of ORG_CATEGORIES; repeatable
+//                      (?category=A&category=B) or comma-separated.
+//   hasUpcomingEvents  'true' -- only orgs with a future, active event.
+//   sort               trending (default) | newest | az
+//   cursor             opaque; pass back a previous response's nextCursor.
+//   limit              page size, default ORG_SEARCH_LIMIT, max ORG_SEARCH_MAX_LIMIT.
 orgRoutes.get('/search', async (c) => {
   const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
   if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
-  const q = (c.req.query('q') ?? '').trim();
+  const rawSort = c.req.query('sort') ?? ORG_SEARCH_DEFAULT_SORT;
+  if (!isOrgSort(rawSort)) return c.json({ error: 'INVALID_SORT', valid: ORG_SORT_OPTIONS }, 400);
+  const sort: OrgSortOption = rawSort;
 
-  // Nothing rather than everything: the field is empty on first paint, and a
-  // bare "" must not return the directory. See ORG_SEARCH_MIN_QUERY.
-  if (q.length < ORG_SEARCH_MIN_QUERY) return c.json({ query: q, organizations: [] });
+  const q = (c.req.query('q') ?? '').trim();
+  const searching = q.length > 0 && q.length >= ORG_SEARCH_MIN_QUERY;
+
+  // A query the user is still typing (non-empty, below the minimum) returns
+  // nothing, same as pre-LOOP-264 -- but an OMITTED query is now a legitimate
+  // request for the directory (see Default Behavior), so only the former
+  // short-circuits here.
+  if (q.length > 0 && q.length < ORG_SEARCH_MIN_QUERY) {
+    return c.json({ query: q, sort, organizations: [], nextCursor: null });
+  }
 
   const rawLimit = Number(c.req.query('limit'));
   const limit = Number.isFinite(rawLimit)
     ? Math.min(Math.max(Math.trunc(rawLimit), 1), ORG_SEARCH_MAX_LIMIT)
     : ORG_SEARCH_LIMIT;
 
-  const lowered = q.toLowerCase();
-  const needle = escapeLike(lowered);
+  const isTruthyFlag = (v: string | undefined) => v === 'true' || v === '1';
+  const verifiedOnly = isTruthyFlag(c.req.query('verified'));
+  const hasUpcomingEvents = isTruthyFlag(c.req.query('hasUpcomingEvents'));
+
+  const rawCategories = [
+    ...new Set(
+      (c.req.queries('category') ?? [])
+        .flatMap((v) => v.split(','))
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0),
+    ),
+  ];
+  if (rawCategories.some((v) => !isOrgCategory(v))) {
+    return c.json({ error: 'INVALID_CATEGORY', valid: ORG_CATEGORIES }, 400);
+  }
+
+  const keys = sortKeysFor(sort, searching);
+
+  const rawCursor = c.req.query('cursor');
+  let cursorValues: (string | number)[] | null = null;
+  if (rawCursor) {
+    const decoded = decodeCursor<OrgSearchCursor>(rawCursor);
+    // The cursor pins a position in ONE sort's column order; a mismatched
+    // sort or search state would compare values that mean different things
+    // column-for-column, so treat it as invalid rather than silently reusing it.
+    if (
+      !decoded ||
+      decoded.sort !== sort ||
+      decoded.hasQuery !== searching ||
+      !Array.isArray(decoded.k) ||
+      decoded.k.length !== keys.length
+    ) {
+      return c.json({ error: 'INVALID_CURSOR' }, 400);
+    }
+    cursorValues = decoded.k;
+  }
 
   // lower() on both sides rather than relying on LIKE's default ASCII
-  // case-folding, so the exact-match and prefix comparisons in ORDER BY use
-  // the same rule as the WHERE clause.
-  //
-  // Ranking: exact name, then names that START with the query, then anything
-  // containing it. Shortest first inside a tier, because "Texas Rowing" is a
-  // better answer for "rowing" than "Texas Rowing Alumni Social Committee".
+  // case-folding, so the exact-match and prefix comparisons agree with the
+  // WHERE clause that decides eligibility in the first place.
+  const selectExtra: string[] = [];
+  const selectBinds: unknown[] = [];
+  const whereParts: string[] = [];
+  const whereBinds: unknown[] = [];
+  if (searching) {
+    const lowered = q.toLowerCase();
+    const needle = escapeLike(lowered);
+    selectExtra.push(
+      `, CASE
+           WHEN lower(o.name) = ?               THEN 0
+           WHEN lower(o.name) LIKE ? ESCAPE '\\' THEN 1
+           ELSE 2
+         END AS search_tier,
+         length(o.name) AS name_length`,
+    );
+    selectBinds.push(lowered, `${needle}%`);
+    whereParts.push(`lower(o.name) LIKE ? ESCAPE '\\'`);
+    whereBinds.push(`%${needle}%`);
+  }
+  if (verifiedOnly) whereParts.push('o.verified = 1');
+  if (rawCategories.length > 0) {
+    whereParts.push(`o.category IN (${rawCategories.map(() => '?').join(', ')})`);
+    whereBinds.push(...rawCategories);
+  }
+  if (hasUpcomingEvents) {
+    whereParts.push(
+      `EXISTS (SELECT 1 FROM events e
+                WHERE e.host_organization_id = o.id
+                  AND e.status = 'active'
+                  AND e.start_datetime > datetime('now'))`,
+    );
+  }
+
+  const keyset = cursorValues ? buildKeysetCondition(keys, cursorValues) : null;
+
+  // A CTE so the computed columns (trending_score, and search_tier/name_length
+  // when searching) are named once and can be reused in both ORDER BY and the
+  // keyset WHERE below, instead of repeating the subqueries in three places.
   const { results } = await c.env.DB.prepare(
-    `SELECT o.id, o.name, o.profile_picture, o.category, o.verified, o.verification_status,
-            (SELECT COUNT(*) FROM org_members m
-              WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count
-       FROM organizations o
-      WHERE lower(o.name) LIKE ? ESCAPE '\\'
-      ORDER BY CASE
-                 WHEN lower(o.name) = ?               THEN 0
-                 WHEN lower(o.name) LIKE ? ESCAPE '\\' THEN 1
-                 ELSE 2
-               END,
-               length(o.name) ASC,
-               o.name COLLATE NOCASE ASC
-      LIMIT ?`,
+    `WITH scored AS (
+       SELECT o.id, o.name, o.profile_picture, o.category, o.verified,
+              o.verification_status, o.updated_at,
+              (SELECT COUNT(*) FROM org_members m
+                WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count,
+              (SELECT COUNT(*) FROM org_followers f
+                WHERE f.org_id = o.id AND f.created_at >= datetime('now', '-7 days')) AS trending_score
+              ${selectExtra.join('')}
+         FROM organizations o
+         ${whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : ''}
+     )
+     SELECT * FROM scored
+     ${keyset ? `WHERE ${keyset.sql}` : ''}
+     ORDER BY ${keys.map((k) => `${k.expr} ${k.dir}`).join(', ')}
+     LIMIT ?`,
   )
-    .bind(`%${needle}%`, lowered, `${needle}%`, limit)
+    .bind(...selectBinds, ...whereBinds, ...(keyset ? keyset.binds : []), limit + 1)
     .all();
+
+  // Fetching one extra row is the standard way to know whether a next page
+  // exists without a separate COUNT(*) query.
+  const rows = results as Record<string, unknown>[];
+  const page = rows.slice(0, limit);
+  const nextCursor =
+    rows.length > limit
+      ? encodeCursor({
+          sort,
+          hasQuery: searching,
+          k: keys.map((k) => page[page.length - 1][k.field] as string | number),
+        } satisfies OrgSearchCursor)
+      : null;
 
   return c.json({
     query: q,
-    organizations: (results as Record<string, unknown>[]).map((o) => {
+    sort,
+    organizations: page.map((o) => {
       const claim_state = claimStateOf(
         o as { verified: unknown; verification_status: unknown; admin_count: unknown },
       );
@@ -235,6 +412,7 @@ orgRoutes.get('/search', async (c) => {
         claimable: claim_state === 'available',
       };
     }),
+    nextCursor,
   });
 });
 
