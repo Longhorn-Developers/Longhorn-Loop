@@ -6,13 +6,13 @@
 
 import { Hono } from 'hono';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
+import { blockedAuthorFilter } from '../lib/blocks';
 import {
   rankEvents,
   type ScorableEvent,
   type ScorableTag,
   type UserInterest,
 } from '../lib/scoring';
-import { blockedAuthorFilter } from '../lib/blocks';
 import { getAuthUser, getUserId } from '../lib/utils';
 import type { Env } from '../worker';
 
@@ -23,6 +23,7 @@ const REPORT_HIDE_THRESHOLD = 5;
 // volume; revisit with pagination if the catalog grows past this.
 const MAX_CANDIDATES = 500;
 const HOME_CAROUSEL_SIZE = 12;
+const UPCOMING_CAROUSEL_SIZE = 10;
 const MIN_CAROUSEL_SIZE = 3; // hide near-empty personalized rows
 
 // D1 caps bound parameters at 100 per statement. Chunk conservatively so an
@@ -71,6 +72,7 @@ type FeedEvent = Record<string, unknown> &
     benefits: string[];
     is_saved: boolean;
     is_rsvped: boolean;
+    has_seen: boolean;
     org_profile_picture: string | null;
   };
 
@@ -129,7 +131,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
 
   // Batch-fetch the per-event arrays for the whole pool. D1 caps bound params
   // at 100 per statement, so IN-list queries are chunked (see queryByEventIds).
-  const [tagRows, catRows, benefitRows, savedRows, rsvpRows] = await Promise.all([
+  const [tagRows, catRows, benefitRows, savedRows, rsvpRows, viewedRows] = await Promise.all([
     queryByEventIds(db, 'SELECT event_id, bucket_id, tag, score FROM event_tags', ids),
     queryByEventIds(db, 'SELECT event_id, category_id, category_name FROM event_categories', ids),
     queryByEventIds(db, 'SELECT event_id, benefit_name FROM event_benefits', ids),
@@ -139,6 +141,9 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
     userId === null
       ? Promise.resolve([] as Record<string, unknown>[])
       : queryByEventIds(db, 'SELECT event_id FROM event_rsvps', ids, userId),
+    userId === null
+      ? Promise.resolve([] as Record<string, unknown>[])
+      : queryByEventIds(db, 'SELECT event_id FROM event_views', ids, userId),
   ]);
 
   // Index the arrays by event_id. We keep two tag shapes: `tags` (plain names)
@@ -173,6 +178,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
 
   const savedSet = new Set((savedRows as any[]).map((r) => r.event_id as number));
   const rsvpSet = new Set((rsvpRows as any[]).map((r) => r.event_id as number));
+  const viewedSet = new Set((viewedRows as any[]).map((r) => r.event_id as number));
 
   const enriched: FeedEvent[] = events.map((e) => {
     const id = e.id as number;
@@ -191,6 +197,7 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
       benefits: benefitsByEvent.get(id) ?? [],
       is_saved: savedSet.has(id),
       is_rsvped: rsvpSet.has(id),
+      has_seen: viewedSet.has(id),
       org_profile_picture: (e.org_profile_picture as string | null) ?? null,
     };
   });
@@ -214,7 +221,7 @@ function dedupeRecurring(events: FeedEvent[]): FeedEvent[] {
     const title = ((e.title as string) ?? '').trim().toLowerCase();
     const org = ((e.host_organization_name as string) ?? '').trim().toLowerCase();
     // Only dedup when we can key on a real (title, org) pair; otherwise keep.
-    const key = title && org ? `${title} ${org}` : null;
+    const key = title && org ? `${title}${org}` : null;
     if (key !== null) {
       if (seen.has(key)) continue;
       seen.add(key);
@@ -253,9 +260,39 @@ feedRoutes.get('/home', async (c) => {
   ]);
   const nowMs = Date.now();
 
-  // "Upcoming" is the soonest events, lightly ranked (timeliness dominates here
-  // because they're already the nearest in time).
-  const upcoming = rankEvents(candidates, interest, nowMs).slice(0, HOME_CAROUSEL_SIZE);
+  // "Upcoming" is the soonest events from a user's recommendations
+  //
+  // An event qualifies here when it matches
+  // at least one of the user's selected tags or selected taxonomy buckets.
+  // Once an event is in that personalized recommendation pool, chronology wins:
+  // show the 10 that start soonest.
+
+  const personalizedRecommendations = candidates.filter((event) => {
+    const tagMatch = event.scoredTags.some((tag) => interest.tags.has(tag.tag));
+    const bucketMatch = event.bucketIds.some((bucketId) => interest.bucketIds.has(bucketId));
+    return tagMatch || bucketMatch;
+  });
+
+  const upcomingPool =
+    personalizedRecommendations.length > 0
+      ? personalizedRecommendations
+      : rankEvents(candidates, interest, nowMs);
+
+  const upcoming = [...upcomingPool]
+    .filter((event) => {
+      const startMs = new Date(event.start_datetime).getTime();
+      return Number.isFinite(startMs) && startMs > nowMs;
+    })
+    .sort((a, b) => {
+      const aStart = new Date(a.start_datetime).getTime();
+      const bStart = new Date(b.start_datetime).getTime();
+
+      if (aStart !== bStart) return aStart - bStart;
+
+      // Deterministic tie-breaker when two events start at the same time.
+      return a.id - b.id;
+    })
+    .slice(0, UPCOMING_CAROUSEL_SIZE);
 
   // One carousel per bucket the user selected, ranked within the bucket.
   const carousels: { bucketId: string; label: string; events: FeedEvent[] }[] = [];

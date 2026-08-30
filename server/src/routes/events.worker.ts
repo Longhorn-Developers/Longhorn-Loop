@@ -1971,55 +1971,120 @@ eventRoutes.post('/scrape/:name', async (c) => {
   return c.json(result);
 });
 
-// POST /events/reclassify -- backfill event_tags for all existing events (LOOP-221)
+// POST /events/reclassify -- re-run LLM tagging for stored events.
+//
+// Examples:
+//   POST /events/reclassify?id=456
+//   POST /events/reclassify?afterId=0&limit=25
+//
+// Keep bulk calls small: each Worker invocation performs Workers AI calls plus
+// D1 writes, so processing the entire event table at once can hit
+// per-invocation limits.
 eventRoutes.post('/reclassify', async (c) => {
   const { writeEventTags } = await import('../lib/classifier');
   const { classifyEventsBatch } = await import('../lib/semanticTags');
 
-  const rows = await c.env.DB.prepare(
-    'SELECT id, title, description FROM events WHERE is_archived = 0',
-  ).all<{ id: number; title: string; description: string | null }>();
+  const rawId = c.req.query('id');
+  let eventId: number | null = null;
 
-  // Batch-classify to stay under the Workers AI per-invocation embed cap; the
-  // same reason ingestEvents batches. tagsByIndex[i] <-> rows.results[i].
+  if (rawId !== undefined) {
+    if (!/^\d+$/.test(rawId)) {
+      return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+    }
+
+    const parsed = Number(rawId);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+    }
+
+    eventId = parsed;
+  }
+
+  const rawAfterId = Number(c.req.query('afterId') ?? 0);
+  const afterId = Number.isFinite(rawAfterId) ? Math.max(0, Math.trunc(rawAfterId)) : 0;
+
+  const rawLimit = Number(c.req.query('limit') ?? 25);
+  const limit = Number.isFinite(rawLimit) ? Math.min(25, Math.max(1, Math.trunc(rawLimit))) : 25;
+
+  let events: { id: number; title: string; description: string | null }[] = [];
+
+  if (eventId !== null) {
+    const row = await c.env.DB.prepare('SELECT id, title, description FROM events WHERE id = ?')
+      .bind(eventId)
+      .first<{ id: number; title: string; description: string | null }>();
+
+    if (!row) {
+      return c.json({ error: 'EVENT_NOT_FOUND' }, 404);
+    }
+
+    events = [row];
+  } else {
+    const rows = await c.env.DB.prepare(
+      `SELECT id, title, description
+       FROM events
+       WHERE is_archived = 0
+         AND id > ?
+       ORDER BY id ASC
+       LIMIT ?`,
+    )
+      .bind(afterId, limit)
+      .all<{ id: number; title: string; description: string | null }>();
+
+    events = rows.results;
+  }
+
+  if (events.length === 0) {
+    return c.json({
+      ok: true,
+      processed: 0,
+      errors: [],
+      skippedEventIds: [],
+      nextAfterId: null,
+      done: true,
+    });
+  }
+
   const tagsByIndex = await classifyEventsBatch(
     c.env,
-    rows.results.map((r) => ({ title: r.title, description: r.description })),
+    events.map((event) => ({
+      title: event.title,
+      description: event.description,
+    })),
   );
 
   let processed = 0;
   const errors: string[] = [];
+  const skippedEventIds: number[] = [];
 
-  for (let i = 0; i < rows.results.length; i++) {
-    const event = rows.results[i];
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    const tags = tagsByIndex[i];
+
+    // classifyEventsBatch falls back to keywords if Workers AI is unavailable
+    // or fails. During a backfill, keep existing stored tags instead of
+    // replacing them because of a transient AI failure.
+    if (!tags.some((tag) => tag.source === 'semantic')) {
+      skippedEventIds.push(event.id);
+      continue;
+    }
+
     try {
-      await writeEventTags(c.env.DB, event.id, tagsByIndex[i]);
+      await writeEventTags(c.env.DB, event.id, tags);
       processed++;
     } catch (err) {
-      errors.push(`event ${event.id}: ${err}`);
+      errors.push(`event ${event.id}: ${String(err)}`);
     }
   }
 
-  return c.json({ ok: true, processed, errors });
-});
+  const lastEventId = events[events.length - 1].id;
+  const done = eventId !== null || events.length < limit;
 
-// POST /events/seed-tag-vectors that embeds every taxonomy tag into Vectorize.
-// Run once after deploy and whenever the taxonomy changes. Safe to re-run
-// (upsert overwrites existing tag vectors).
-eventRoutes.post('/seed-tag-vectors', async (c) => {
-  const { seedTagVectors } = await import('../lib/semanticTags');
-  const result = await seedTagVectors(c.env);
-  return c.json({ ok: true, ...result });
-});
-
-// POST /events/delete-tag-vectors -- remove stale tag vectors by id.
-// Body: { ids: string[] } where each id is `tag:<bucketId>:<tagName>`.
-// Use after renaming/removing a taxonomy tag: seeding adds the new vector but
-// leaves the old id orphaned, and the binding has no list method to find it.
-eventRoutes.post('/delete-tag-vectors', async (c) => {
-  const { deleteTagVectors } = await import('../lib/semanticTags');
-  const body = (await c.req.json().catch(() => ({}))) as { ids?: string[] };
-  const ids = Array.isArray(body.ids) ? body.ids : [];
-  const result = await deleteTagVectors(c.env, ids);
-  return c.json({ ok: true, ...result });
+  return c.json({
+    ok: errors.length === 0,
+    processed,
+    errors,
+    skippedEventIds,
+    nextAfterId: eventId !== null || done ? null : lastEventId,
+    done,
+  });
 });

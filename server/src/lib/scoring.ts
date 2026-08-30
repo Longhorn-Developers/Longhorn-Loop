@@ -1,16 +1,18 @@
 /**
- * Each event gets a score from four independent terms, combined with fixed weights:
+ * Each event gets a score from four positive terms, then an optional penalty:
  *
  *   score = INTEREST*interest + POPULARITY*popularity
  *         + TIMELINESS*timeliness + FEATURED*featured
+ *         - SEEN_PENALTY
  *
- * Every term is normalized to roughly [0, 1] so the weights below are the only
- * knobs that matter
+ * The seen penalty is user-specific. If this viewer already opened an event
+ * but did not save or RSVP to it, we gently move it down so the feed can show
+ * them something new. Saving or RSVP'ing is explicit interest and cancels the
+ * penalty.
  */
 
-// One tag on an event, with the semantic confidence it was assigned at.
-// score is null for keyword-fallback tags (no cosine score); see
-// KEYWORD_CONFIDENCE below for how those are weighted.
+// One tag on an event, with its stored classification confidence.
+// score is null for keyword-fallback tags; see KEYWORD_CONFIDENCE below.
 export type ScorableTag = { tag: string; score: number | null };
 
 // Raw signals a scorer needs about one event. Maps to columns on `events`.
@@ -25,6 +27,12 @@ export type ScorableEvent = {
   view_count: number;
   scoredTags: ScorableTag[];
   bucketIds: string[];
+
+  // Viewer-specific interaction state. Optional so tests/other callers that do
+  // not load user state keep working and simply receive no seen penalty.
+  has_seen?: boolean;
+  is_saved?: boolean;
+  is_rsvped?: boolean;
 };
 
 // The viewer's interest profile, from user_tags / selected buckets
@@ -41,6 +49,11 @@ export const WEIGHTS = {
   featured: 0.05,
 } as const;
 
+// Opening an event without taking a stronger action is a soft negative signal,
+// not a hard exclusion. 0.15 is enough to rotate already-seen cards downward
+// without overpowering a very strong interest/popularity match.
+const SEEN_WITHOUT_ACTION_PENALTY = 0.15;
+
 // Popularity is a weighted blend of the three signals (RSVP > save > view),
 // then squashed by log so a few viral events don't dwarf everything else.
 const POPULARITY_SIGNAL_WEIGHTS = { rsvp: 3, save: 2, view: 1 } as const;
@@ -50,9 +63,9 @@ const POPULARITY_MIDPOINT = 20;
 // Timeliness half-life: an event this many hours out scores ~0.5.
 const TIMELINESS_HALFLIFE_HOURS = 72;
 
-// Map a tag's semantic score to a [0,1] confidence weight so noisy low-score
-// tags barely count toward ranking. Band is bge-large's useful range; a 0.55
-// match contributes ~0, a 0.72 match ~1.
+// Map a stored tag score to a [0,1] confidence weight.
+// During the LLM migration, an LLM-selected tag stores 0.72, which maps to
+// full confidence without changing the existing feed-ranking behavior.
 const CONFIDENCE_FLOOR = 0.55;
 const CONFIDENCE_TOP = 0.72;
 // Keyword-fallback tags have no score; treat as moderately confident.
@@ -117,18 +130,32 @@ export function timelinessScore(event: ScorableEvent, nowMs: number): number {
   return Math.pow(0.5, hoursOut / TIMELINESS_HALFLIFE_HOURS);
 }
 
+/**
+ * User-specific repeat-exposure penalty.
+ *
+ * A view by itself means "I already inspected this once" and gently lowers the
+ * card. A save or RSVP is stronger evidence that the user still wants it, so
+ * those actions cancel the penalty completely.
+ */
+export function seenPenalty(event: ScorableEvent): number {
+  if (!event.has_seen) return 0;
+  if (event.is_saved || event.is_rsvped) return 0;
+  return SEEN_WITHOUT_ACTION_PENALTY;
+}
+
 function featuredScore(event: ScorableEvent): number {
   return event.is_featured ? 1 : 0;
 }
 
 /** Combined weighted score. Higher = ranked earlier. */
 export function scoreEvent(event: ScorableEvent, user: UserInterest, nowMs: number): number {
-  return (
+  const positiveScore =
     WEIGHTS.interest * interestScore(event, user) +
     WEIGHTS.popularity * popularityScore(event) +
     WEIGHTS.timeliness * timelinessScore(event, nowMs) +
-    WEIGHTS.featured * featuredScore(event)
-  );
+    WEIGHTS.featured * featuredScore(event);
+
+  return positiveScore - seenPenalty(event);
 }
 
 /**
