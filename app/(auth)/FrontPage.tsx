@@ -1,5 +1,4 @@
 import LonghornLoopLogo from '@/app/components/icons/LonghornLoopLogo';
-import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { Image, type ImageSource } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -104,7 +103,6 @@ const SLIDES: Slide[] = [
 
 export default function FrontPage() {
   const router = useRouter();
-  const { update } = useOnboarding();
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
@@ -304,23 +302,14 @@ export default function FrontPage() {
         </View>
       </View>
 
-      {/* Dev-only bypass */}
-      {__DEV__ && (
-        <Pressable
-          className="absolute bottom-1 left-0 right-0 items-center"
-          onPress={() => {
-            update({
-              firstName: 'Dev',
-              lastName: 'User',
-              email: 'dev@utexas.edu',
-            });
-
-            router.replace('/(tabs)/home');
-          }}
-        >
-          <Text className="text-xs text-lhlMutedText underline">[DEV] Skip to Home</Text>
-        </Pressable>
-      )}
+      {/*
+        The [DEV] Skip to Home bypass lived here. Removed for the tester
+        build, and not only because testers should not see it: it wrote a fake
+        name and email into the session and navigated to the tabs WITHOUT a
+        token, which is the exact signed-out-but-inside state AuthGate now
+        exists to prevent. Keeping it would have meant a deliberate hole
+        beside the guard closing the accidental one.
+      */}
     </SafeAreaView>
   );
 }

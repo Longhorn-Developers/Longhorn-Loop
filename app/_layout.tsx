@@ -1,3 +1,4 @@
+import AuthGate from './components/AuthGate';
 import { Baloo2_400Regular, Baloo2_700Bold } from '@expo-google-fonts/baloo-2';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -146,7 +147,9 @@ export default function RootLayout() {
               cold afterwards — a pop, not a cross-fade. This also lets session
               hydration happen behind the video. */}
           <View className="flex-1">
-            <ThemedStack />
+            <AuthGate>
+              <ThemedStack />
+            </AuthGate>
 
             {showAnimatedSplash && <AnimatedSplash onFinish={() => setShowAnimatedSplash(false)} />}
           </View>
