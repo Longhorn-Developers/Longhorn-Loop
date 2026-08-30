@@ -143,6 +143,21 @@ export default function ManageEventSheet({
    * down again.
    */
   const translateY = useRef(new Animated.Value(0)).current;
+
+  /**
+   * EVERY ANIMATION HERE IS JS-DRIVEN, and that is not an oversight.
+   *
+   * The obvious setup -- useNativeDriver: true for the springs, setValue() for
+   * the drag -- is the thing that made the first two attempts at this feel
+   * dead. app.json runs newArchEnabled, so once a native animated node has
+   * taken ownership of a view's transform, a setValue() from JS is not
+   * reliably delivered to that view under Fabric. The entrance spring played
+   * (native), and then every frame of the drag wrote a value nothing read.
+   *
+   * A single translateY on one small view is nowhere near the budget where the
+   * native driver earns its keep, so the fix is to stop mixing the two: the JS
+   * driver reads and writes the same value the drag does, every time.
+   */
   // Height lives in both a ref and state on purpose: the interpolation below
   // needs a re-render to pick up a new value, while the PanResponder is built
   // once and would otherwise close over the first render's zero forever.
@@ -159,7 +174,7 @@ export default function ManageEventSheet({
     translateY.setValue(sheetHeightRef.current || 0);
     Animated.spring(translateY, {
       toValue: 0,
-      useNativeDriver: true,
+      useNativeDriver: false,
       damping: 26,
       stiffness: 260,
       mass: 0.9,
@@ -180,7 +195,7 @@ export default function ManageEventSheet({
     Animated.timing(translateY, {
       toValue: sheetHeightRef.current || 400,
       duration: 180,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
         offsetY.current = 0;
@@ -198,10 +213,19 @@ export default function ManageEventSheet({
   const offsetY = useRef(0);
   const dragStart = useRef(0);
 
+  // Mirrors the animated value into a plain ref. Reading an Animated.Value
+  // synchronously otherwise means __getValue(), which is private.
+  useEffect(() => {
+    const id = translateY.addListener(({ value }) => {
+      offsetY.current = value;
+    });
+    return () => translateY.removeListener(id);
+  }, [translateY]);
+
   const springHome = () => {
     Animated.spring(translateY, {
       toValue: 0,
-      useNativeDriver: true,
+      useNativeDriver: false,
       damping: 26,
       stiffness: 260,
       mass: 0.9,
@@ -235,16 +259,29 @@ export default function ManageEventSheet({
    */
   const pan = useRef(
     PanResponder.create({
+      // Never claim on touch-down -- that would swallow every tap on a row.
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+
+      // Two paths, deliberately. CAPTURE is the only phase that can take the
+      // touch back from an action row, which is a Pressable and claims the
+      // responder the instant a finger lands. The plain handler covers the
+      // parts of the sheet with no pressable child -- the heading, the summary
+      // card, the grabber -- where nothing has claimed anything and the
+      // bubbling phase is what gets consulted.
       onMoveShouldSetPanResponderCapture: (_evt, g) =>
+        Math.abs(g.dy) > DRAG_SLOP && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponder: (_evt, g) =>
         Math.abs(g.dy) > DRAG_SLOP && Math.abs(g.dy) > Math.abs(g.dx),
 
       onPanResponderGrant: () => {
         // Grabbing a sheet mid-flight should catch it where it is, not snap it
-        // somewhere. stopAnimation hands back the exact interrupted value.
-        translateY.stopAnimation((value: number) => {
-          dragStart.current = value;
-          offsetY.current = value;
-        });
+        // somewhere. The listener below keeps offsetY in step with the running
+        // animation, so this is exact without waiting on stopAnimation's
+        // asynchronous callback -- which lands a frame or two late, and by then
+        // the first move has already been handled from a stale origin.
+        translateY.stopAnimation();
+        dragStart.current = offsetY.current;
       },
 
       onPanResponderMove: (_evt, g) => {
