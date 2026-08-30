@@ -33,13 +33,14 @@
 //
 // Generic UT email verification is still LOOP-134 and still not wired here.
 
-import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import DropdownSelectField from '@/app/components/inputs/DropdownSelectField';
 import OtpInput from '@/app/components/inputs/OtpInputField';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
+import { useThemeColors } from '@/app/lib/themeColors';
+import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import {
   ORG_CATEGORIES,
@@ -66,7 +67,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColors } from '@/app/lib/themeColors';
 
 type Step = 'form' | 'code' | 'success';
 
@@ -580,11 +580,13 @@ export default function OrgRegisterScreen() {
               </View>
 
               {/* --- President's email (LOOP-185's step, now on this screen) --- */}
-              <Text className="font-['Roboto-Flex'] mt-[18px] text-[16px] font-semibold text-lhlInk">
-                Enter the president’s email
+              <Text className="font-roboto-semibold mt-[18px] text-[16px] text-lhlInk">
+                Enter the &quot;@my.utexas.edu&quot; email for the primary contact listed on
+                HornsLink
               </Text>
               <Text className="font-['Roboto-Flex'] mt-[4px] text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
-                We’ll send a verification code to the president on file for {orgName}.
+                We’ll send a verification code to the primary contact email currently listed on
+                HornsLink for {orgName}.
               </Text>
 
               <TextInput

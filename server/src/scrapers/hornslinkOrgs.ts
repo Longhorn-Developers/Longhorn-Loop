@@ -9,7 +9,7 @@
 // WHY THIS EXISTS AT ALL
 //
 // Before this file, `organizations` rows were only ever created as a side
-// effect of event ingestion (src/events/ingest.ts, upsertOrganization), which
+// effect of event ingestion (src/events/ingest.ts), which
 // fires only for scrapers that supply a numeric `sourceOrgId`. HornsLink is
 // the only one of the eleven that does. With it disabled, no new org ever
 // entered the table, so:
@@ -18,66 +18,40 @@
 //     in POST /orgs/register/verify-president failed on a null.
 //
 // ============================================================================
-// UNVERIFIED: the exact shape of Campus Labs Engage's responses
+// Campus Labs Engage response handling
 // ============================================================================
 //
-// The event API (see ./hornslink.ts) returns camelCase keys. The organization
-// endpoints were NOT confirmed against a live response while this was written
-// -- utexas.campuslabs.com disallows automated fetching, so the payload could
-// not be inspected. Two things are therefore written defensively:
+// The directory and public roster page have now been checked against live
+// HornsLink responses. The parser is still intentionally tolerant about key
+// casing so a small Engage response-shape change does not immediately break
+// the directory import.
 //
-//   1. parseDirectoryPage() accepts several key spellings per field
-//      (camelCase, PascalCase, and the "Id"/"WebsiteKey" variants Engage uses
-//      in its OData-flavoured search responses). If a field is missing under
-//      every spelling it comes back null rather than throwing.
-//   2. extractContactEmail() tries three strategies against the org's detail
-//      page, in descending order of trustworthiness.
-//
-// FIRST THING TO DO when running this for real: hit ORG_DIRECTORY_ENDPOINT in
-// a browser, look at one object in `value`, and replace the multi-spelling
-// lookups below with the real key names. Then do the same for one org detail
-// page and delete whichever extraction strategies turn out to be dead code.
-// Leaving the tolerant version in forever is how a scraper rots silently.
+// Contact email comes from the anonymous roster page's
+// `window.initialAppState.preFetchedData.organization.primaryContact` object.
+// The database column is still named `president_email` for compatibility with
+// the existing verification flow, but the value stored here is the HornsLink
+// PRIMARY CONTACT email and is not guaranteed to belong to the president.
 
-import type { Env } from '../worker';
-import { fetchWithRetry, sleep } from '../events/polite-fetch';
+import { upsertOrganizations } from '../events/ingest';
 import { buildAbsoluteUrl } from '../events/normalize';
+import { fetchWithRetry, sleep } from '../events/polite-fetch';
+import type { Env } from '../worker';
 
 // Constants
+
+const MAX_DIRECTORY_BATCH_SIZE = 100;
+const DETAIL_FETCH_CONCURRENCY = 5;
+const DETAIL_CHUNK_DELAY_MS = 250;
 
 const ENGAGE_BASE = 'https://utexas.campuslabs.com/engage';
 
 /** Paged directory listing. Same discovery API family as the event search. */
 export const ORG_DIRECTORY_ENDPOINT = `${ENGAGE_BASE}/api/discovery/search/organizations`;
 
-/** Public org page, keyed by websiteKey. Where the "E:" contact email lives. */
+/** Public org page, keyed by websiteKey. */
 export const ORG_DETAIL_BASE = `${ENGAGE_BASE}/organization`;
 
 const IMAGE_BASE_URL = 'https://se-images.campuslabs.com/clink/images/';
-
-/** Engage caps `top`; 100 is under every documented ceiling. */
-const DIRECTORY_PAGE_SIZE = 100;
-
-/** Hard stop so a malformed count can't loop us into the request cap. */
-const MAX_DIRECTORY_PAGES = 40;
-
-/** Pause between directory pages. */
-const DIRECTORY_PAGE_DELAY_MS = 500;
-
-/** Pause between org detail pages. These are HTML, so they are heavier. */
-const DETAIL_FETCH_DELAY_MS = 1000;
-
-/**
- * Detail pages fetched per cron run.
- *
- * The directory gives us ~1000+ orgs but no contact email, so the email needs
- * one HTML fetch per org. Doing all of them in a single run would be a
- * thousand-request burst at Campus Labs from one Worker invocation, and would
- * blow the Workers subrequest limit besides. Instead each run tops up the
- * orgs that still have no email, so the table fills in over several days and
- * stays filled. A claimant who does not want to wait has POST /orgs/:id/refresh.
- */
-const DETAIL_FETCHES_PER_RUN = 150;
 
 // Types
 
@@ -97,6 +71,9 @@ export interface OrgScrapeResult {
   detailPagesFetched: number;
   errors: string[];
   durationMs: number;
+  nextSkip: number | null;
+  done: boolean;
+  total: number | null;
 }
 
 // Parsing -- pure functions, unit tested in test/scrapers/test_hornslinkOrgs.ts
@@ -251,15 +228,13 @@ function findEmailInJson(value: unknown, depth = 0): string | null {
 /**
  * Pull the org's contact email out of its public HornsLink page.
  *
- * Three strategies, in descending order of how much they can be trusted:
+ * Strategies, in descending order of how much they can be trusted:
  *
- *   1. An embedded JSON blob (__NEXT_DATA__ / __PRELOADED_STATE__ / any
- *      application/json script). Engage is client-rendered, so this is where
- *      the data usually is, and a key named "contactEmail" is unambiguous.
- *   2. A `mailto:` link. Also unambiguous -- someone deliberately marked that
- *      address as the thing to write to.
- *   3. The literal "E:" label the org profile renders next to the contact
- *      address, matched only within a short window after the label.
+ *   1. `window.initialAppState.preFetchedData.organization.primaryContact`.
+ *      This is present on the anonymous roster page and is the source we want.
+ *   2. Another embedded JSON blob with a contact-email-ish key.
+ *   3. A `mailto:` link.
+ *   4. The literal "E:" label rendered next to a contact address.
  *
  * There is deliberately NO "any email anywhere in the page" fallback. A wrong
  * address is worse than no address: it hands the org to whoever owns it and
@@ -269,6 +244,25 @@ function findEmailInJson(value: unknown, depth = 0): string | null {
  */
 export function extractContactEmail(html: string): string | null {
   if (!html) return null;
+
+  // First try hornslink anonymous app state
+  const stateMatch = html.match(/window\.initialAppState\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
+
+  if (stateMatch) {
+    try {
+      const state = JSON.parse(stateMatch[1]);
+
+      const email = state?.preFetchedData?.organization?.primaryContact?.primaryEmailAddress;
+
+      const normalized = normalizeEmail(email);
+
+      if (normalized) {
+        return normalized;
+      }
+    } catch {
+      // If parsing fails, fall through to the older strategies below.
+    }
+  }
 
   // 1. Embedded JSON.
   const scriptPattern = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
@@ -314,58 +308,35 @@ export function orgDetailUrl(websiteKey: string): string {
 
 // Fetching
 
-function directoryPageUrl(skip: number): string {
+function directoryPageUrl(skip: number, take: number): string {
   const params = new URLSearchParams({
-    top: String(DIRECTORY_PAGE_SIZE),
+    top: String(take),
     skip: String(skip),
     'orderBy[0]': 'UpperName asc',
   });
+
   return `${ORG_DIRECTORY_ENDPOINT}?${params.toString()}`;
 }
 
-/** Fetch one org's detail page and extract its contact email. */
+/** Fetch one org's public roster page and extract its primary-contact email. */
 export async function fetchOrgContactEmail(websiteKey: string): Promise<string | null> {
-  const res = await fetchWithRetry(orgDetailUrl(websiteKey), {
-    headers: { Accept: 'text/html,application/xhtml+xml' },
+  const url = `${ORG_DETAIL_BASE}/${encodeURIComponent(websiteKey)}/roster`;
+
+  const res = await fetchWithRetry(url, {
+    headers: {
+      Accept: 'text/html,application/xhtml+xml',
+    },
   });
+
   return extractContactEmail(await res.text());
 }
 
 // Persistence
 
 /**
- * Upsert an org.
- *
- * COALESCE on president_email, category and slug rather than plain assignment:
- * a directory page that omits a field must not blank one we already have --
- * a live claim may be resting on the stored email. The name and picture DO
- * overwrite, because the directory is authoritative for those and an org that
- * renames should not stay stale in search.
- */
-async function upsertOrg(
-  db: D1Database,
-  org: HornsLinkOrgSummary,
-  presidentEmail: string | null,
-): Promise<void> {
-  await db
-    .prepare(
-      `INSERT INTO organizations (id, name, slug, profile_picture, president_email, source, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'hornslink', datetime('now'))
-       ON CONFLICT(id) DO UPDATE SET
-         name            = excluded.name,
-         slug            = COALESCE(excluded.slug, slug),
-         profile_picture = COALESCE(excluded.profile_picture, profile_picture),
-         president_email = COALESCE(excluded.president_email, president_email),
-         updated_at      = datetime('now')`,
-    )
-    .bind(org.id, org.name, org.websiteKey, org.profilePicture, presidentEmail)
-    .run();
-}
-
-/**
  * Overwrite president_email for one org.
  *
- * Distinct from the COALESCE in upsertOrg on purpose. This is the path taken
+ * Distinct from the shared ingest upsert on purpose. This is the path taken
  * when we deliberately went and looked at the org's page: if the president
  * changed the address on HornsLink, the whole point is that the new one wins.
  * That is the answer to "if they haven't updated it, will it rescrape?" --
@@ -444,15 +415,19 @@ export interface ScrapeOrgsOptions {
   detailLimit?: number;
   /** Parse and log without writing to D1. */
   dryRun?: boolean;
+
+  // Directory pagination
+  skip?: number;
+  take?: number;
 }
 
 /**
- * Full org directory sweep, plus a bounded top-up of missing contact emails.
+ * Process one HornsLink directory batch and enrich that same batch.
  *
- * Phase 1 pages the directory and upserts every org. Phase 2 picks orgs that
- * still have no president_email and reads their detail page, capped at
- * DETAIL_FETCHES_PER_RUN so one invocation cannot turn into a thousand-request
- * burst. Successive runs work through the backlog.
+ * Phase 1 fetches at most MAX_DIRECTORY_BATCH_SIZE organizations and sends
+ * them through the shared organization upsert in events/ingest.ts.
+ * Phase 2 reads the public roster page only for organizations from that batch
+ * whose stored contact email is still null.
  */
 export async function scrapeHornsLinkOrgs(
   env: Env,
@@ -466,88 +441,160 @@ export async function scrapeHornsLinkOrgs(
     detailPagesFetched: 0,
     errors: [],
     durationMs: 0,
+    nextSkip: null,
+    done: false,
+    total: null,
   };
 
   const dryRun = options.dryRun === true;
 
-  // Phase 1: the directory.
-  let skip = 0;
-  let total: number | null = null;
+  // Keep the exact directory page around so Phase 2 only enriches orgs from
+  // this invocation instead of pulling unrelated old rows from the database.
+  let currentBatch: HornsLinkOrgSummary[] = [];
 
-  for (let page = 0; page < MAX_DIRECTORY_PAGES; page++) {
-    let payload: unknown;
-    try {
-      const res = await fetchWithRetry(directoryPageUrl(skip));
-      payload = await res.json();
-    } catch (err) {
-      result.errors.push(`directory page at skip=${skip}: ${String(err)}`);
-      break;
-    }
+  // Phase 1: fetch one directory batch, then hand normalized orgs to ingest.
+  const skip = Math.max(0, Math.trunc(options.skip ?? 0));
+  const take = Math.min(
+    MAX_DIRECTORY_BATCH_SIZE,
+    Math.max(1, Math.trunc(options.take ?? MAX_DIRECTORY_BATCH_SIZE)),
+  );
 
-    if (total === null) total = parseDirectoryCount(payload);
+  try {
+    const res = await fetchWithRetry(directoryPageUrl(skip, take));
+    const payload = await res.json();
 
-    const orgs = parseDirectoryPage(payload);
-    if (orgs.length === 0) break;
+    result.total = parseDirectoryCount(payload);
+    currentBatch = parseDirectoryPage(payload);
+    result.orgsProcessed = currentBatch.length;
 
-    for (const org of orgs) {
-      result.orgsProcessed++;
-      if (dryRun) {
+    if (dryRun) {
+      for (const org of currentBatch) {
         console.log(`[DRY RUN] ${org.id} ${org.name} (${org.websiteKey ?? 'no slug'})`);
-        continue;
       }
+    } else if (currentBatch.length > 0) {
       try {
-        await upsertOrg(env.DB, org, null);
-        result.orgsInserted++;
+        await upsertOrganizations(
+          env.DB,
+          currentBatch.map((org) => ({
+            id: org.id,
+            name: org.name,
+            slug: org.websiteKey,
+            profilePicture: org.profilePicture,
+            contactEmail: null,
+            source: 'hornslink',
+          })),
+        );
+        result.orgsInserted = currentBatch.length;
       } catch (err) {
-        result.errors.push(`upsert org ${org.id}: ${String(err)}`);
+        result.errors.push(`batch org upsert: ${String(err)}`);
       }
     }
 
-    skip += orgs.length;
-    if (total !== null && skip >= total) break;
-    await sleep(DIRECTORY_PAGE_DELAY_MS);
+    const nextSkip = skip + currentBatch.length;
+    result.done = currentBatch.length === 0 || (result.total !== null && nextSkip >= result.total);
+    result.nextSkip = result.done ? null : nextSkip;
+  } catch (err) {
+    result.errors.push(`directory page at skip=${skip}: ${String(err)}`);
+    result.nextSkip = null;
+    result.done = false;
   }
 
-  // Phase 2: top up missing contact emails.
-  if (!options.skipDetails && !dryRun) {
-    const limit = options.detailLimit ?? DETAIL_FETCHES_PER_RUN;
-    const { results } = await env.DB.prepare(
-      `SELECT id, slug FROM organizations
-        WHERE president_email IS NULL
-          AND slug IS NOT NULL
-          AND source = 'hornslink'
-        ORDER BY updated_at ASC
-        LIMIT ?`,
-    )
-      .bind(limit)
-      .all();
+  // Phase 2: enrich only organizations from the directory batch we just read.
+  if (!options.skipDetails && !dryRun && currentBatch.length > 0) {
+    const ids = currentBatch.filter((org) => org.websiteKey !== null).map((org) => org.id);
 
-    for (const row of results as { id: number; slug: string }[]) {
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+
       try {
-        const email = await fetchOrgContactEmail(row.slug);
-        result.detailPagesFetched++;
-        if (email) {
-          await writePresidentEmail(env.DB, row.id, email);
-          result.emailsFound++;
-        } else {
-          // Touch updated_at so the ORDER BY rotates past this org next run
-          // instead of retrying the same emailless orgs forever.
-          await env.DB.prepare("UPDATE organizations SET updated_at = datetime('now') WHERE id = ?")
-            .bind(row.id)
-            .run();
+        const { results } = await env.DB.prepare(
+          `SELECT id, slug
+               FROM organizations
+              WHERE id IN (${placeholders})
+                AND president_email IS NULL
+                AND slug IS NOT NULL
+                AND source = 'hornslink'
+              ORDER BY id`,
+        )
+          .bind(...ids)
+          .all();
+
+        let rows = results as { id: number; slug: string }[];
+
+        // detailLimit is mainly useful for testing. If omitted, every missing
+        // primary contact in this directory batch is attempted.
+        if (typeof options.detailLimit === 'number' && Number.isFinite(options.detailLimit)) {
+          rows = rows.slice(0, Math.max(0, Math.trunc(options.detailLimit)));
+        }
+
+        for (let i = 0; i < rows.length; i += DETAIL_FETCH_CONCURRENCY) {
+          const chunk = rows.slice(i, i + DETAIL_FETCH_CONCURRENCY);
+
+          const fetched = await Promise.all(
+            chunk.map(async (row) => {
+              try {
+                const email = await fetchOrgContactEmail(row.slug);
+                return { row, email, error: null as string | null };
+              } catch (err) {
+                return {
+                  row,
+                  email: null,
+                  error: String(err),
+                };
+              }
+            }),
+          );
+
+          const updates = [];
+
+          for (const item of fetched) {
+            if (item.error) {
+              result.errors.push(`detail for org ${item.row.id}: ${item.error}`);
+              continue;
+            }
+
+            result.detailPagesFetched++;
+
+            if (!item.email) continue;
+
+            result.emailsFound++;
+
+            updates.push(
+              env.DB.prepare(
+                `UPDATE organizations
+                      SET president_email = ?,
+                          updated_at = datetime('now')
+                    WHERE id = ?`,
+              ).bind(item.email, item.row.id),
+            );
+          }
+
+          if (updates.length > 0) {
+            try {
+              await env.DB.batch(updates);
+            } catch (err) {
+              result.errors.push(`batch email update: ${String(err)}`);
+            }
+          }
+
+          if (i + DETAIL_FETCH_CONCURRENCY < rows.length) {
+            await sleep(DETAIL_CHUNK_DELAY_MS);
+          }
         }
       } catch (err) {
-        result.errors.push(`detail for org ${row.id}: ${String(err)}`);
+        result.errors.push(`load current-batch contacts: ${String(err)}`);
       }
-      await sleep(DETAIL_FETCH_DELAY_MS);
     }
   }
 
   result.durationMs = Date.now() - startedAt;
+
   console.log(
     `[hornslinkOrgs] ${result.orgsProcessed} orgs, ${result.emailsFound} emails from ` +
-      `${result.detailPagesFetched} detail pages, ${result.errors.length} errors, ${result.durationMs}ms`,
+      `${result.detailPagesFetched} roster pages, ${result.errors.length} errors, ` +
+      `${result.durationMs}ms; nextSkip=${result.nextSkip ?? 'done'}`,
   );
+
   return result;
 }
 
@@ -556,11 +603,48 @@ export async function run(env: Env): Promise<void> {
   await scrapeHornsLinkOrgs(env);
 }
 
-/** Manual entrypoint for POST /events/scrape/hornslinkOrgs. Testing only. */
+/** Manual entrypoint for POST /events/scrape/hornslinkOrgs. */
 export async function manual(env: Env, options: Record<string, unknown>): Promise<unknown> {
+  if (typeof options.refreshOrgId === 'number' && Number.isFinite(options.refreshOrgId)) {
+    const orgId = Math.trunc(options.refreshOrgId);
+
+    return refreshOrgContactEmail(env.DB, orgId);
+  }
+
+  if (typeof options.testContactSlug === 'string') {
+    const slug = options.testContactSlug;
+
+    try {
+      const email = await fetchOrgContactEmail(slug);
+
+      return {
+        ok: true,
+        slug,
+        email,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        slug,
+        error: String(err),
+      };
+    }
+  }
+
   return scrapeHornsLinkOrgs(env, {
     skipDetails: options.skipDetails === true,
     dryRun: options.dryRun === true,
+
+    skip:
+      typeof options.skip === 'number' && Number.isFinite(options.skip)
+        ? Math.max(0, Math.trunc(options.skip))
+        : 0,
+
+    take:
+      typeof options.take === 'number' && Number.isFinite(options.take)
+        ? Math.min(MAX_DIRECTORY_BATCH_SIZE, Math.max(1, Math.trunc(options.take)))
+        : MAX_DIRECTORY_BATCH_SIZE,
+
     detailLimit:
       typeof options.detailLimit === 'number' && Number.isFinite(options.detailLimit)
         ? Math.max(0, Math.trunc(options.detailLimit))
