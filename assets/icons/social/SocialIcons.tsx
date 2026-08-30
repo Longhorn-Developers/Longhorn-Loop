@@ -4,11 +4,19 @@
 // third-party logo assets. Each is a single-colour path on a 24x24 grid, drawn
 // to read correctly at the 32px chip size the Figma frame uses.
 //
+// EVERY PATH MUST FIT INSIDE 0..24 ON BOTH AXES. A viewBox does not scale to
+// fit its contents -- it crops them -- so a path that strays past 24 loses
+// whatever hangs over, silently, at every size the icon is used. LinkedIn was
+// doing exactly that (see below). If you add or edit a glyph, check its
+// bounding box rather than trusting the eye: at 20pt an overflow of one unit
+// is under a pixel of missing stroke, invisible in review and obvious on a
+// 54pt tile.
+//
 // Keyed by the platform ids in shared/socialPlatforms.ts -- see
 // app/lib/socialPlatforms.ts for the id -> icon map.
 
 import * as React from 'react';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 
 export interface SocialIconProps {
   size?: number;
@@ -18,10 +26,24 @@ export interface SocialIconProps {
 export function LinkedInIcon({ size = 24, color = '#09090B' }: SocialIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        fill={color}
-        d="M4.98 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M2.4 21.5h5.16V9.75H2.4zM10.4 9.75V21.5h5.16v-6.2c0-1.64.31-3.22 2.34-3.22 2 0 2.03 1.87 2.03 3.32v6.1h5.16v-7.13c0-4.47-.97-7.2-5.19-7.2-2.03 0-3.39 1.11-3.95 2.17h-.07V9.75z"
-      />
+      {/*
+        REDRAWN because the old path ran to x = 25.09 on a 24-wide viewBox, so
+        the right-hand stem of the "n" was cropped at every size it rendered --
+        the picker tiles, the profile row, everywhere. It also made the glyph
+        22.7 units wide against Discord's 19.4 and Slack's 20.8, so it read as
+        oversized as well as broken.
+
+        This one measures 19.1 x 18.0, in line with its neighbours, and sits
+        inside the box with room to spare. translateX centres it: the path's
+        own margins are 2.94 left and 2.00 right, and half a unit of drift is
+        visible when six tiles sit in a grid together.
+      */}
+      <G translateX={-0.47}>
+        <Path
+          fill={color}
+          d="M6.94 5a2 2 0 1 1-4-.002 2 2 0 0 1 4 .002zM7 8.48H3V21h4V8.48zm6.32 0H9.34V21h3.94v-6.57c0-3.66 4.77-4 4.77 0V21H22v-7.93c0-6.17-7.06-5.94-8.72-2.91l.04-1.68z"
+        />
+      </G>
     </Svg>
   );
 }
