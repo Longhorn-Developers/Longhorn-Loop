@@ -46,6 +46,7 @@ module.exports = {
         lhlBrandSoft: 'rgb(var(--lhl-brand-soft) / <alpha-value>)',
 
         lhlDestructiveRed: 'rgb(var(--lhl-destructive) / <alpha-value>)',
+        lhlDestructiveFill: 'rgb(var(--lhl-destructive-fill) / <alpha-value>)',
         // Tinted fill behind an inline error.
         lhlDestructiveSoft: 'rgb(var(--lhl-destructive-soft) / <alpha-value>)',
         // Informational, non-brand: the "Going" badge.

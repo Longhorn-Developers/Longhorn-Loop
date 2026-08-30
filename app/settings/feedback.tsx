@@ -8,6 +8,7 @@
 import ProfileModal, { ModalAction } from '@/app/components/modals/ProfileModal';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
+import { useThemeColors } from '@/app/lib/themeColors';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import { useMutation } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,27 +23,36 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColors } from '@/app/lib/themeColors';
 
 const MAX_MESSAGE = 2000;
 
 type FeedbackKind = 'feedback' | 'bug' | 'support';
 
-const COPY: Record<FeedbackKind, { title: string; prompt: string; placeholder: string }> = {
+// `cta` is the submit button's label. It has to travel with the rest of the
+// copy rather than being a hardcoded "Send": this one screen backs all three
+// Support & About rows, so a fixed "Send Feedback" would sit under the Report a
+// Bug and Contact Support forms too.
+const COPY: Record<
+  FeedbackKind,
+  { title: string; prompt: string; placeholder: string; cta: string }
+> = {
   feedback: {
     title: 'Send Feedback',
-    prompt: 'Let us know your thoughts',
+    prompt: 'Let us know your thoughts!',
     placeholder: 'What’s working, what isn’t, what you’d like to see…',
+    cta: 'Send Feedback',
   },
   bug: {
     title: 'Report a Bug',
     prompt: 'What went wrong?',
     placeholder: 'What you did, what you expected, and what happened instead…',
+    cta: 'Report a Bug',
   },
   support: {
     title: 'Contact Support',
     prompt: 'How can we help?',
     placeholder: 'Tell us what you need a hand with…',
+    cta: 'Contact Support',
   },
 };
 
@@ -138,7 +148,7 @@ export default function FeedbackScreen() {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Send"
+            accessibilityLabel={copy.cta}
             accessibilityState={{ disabled: !canSend }}
             disabled={!canSend}
             onPress={() => submit.mutate()}
@@ -153,7 +163,7 @@ export default function FeedbackScreen() {
                 canSend ? 'text-white' : 'text-lhlSecondaryTextGrey'
               }`}
             >
-              {submit.isPending ? 'Sending…' : 'Send'}
+              {submit.isPending ? 'Sending…' : copy.cta}
             </Text>
           </Pressable>
         </ScrollView>

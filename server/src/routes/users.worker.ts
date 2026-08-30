@@ -784,6 +784,8 @@ userRoutes.get('/me/events', async (c) => {
   // slowest thing about that route -- no reason to copy it here.
   const rows = results as Record<string, unknown>[];
   const benefitsByEvent = new Map<number, string[]>();
+  const tagsByEvent = new Map<number, string[]>();
+  const bucketCountsByEvent = new Map<number, Map<string, number>>();
   if (rows.length > 0) {
     const eventIds = rows.map((e) => Number(e.id));
     const benefitRows = await c.env.DB.prepare(
@@ -797,6 +799,27 @@ userRoutes.get('/me/events', async (c) => {
       if (list) list.push(r.benefit_name);
       else benefitsByEvent.set(r.event_id, [r.benefit_name]);
     }
+
+    // The Posted tab opens the shared event editor, which needs the current
+    // tag selection and its discovery bucket. Keep this batched like perks so
+    // a full profile grid does not issue one query per event.
+    const tagRows = await c.env.DB.prepare(
+      `SELECT event_id, bucket_id, tag FROM event_tags
+       WHERE event_id IN (${eventIds.map(() => '?').join(',')})
+       ORDER BY tag`,
+    )
+      .bind(...eventIds)
+      .all<{ event_id: number; bucket_id: string; tag: string }>();
+
+    for (const row of tagRows.results) {
+      const tags = tagsByEvent.get(row.event_id);
+      if (tags) tags.push(row.tag);
+      else tagsByEvent.set(row.event_id, [row.tag]);
+
+      const counts = bucketCountsByEvent.get(row.event_id) ?? new Map<string, number>();
+      counts.set(row.bucket_id, (counts.get(row.bucket_id) ?? 0) + 1);
+      bucketCountsByEvent.set(row.event_id, counts);
+    }
   }
 
   return c.json({
@@ -806,6 +829,12 @@ userRoutes.get('/me/events', async (c) => {
       is_saved: Number(e.is_saved) === 1,
       org_verified: Number(e.org_verified) === 1,
       benefits: benefitsByEvent.get(Number(e.id)) ?? [],
+      tags: tagsByEvent.get(Number(e.id)) ?? [],
+      discovery_bucket:
+        [...(bucketCountsByEvent.get(Number(e.id)) ?? new Map<string, number>()).entries()].sort(
+          ([aBucket, aCount], [bBucket, bCount]) =>
+            bCount - aCount || aBucket.localeCompare(bBucket),
+        )[0]?.[0] ?? null,
     })),
     counts,
   });

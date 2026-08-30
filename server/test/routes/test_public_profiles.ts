@@ -238,6 +238,28 @@ describeOrSkip('public profiles + Follow/Block (LOOP-180)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // GET /users/me/events — owner event editor metadata
+  // -------------------------------------------------------------------------
+
+  describe('GET /users/me/events', () => {
+    it('returns the tags and bucket needed to edit a posted event', async () => {
+      db.exec(`INSERT INTO event_tags (event_id, bucket_id, tag) VALUES
+        (${TODD_UPCOMING}, 'gaming', 'Board Games'),
+        (${TODD_UPCOMING}, 'gaming', 'Video Games')`);
+
+      const res = await users('/me/events?tab=posted', { as: TODD });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      const event = body.events.find((row: any) => row.id === TODD_UPCOMING);
+
+      expect(event).toMatchObject({
+        discovery_bucket: 'gaming',
+        tags: ['Board Games', 'Video Games'],
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // GET /users/:userId/profile
   // -------------------------------------------------------------------------
 

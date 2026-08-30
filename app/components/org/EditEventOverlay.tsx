@@ -28,7 +28,12 @@ import DateTimeField from '@/app/components/create-event/DateTimeField';
 import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingModal';
 import { ApiError, api } from '@/app/lib/api';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
-import { events as eventKeys, feed as feedKeys, org as orgKeys } from '@/app/lib/queryKeys';
+import {
+  events as eventKeys,
+  feed as feedKeys,
+  org as orgKeys,
+  user as userKeys,
+} from '@/app/lib/queryKeys';
 import { MAX_INTEREST_TAGS } from '@/app/context/CreateEventContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -44,9 +49,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import type { OrgEvent } from './OrgEventsTab';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TITLE_MAX = 80;
 const DESCRIPTION_MAX = 500;
@@ -62,7 +65,20 @@ interface EditableEvent {
   tags: string[];
 }
 
-function toForm(event: OrgEvent): EditableEvent {
+export interface EventEditSource {
+  id: number;
+  host_organization_id?: number | null;
+  title: string;
+  description: string | null;
+  start_datetime: string;
+  end_datetime: string | null;
+  location_short: string | null;
+  location_full: string | null;
+  discovery_bucket?: string | null;
+  tags: string[];
+}
+
+function toForm(event: EventEditSource): EditableEvent {
   return {
     title: event.title ?? '',
     description: event.description ?? '',
@@ -110,8 +126,9 @@ function buildPatch(form: EditableEvent, initial: EditableEvent): Record<string,
 export interface EditEventOverlayProps {
   visible: boolean;
   /** The row whose pencil was tapped. Null while the overlay is closed. */
-  event: OrgEvent | null;
-  orgId: number;
+  event: EventEditSource | null;
+  /** Present when the edited event also belongs to an organization console. */
+  orgId?: number | null;
   token: string | null;
   onClose: () => void;
 }
@@ -125,6 +142,20 @@ export default function EditEventOverlay({
 }: EditEventOverlayProps) {
   const colors = useThemeColors();
   const queryClient = useQueryClient();
+
+  /**
+   * Insets from the ROOT provider, applied as padding by hand.
+   *
+   * `<SafeAreaView edges={['top']}>` was here and did nothing. A React Native
+   * Modal is its own native window, and react-native-safe-area-context measures
+   * whichever window it is mounted in — so inside a Modal it reports a top
+   * inset of 0 and the header renders under the status bar. Invisible until
+   * `edgeToEdgeEnabled` (app.json) let the app draw up there at all.
+   *
+   * This hook reads the provider that measured the real window, so the value is
+   * the true status-bar height on both platforms.
+   */
+  const insets = useSafeAreaInsets();
 
   const initial = useMemo<EditableEvent | null>(() => (event ? toForm(event) : null), [event]);
   const [form, setForm] = useState<EditableEvent | null>(initial);
@@ -157,8 +188,11 @@ export default function EditEventOverlay({
       // Every cached view of this event is now stale: the console list, the
       // Analytics tab's per-event cards (a retitled event renames its card),
       // the event detail screen, and the ranked feeds that read its tags.
-      queryClient.invalidateQueries({ queryKey: orgKeys.eventsAll(orgId) });
-      queryClient.invalidateQueries({ queryKey: orgKeys.analyticsAll(orgId) });
+      if (orgId != null) {
+        queryClient.invalidateQueries({ queryKey: orgKeys.eventsAll(orgId) });
+        queryClient.invalidateQueries({ queryKey: orgKeys.analyticsAll(orgId) });
+      }
+      queryClient.invalidateQueries({ queryKey: userKeys.myEventsAll() });
       if (event) queryClient.invalidateQueries({ queryKey: eventKeys.detail(event.id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
       queryClient.invalidateQueries({ queryKey: feedKeys.all });
@@ -207,9 +241,10 @@ export default function EditEventOverlay({
       visible={visible && !!form}
       animationType="slide"
       transparent={false}
+      statusBarTranslucent
       onRequestClose={requestClose}
     >
-      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+      <View className="flex-1 bg-lhlBackgroundColor" style={{ paddingTop: insets.top }}>
         <View className="flex-row items-center justify-between border-b border-lhlDivider px-[20px] py-[12px]">
           <Pressable
             accessibilityRole="button"
@@ -258,7 +293,7 @@ export default function EditEventOverlay({
         >
           <ScrollView
             className="flex-1 bg-lhlBackgroundColor px-[20px]"
-            contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }}
+            contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 + insets.bottom }}
             keyboardShouldPersistTaps="handled"
           >
             {error ? (
@@ -397,7 +432,7 @@ export default function EditEventOverlay({
             </Text>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
 
       <LeaveWithoutSavingModal
         visible={confirmLeave}

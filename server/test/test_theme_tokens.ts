@@ -21,10 +21,10 @@ import { join, relative, sep } from 'node:path';
 
 const APP = join(__dirname, '..', '..', 'app');
 
-/** Parse `--lhl-x: R G B;` out of a :root / .dark block. */
+/** Parse `--lhl-x: R G B;` out of a :root / .dark:root block. */
 function cssVars(block: 'root' | 'dark'): Record<string, string> {
   const css = readFileSync(join(APP, 'globals.css'), 'utf-8');
-  const re = block === 'root' ? /:root\s*\{([^}]*)\}/ : /\.dark\s*\{([^}]*)\}/;
+  const re = block === 'root' ? /(?<!\.dark):root\s*\{([^}]*)\}/ : /\.dark:root\s*\{([^}]*)\}/;
   const body = re.exec(css)?.[1];
   if (!body) throw new Error(`no ${block} block in globals.css`);
 
@@ -36,6 +36,13 @@ function cssVars(block: 'root' | 'dark'): Record<string, string> {
   }
   return out;
 }
+
+describe('theme selector works on native', () => {
+  it("defines dark variables on NativeWind's virtual root", () => {
+    const css = readFileSync(join(APP, 'globals.css'), 'utf-8');
+    expect(css).toMatch(/\.dark:root\s*\{/);
+  });
+});
 
 /** Parse a LIGHT_COLORS / DARK_COLORS object out of themeColors.ts. */
 function tsColors(which: 'LIGHT' | 'DARK'): Record<string, string> {
@@ -65,6 +72,7 @@ const PAIRS: [string, string][] = [
   ['accent', 'accent'],
   ['brand-soft', 'brandSoft'],
   ['destructive', 'destructive'],
+  ['destructive-fill', 'destructiveFill'],
   ['destructive-soft', 'destructiveSoft'],
   ['info', 'info'],
 ];
@@ -138,6 +146,18 @@ describe('theme meets WCAG AA', () => {
       // can't lighten for dark the way accent does.
       it('white on a filled brand button clears 4.5:1', () => {
         expect(contrast('#FFFFFF', c.brand)).toBeGreaterThanOrEqual(4.5);
+      });
+
+      // The reason destructiveFill exists as its own token. `destructive`
+      // lightens for dark so it reads as TEXT; white on that lightened red is
+      // 2.79:1. This is the button fill, so it stays dark enough for a white
+      // label — on "Yes, Delete" and "Yes, cancel RSVP".
+      it('white on a filled destructive button clears 4.5:1', () => {
+        expect(contrast('#FFFFFF', c.destructiveFill)).toBeGreaterThanOrEqual(4.5);
+      });
+
+      it('a destructive button is distinguishable from the page', () => {
+        expect(contrast(c.destructiveFill, c.background)).toBeGreaterThanOrEqual(3);
       });
 
       it('a brand button is distinguishable from the page', () => {

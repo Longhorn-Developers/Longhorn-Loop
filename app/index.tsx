@@ -17,7 +17,6 @@
 // An expired token counts as "no token": loadSession checks `exp` locally and
 // clears it, so nobody gets let in on a credential the Worker will reject.
 
-import './globals.css';
 import { Redirect } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';

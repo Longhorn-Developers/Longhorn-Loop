@@ -55,6 +55,9 @@
   --lhl-brand-soft: 255 245 229; /* #FFF5E5 */
 
   --lhl-destructive: 179 4 4; /* #B30404 */
+  /* Fill behind a solid destructive button carrying a white label. Pinned to
+     the same deep red in both themes: white on it is 7.15:1. */
+  --lhl-destructive-fill: 179 4 4; /* #B30404 */
   /* Tinted fill behind an inline error. */
   --lhl-destructive-soft: 252 228 228; /* #FCE4E4 */
 
@@ -65,7 +68,11 @@
   --lhl-scrim: 9 9 11;
 }
 
-.dark {
+/* NativeWind does not put a real `.dark` wrapper around native views.
+ * `colorScheme.set('dark')` switches its virtual root selector instead, so
+ * global variables must target that root to update on iOS and Android. This
+ * form also matches the <html class="dark"> root used on web. */
+.dark:root {
   /* A cool blue-black, matched to the reference swatch, rather than the warm
      charcoal this started as — that read muddy next to the burnt orange.
      The whole ramp sits a step above true black so surfaces can separate from
@@ -87,6 +94,11 @@
   --lhl-brand-soft: 58 38 18; /* #3A2612 */
 
   --lhl-destructive: 255 107 99; /* #FF6B63 */
+  /* Lightened far less than --lhl-destructive, and for the opposite reason:
+     this is a background carrying a white label. White on #FF6B63 is 2.79:1;
+     here it is 4.98:1, and the fill still separates from the page (3.61:1)
+     and the modal card (3.24:1). */
+  --lhl-destructive-fill: 211 47 47; /* #D32F2F */
   --lhl-destructive-soft: 66 32 30; /* #42201E */
 
   --lhl-info: 90 180 238; /* #5AB4EE  lightened; the light blue is too dark here */

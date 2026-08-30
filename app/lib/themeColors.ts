@@ -30,6 +30,15 @@ export interface ThemeColors {
   /** Tinted fill behind a selected card / saved state. */
   brandSoft: string;
   destructive: string;
+  /**
+   * Fill behind a solid destructive BUTTON that carries a white label.
+   *
+   * Separate from `destructive` because that token is tuned to be read as TEXT
+   * and lightens to #FF6B63 in dark so it clears 4.5:1 on the page — at which
+   * point white sitting ON it is only 2.79:1. Pinned to the same deep red in
+   * both themes, where white is 7.15:1.
+   */
+  destructiveFill: string;
   /** Tinted fill behind an inline error. */
   destructiveSoft: string;
   /** Informational, non-brand: the "Going" badge. */
@@ -52,6 +61,7 @@ export const LIGHT_COLORS: ThemeColors = {
   accent: '#A84B00',
   brandSoft: '#FFF5E5',
   destructive: '#B30404',
+  destructiveFill: '#B30404',
   destructiveSoft: '#FCE4E4',
   info: '#2591D4',
   scrim: 'rgba(9, 9, 11, 0.5)',
@@ -71,6 +81,11 @@ export const DARK_COLORS: ThemeColors = {
   accent: '#F0975C',
   brandSoft: '#3A2612',
   destructive: '#FF6B63',
+  // Lightened far less than `destructive`, and for the opposite reason: this is
+  // a background, so it has to stay dark enough to carry a white label (4.98:1)
+  // while still separating from the page (3.61:1) and the modal card (3.24:1).
+  // #B30404 straight from light would hold the label but sink into the page.
+  destructiveFill: '#D32F2F',
   destructiveSoft: '#42201E',
   info: '#5AB4EE',
   // Heavier in dark: a 50% scrim over an already-dark page doesn't separate
