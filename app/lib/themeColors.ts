@@ -57,7 +57,7 @@ export const LIGHT_COLORS: ThemeColors = {
   border: '#C7C7C7',
   divider: '#D2DEE0',
   placeholder: '#D9D9D9',
-  brand: '#BD5500',
+  brand: '#9D4B06',
   accent: '#A84B00',
   brandSoft: '#FFF5E5',
   destructive: '#B30404',

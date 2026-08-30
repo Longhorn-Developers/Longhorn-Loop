@@ -12,8 +12,12 @@
 // still stored and still shows on the event, but nobody is told. That is a
 // real difference a host would want, and when push delivery lands it reads the
 // same `notify` flag — so the switch does not change meaning underneath
-// anyone. The label says "notification" rather than "push notification" for
-// exactly that reason.
+// anyone.
+//
+// The label says "push notification" because that is the Figma and that is
+// where this is going. Worth knowing while reading it that today the switch
+// delivers in-app only -- so if someone reports "I turned on push and got
+// nothing on my lock screen", this comment is the answer, not a bug.
 
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -99,7 +103,7 @@ export default function PostAnnouncementModal({
             <View style={styles.toggleRow}>
               <View style={styles.toggleLabel}>
                 <BellIcon width={15} height={15} color={colors.ink} />
-                <Text style={styles.toggleText}>Send a notification</Text>
+                <Text style={styles.toggleText}>Send a push notification</Text>
               </View>
               <Switch
                 value={notify}
@@ -108,7 +112,7 @@ export default function PostAnnouncementModal({
                 // the knob is white on it either way.
                 trackColor={{ false: colors.border, true: colors.brand }}
                 thumbColor="#FFFFFF"
-                accessibilityLabel="Send a notification"
+                accessibilityLabel="Send a push notification"
               />
             </View>
 

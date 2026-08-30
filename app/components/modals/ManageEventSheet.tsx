@@ -116,6 +116,11 @@ export default function ManageEventSheet({
               {event.location_short ? ` · ${event.location_short}` : ''}
             </Text>
           </View>
+          {/* Echoes the pencil on the card you tapped to get here, so the sheet
+              reads as "this is the one you picked". Decorative on purpose --
+              Edit Event Details is the row below, and two controls doing the
+              same thing a centimetre apart is how you get mis-taps. */}
+          <PencilIcon width={16} height={16} color={colors.ink} />
         </View>
 
         <View style={styles.actions}>

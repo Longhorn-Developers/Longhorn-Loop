@@ -13,12 +13,6 @@ import FlowLayout from '../components/layouts/FlowLayout';
 
 // Categories/tags live in app/lib/interestCategories.ts
 
-// Literal hex rather than a token: --lhl-brand is #9D4B06 in globals.css but
-// #BD5500 in themeColors.ts, so colors.brand doesn't return the design value in
-// light mode. Point this at the token once those agree. Dark mode is knowingly
-// out of scope — these will be low-contrast there.
-const CATEGORY_ICON_COLOR = '#9D4A06';
-
 export default function CategorySelectorScreen() {
   const colors = useThemeColors();
   const router = useRouter();
@@ -112,7 +106,7 @@ export default function CategorySelectorScreen() {
             <View key={category.id}>
               <PillDropdownField
                 titleText={category.label}
-                leftIcon={<IconComponent width={16} height={16} color={CATEGORY_ICON_COLOR} />}
+                leftIcon={<IconComponent width={16} height={16} color={colors.brand} />}
                 options={category.tags}
                 selectedValues={currentCategorySelectedTags}
                 onSelect={handleCategorySelect}

@@ -113,9 +113,11 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  // The clip's own background, so the letterbox is invisible.
+  // The clip's own background, so the letterbox is invisible. Sampled from the
+  // video, NOT the brand token: it has to match the frames either side of it,
+  // and it drifting to follow a palette change is exactly the bug.
   orangeBackground: {
-    backgroundColor: '#9B4905',
+    backgroundColor: '#9B4905', // theme-exempt: sampled from the splash video
   },
 
   video: {
