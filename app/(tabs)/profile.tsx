@@ -96,7 +96,23 @@ export default function ProfileScreen() {
   const openLink = useOpenLinkGuard();
 
   const [tab, setTab] = useState<ProfileEventTab>('going');
+  /**
+   * Two pieces of state for one field. `searchInput` is what the TextInput
+   * shows and must update on every keystroke; `search` is what the query key
+   * uses and updates 300ms later.
+   *
+   * Without the split, every character typed minted a new query key and fired
+   * a request -- and once a key had been visited its data was cached, so the
+   * next fetch counted as a REFETCH and tripped the pull-to-refresh spinner.
+   * Typing "party" flashed the spinner five times.
+   */
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
   const [filter, setFilter] = useState<ProfileEventFilter>('all');
   const [sortRecent, setSortRecent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -191,17 +207,29 @@ export default function ProfileScreen() {
    * pulls down to check. The header goes too, since follower counts move for
    * the same reasons the collections do.
    *
-   * `isRefetching` rather than a piece of local state: react-query already
-   * tracks a refetch distinctly from the initial load, so the spinner is tied
-   * to the actual request instead of to a boolean we would have to remember to
-   * clear on the error path.
+   * THE SPINNER TRACKS THE PULL, NOT THE REQUEST. This used to read
+   * `profileQuery.isRefetching || eventsQuery.isRefetching`, which sounds
+   * right and is not: `tab` is part of the events query key, so switching to
+   * Going / Saved / Posted mints a different key. The first visit to a tab is
+   * a fresh load, but every visit after that has cached data, which makes the
+   * fetch a REFETCH -- so react-query set the flag, RefreshControl showed the
+   * spinner programmatically, and the whole list slid down as if the user had
+   * pulled it. Tapping a tab you had already seen dragged the screen every
+   * single time.
+   *
+   * A local boolean is the honest signal, because the question is "did the
+   * user pull down", which is not something react-query can know. The error
+   * path is covered by allSettled: it never rejects, so `finally` always runs
+   * and the spinner cannot get stuck on a failed refresh.
    */
-  const onRefresh = React.useCallback(() => {
-    profileQuery.refetch();
-    eventsQuery.refetch();
-  }, [profileQuery, eventsQuery]);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
-  const isRefreshing = profileQuery.isRefetching || eventsQuery.isRefetching;
+  const onRefresh = React.useCallback(() => {
+    setPullRefreshing(true);
+    Promise.allSettled([profileQuery.refetch(), eventsQuery.refetch()]).finally(() =>
+      setPullRefreshing(false),
+    );
+  }, [profileQuery, eventsQuery]);
 
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
@@ -257,7 +285,7 @@ export default function ProfileScreen() {
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
-              refreshing={isRefreshing}
+              refreshing={pullRefreshing}
               onRefresh={onRefresh}
               tintColor={colors.brand}
               colors={[colors.brand]}
@@ -449,8 +477,8 @@ export default function ProfileScreen() {
             {/* Search */}
             <View className="mt-[10px]">
               <TextInputField
-                value={search}
-                onChangeText={setSearch}
+                value={searchInput}
+                onChangeText={setSearchInput}
                 placeholder="Search events..."
                 autoCapitalize="none"
                 autoCorrect={false}
