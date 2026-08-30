@@ -31,7 +31,17 @@ interface MyOrgsResponse {
   organizations: MyOrg[];
 }
 
-export default function SettingsEntryScreen() {
+export interface SettingsEntryScreenProps {
+  /**
+   * What the back control does. Defaults to router.back(), which is right for
+   * the /settings route; the drawer in components/SettingsDrawer passes its
+   * own close so the same component serves both without a second copy of the
+   * org list.
+   */
+  onBack?: () => void;
+}
+
+export default function SettingsEntryScreen({ onBack }: SettingsEntryScreenProps = {}) {
   const colors = useThemeColors();
   const router = useRouter();
   const { data: onboarding } = useOnboarding();
@@ -49,7 +59,7 @@ export default function SettingsEntryScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back"
-          onPress={() => router.back()}
+          onPress={onBack ?? (() => router.back())}
         >
           <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
