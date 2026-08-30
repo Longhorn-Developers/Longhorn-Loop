@@ -271,7 +271,24 @@ export default function FrontPage() {
         )}
       </View>
 
-      <View style={{ height: PAGINATION_BUTTON_GAP }} />
+      {/*
+        FLEXES, rather than being a fixed 48pt gap.
+
+        Nothing in this column grew, so the footer sat wherever the content
+        above it happened to end -- and the content above it is sized from the
+        screen height (the hero band is a ratio) plus a two-line title block
+        plus copy that differs per slide. The buttons therefore landed at a
+        different distance from the bottom on every device, which is what "the
+        Continue button is not in the correct spot" was.
+
+        As a growing spacer the footer is pinned to the bottom and everything
+        above keeps its natural size, so `justifyContent: flex-end` below
+        finally does what its comment always claimed: the lone Continue lands
+        on the same baseline as "Already Have An Account" does on slide three.
+        minHeight keeps the designed 48pt when a short screen leaves nothing
+        spare.
+      */}
+      <View style={{ flex: 1, minHeight: PAGINATION_BUTTON_GAP }} />
 
       {/* Buttons stay fixed */}
       <View className="px-5 pb-2">
