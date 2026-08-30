@@ -4,8 +4,7 @@ import TabExploreActiveIcon from '@/assets/images/tab-explore-active.svg';
 import TabExploreIcon from '@/assets/images/tab-explore.svg';
 import TabHomeActiveIcon from '@/assets/images/tab-home-active.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
-import TabProfileActiveIcon from '@/assets/images/tab-profile-active.svg';
-import TabProfileIcon from '@/assets/images/tab-profile.svg';
+import ProfileTabIcon from '@/app/components/ProfileTabIcon';
 import { CreateEventProvider } from '@/app/context/CreateEventContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { Tabs } from 'expo-router';
@@ -115,12 +114,9 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            tabBarIcon: ({ focused }) =>
-              focused ? (
-                <TabProfileActiveIcon width={42} height={38} color={active} />
-              ) : (
-                <TabProfileIcon width={42} height={38} color={inactive} />
-              ),
+            tabBarIcon: ({ focused }) => (
+              <ProfileTabIcon focused={focused} activeColor={active} inactiveColor={inactive} />
+            ),
           }}
         />
       </Tabs>
