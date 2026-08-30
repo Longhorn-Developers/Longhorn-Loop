@@ -91,10 +91,13 @@ export default function TermsAndConditions() {
               accessibilityLabel={term.label}
               hitSlop={8}
               className="flex-row items-center gap-4 rounded-lg px-2 -mx-2"
-              style={({ pressed }) => [
-                { minHeight: ROW_MIN_HEIGHT, paddingVertical: 6, opacity: pressed ? 0.6 : 1 },
-                { outlineStyle: 'none' } as any,
-              ]}
+              // Plain object, not a `({ pressed }) => ...` callback. Every
+              // element here goes through NativeWind's jsx runtime
+              // (jsxImportSource in babel.config), and a function-valued style
+              // is dropped by it -- which was silently costing these rows both
+              // ROW_MIN_HEIGHT and their padding, taking the checkbox under
+              // the 44pt tap-target minimum.
+              style={{ minHeight: ROW_MIN_HEIGHT, paddingVertical: 6, outlineStyle: 'none' } as any}
             >
               {/* Checkbox UI */}
               <View

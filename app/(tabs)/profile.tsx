@@ -21,6 +21,8 @@ import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
 import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
+import OutlinedButton from '@/app/components/profile/OutlinedButton';
+import PencilIcon from '@/assets/images/pencil.svg';
 import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
@@ -33,6 +35,9 @@ import ManageEventSheet from '@/app/components/modals/ManageEventSheet';
 import PostAnnouncementModal from '@/app/components/modals/PostAnnouncementModal';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import SegmentBookmarkIcon from '@/assets/images/segment-bookmark.svg';
+import SegmentCalendarIcon from '@/assets/images/segment-calendar.svg';
+import SegmentCheckIcon from '@/assets/images/segment-check.svg';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_FILTER_LABELS,
@@ -53,6 +58,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { SvgProps } from 'react-native-svg';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 interface MeResponse {
@@ -80,10 +86,37 @@ interface MyEventsResponse {
   counts: Record<ProfileEventTab, number>;
 }
 
-const TABS: { key: ProfileEventTab; label: string; empty: string }[] = [
-  { key: 'going', label: 'Going', empty: 'Events you RSVP to will show up here' },
-  { key: 'saved', label: 'Saved', empty: 'Events you save will show up here' },
-  { key: 'posted', label: 'Posted', empty: 'Events you create will show up here' },
+// Icon sizes come straight from the Figma and differ on purpose: the
+// checkmark is a solid glyph that reads heavy at 15, the outline bookmark and
+// calendar read thin at 12. Matching optical weight, not box size.
+const TABS: {
+  key: ProfileEventTab;
+  label: string;
+  empty: string;
+  Icon: React.FC<SvgProps>;
+  iconSize: number;
+}[] = [
+  {
+    key: 'going',
+    label: 'Going',
+    empty: 'Events you RSVP to will show up here',
+    Icon: SegmentCheckIcon,
+    iconSize: 12,
+  },
+  {
+    key: 'saved',
+    label: 'Saved',
+    empty: 'Events you save will show up here',
+    Icon: SegmentBookmarkIcon,
+    iconSize: 15,
+  },
+  {
+    key: 'posted',
+    label: 'Posted',
+    empty: 'Events you create will show up here',
+    Icon: SegmentCalendarIcon,
+    iconSize: 15,
+  },
 ];
 
 export default function ProfileScreen() {
@@ -96,7 +129,23 @@ export default function ProfileScreen() {
   const openLink = useOpenLinkGuard();
 
   const [tab, setTab] = useState<ProfileEventTab>('going');
+  /**
+   * Two pieces of state for one field. `searchInput` is what the TextInput
+   * shows and must update on every keystroke; `search` is what the query key
+   * uses and updates 300ms later.
+   *
+   * Without the split, every character typed minted a new query key and fired
+   * a request -- and once a key had been visited its data was cached, so the
+   * next fetch counted as a REFETCH and tripped the pull-to-refresh spinner.
+   * Typing "party" flashed the spinner five times.
+   */
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
   const [filter, setFilter] = useState<ProfileEventFilter>('all');
   const [sortRecent, setSortRecent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -191,17 +240,29 @@ export default function ProfileScreen() {
    * pulls down to check. The header goes too, since follower counts move for
    * the same reasons the collections do.
    *
-   * `isRefetching` rather than a piece of local state: react-query already
-   * tracks a refetch distinctly from the initial load, so the spinner is tied
-   * to the actual request instead of to a boolean we would have to remember to
-   * clear on the error path.
+   * THE SPINNER TRACKS THE PULL, NOT THE REQUEST. This used to read
+   * `profileQuery.isRefetching || eventsQuery.isRefetching`, which sounds
+   * right and is not: `tab` is part of the events query key, so switching to
+   * Going / Saved / Posted mints a different key. The first visit to a tab is
+   * a fresh load, but every visit after that has cached data, which makes the
+   * fetch a REFETCH -- so react-query set the flag, RefreshControl showed the
+   * spinner programmatically, and the whole list slid down as if the user had
+   * pulled it. Tapping a tab you had already seen dragged the screen every
+   * single time.
+   *
+   * A local boolean is the honest signal, because the question is "did the
+   * user pull down", which is not something react-query can know. The error
+   * path is covered by allSettled: it never rejects, so `finally` always runs
+   * and the spinner cannot get stuck on a failed refresh.
    */
-  const onRefresh = React.useCallback(() => {
-    profileQuery.refetch();
-    eventsQuery.refetch();
-  }, [profileQuery, eventsQuery]);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
-  const isRefreshing = profileQuery.isRefetching || eventsQuery.isRefetching;
+  const onRefresh = React.useCallback(() => {
+    setPullRefreshing(true);
+    Promise.allSettled([profileQuery.refetch(), eventsQuery.refetch()]).finally(() =>
+      setPullRefreshing(false),
+    );
+  }, [profileQuery, eventsQuery]);
 
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
@@ -257,7 +318,7 @@ export default function ProfileScreen() {
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
-              refreshing={isRefreshing}
+              refreshing={pullRefreshing}
               onRefresh={onRefresh}
               tintColor={colors.brand}
               colors={[colors.brand]}
@@ -325,35 +386,56 @@ export default function ProfileScreen() {
               following
             </Text>
 
-            {/* Edit Profile + linked socials, one row */}
+            {/*
+              Edit Profile + linked socials, one row, all 30pt tall.
+
+              Everything here was a size or two under the Figma and drawn with
+              the wrong hairline. The pill was a rounded-full chip sized by its
+              padding, so its height moved with the font; it is now the Figma's
+              fixed 100x30 with an 8pt radius, which is also what lets it and
+              the squares share a baseline instead of nearly sharing one.
+
+              The squares went from a 7pt radius to the Figma's 4, and their
+              glyphs from 16 to 20 -- a 16pt glyph in a 30pt box left more
+              padding than icon, which is the "it's small" being reported.
+
+              Border is lhlBorderSoft, not lhlMutedBorder. The design draws
+              these as white cards on the cream page, where the fill does the
+              separating and the edge only softens the join; lhlMutedBorder is
+              a control outline and was two steps too dark for that job.
+            */}
             <View className="mt-[10px] flex-row items-center gap-[8px]">
-              <Pressable
-                accessibilityRole="button"
+              <OutlinedButton
                 accessibilityLabel="Edit profile"
                 onPress={() => router.push('/profile/edit')}
-                className="flex-row items-center gap-[5px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[14px] py-[6px]"
+                borderRadius={8}
+                width={100}
+                gap={5}
               >
-                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                <Text className="font-['Roboto-Flex'] text-[12px] font-medium leading-[14px] text-lhlInk">
                   Edit Profile
                 </Text>
-                <Text className="text-[10px] text-lhlSecondaryTextGrey">✎</Text>
-              </Pressable>
+                {/* Was the text glyph "✎", which is a font character: it did
+                    not follow the ink colour, sat off the text baseline, and
+                    rendered differently per platform. */}
+                <PencilIcon width={12} height={12} color={colors.ink} />
+              </OutlinedButton>
 
               {profile?.socials?.map((social) => {
                 const meta = getSocialPlatformUI(social.platform);
                 if (!meta) return null;
                 const Icon = meta.icon;
                 return (
-                  <Pressable
+                  <OutlinedButton
                     key={social.platform}
                     accessibilityRole="link"
                     accessibilityLabel={`Open ${meta.label}`}
                     // Routed through the Open Link warning (LOOP-182).
                     onPress={() => openLink.request(social.url)}
-                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-lhlSurface"
+                    borderRadius={4}
                   >
-                    <Icon size={16} />
-                  </Pressable>
+                    <Icon size={20} color={colors.ink} />
+                  </OutlinedButton>
                 );
               })}
             </View>
@@ -416,8 +498,25 @@ export default function ProfileScreen() {
               My Events
             </Text>
 
-            {/* Segmented control with counts */}
-            <View className="mt-[10px] flex-row gap-[6px]">
+            {/*
+              Segmented control, Figma "Frame 482".
+
+              One track with three segments inside it, not three separate
+              pills. The old version was three bordered buttons with a gap
+              between them, which reads as three independent toggles -- any
+              number of which might be on. A single groove with one filled
+              segment is the shape that says "pick exactly one of these".
+
+              The selected segment is painted the PAGE colour rather than a
+              lighter grey, so it reads as a hole punched through the groove.
+              That is also why the whole row has no border: the groove itself
+              is the boundary.
+
+              Labels and icons stay full-strength ink on every segment, per the
+              Figma. The fill is doing the work of showing which one is on, and
+              dimming the other two as well would say it twice.
+            */}
+            <View className="mt-[10px] flex-row items-center gap-[4px] rounded-[16px] bg-lhlSegmentTrack p-[4px]">
               {TABS.map((t) => {
                 const isActive = t.key === tab;
                 const count = counts?.[t.key];
@@ -427,17 +526,12 @@ export default function ProfileScreen() {
                     accessibilityRole="tab"
                     accessibilityState={{ selected: isActive }}
                     onPress={() => setTab(t.key)}
-                    className={`flex-1 flex-row items-center justify-center rounded-full border py-[7px] ${
-                      isActive
-                        ? 'border-lhlInk bg-lhlSurface'
-                        : 'border-lhlMutedBorder bg-lhlSurfaceGrey'
+                    className={`flex-1 flex-row items-center justify-center gap-[6px] rounded-[16px] px-[16px] py-[4px] ${
+                      isActive ? 'bg-lhlBackgroundColor' : ''
                     }`}
                   >
-                    <Text
-                      className={`font-['Roboto-Flex'] text-[11px] ${
-                        isActive ? 'font-semibold text-lhlInk' : 'text-lhlSecondaryTextGrey'
-                      }`}
-                    >
+                    <t.Icon width={t.iconSize} height={t.iconSize} color={colors.ink} />
+                    <Text className="font-['Roboto-Flex'] text-[12px] leading-[14px] text-lhlInk">
                       {t.label}
                       {count !== undefined ? ` (${count})` : ''}
                     </Text>
@@ -449,8 +543,8 @@ export default function ProfileScreen() {
             {/* Search */}
             <View className="mt-[10px]">
               <TextInputField
-                value={search}
-                onChangeText={setSearch}
+                value={searchInput}
+                onChangeText={setSearchInput}
                 placeholder="Search events..."
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -531,6 +625,7 @@ export default function ProfileScreen() {
                       key={event.id}
                       event={event}
                       onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
+                      managing={managed?.id === event.id}
                       onManage={
                         tab === 'posted'
                           ? () => {

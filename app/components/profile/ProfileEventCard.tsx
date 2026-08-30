@@ -11,10 +11,10 @@ import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import PencilIcon from '@/assets/images/pencil.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import { formatEventDate, type ApiEvent } from '@/app/components/EventCard';
-import { useThemeColors } from '@/app/lib/themeColors';
+import { useThemeColors, type ThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Image, Pressable, Text, View, type GestureResponderEvent } from 'react-native';
 
 export interface ProfileEventCardProps {
   event: ApiEvent & { org_verified?: boolean; is_saved?: boolean };
@@ -26,9 +26,96 @@ export interface ProfileEventCardProps {
    * keeps the badge from replacing the save button on those tabs.
    */
   onManage?: (eventId: number) => void;
+  /**
+   * True while the Manage Event sheet is open for THIS card. Lights the pencil
+   * so the sheet visibly belongs to a card rather than floating free -- four
+   * tiles in a grid look alike, and the sheet covers the bottom half of the
+   * screen including, often, the card you tapped.
+   */
+  managing?: boolean;
 }
 
-export default function ProfileEventCard({ event, onToggleSave, onManage }: ProfileEventCardProps) {
+/**
+ * The card's top-right control -- the bookmark on Going/Saved, the pencil on
+ * Posted. One component because they are the same button wearing different
+ * glyphs, and two copies of these numbers is how they drifted apart before.
+ *
+ * EVERYTHING IS A PLAIN STYLE OBJECT, and that is load-bearing. Under
+ * NativeWind, a `style` prop given as a FUNCTION -- the `({ pressed }) => ...`
+ * form Pressable offers -- does not survive alongside className: whatever the
+ * callback returns is dropped. That cost two rounds of this. First the
+ * geometry went in the callback and both buttons fell out of the corner; then
+ * the geometry moved back to className and the backgroundColor stayed in the
+ * callback, so the circle disappeared and the glyphs floated on the poster
+ * with nothing behind them.
+ *
+ * So there is no callback. Pressed state is ordinary component state driven by
+ * onPressIn/onPressOut, and the style is a plain object -- which is exactly
+ * what components/EventCard does for the same button on the home carousels,
+ * and that one has never had either problem.
+ */
+function CornerButton({
+  onPress,
+  accessibilityLabel,
+  accessibilityState,
+  active,
+  colors,
+  children,
+}: {
+  onPress: (e: GestureResponderEvent) => void;
+  accessibilityLabel: string;
+  accessibilityState?: { expanded?: boolean };
+  /** Filled brand instead of surface -- the pencil while its sheet is open. */
+  active?: boolean;
+  colors: ThemeColors;
+  children: React.ReactNode;
+}) {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={accessibilityState}
+      hitSlop={8}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      onPress={onPress}
+      style={{
+        position: 'absolute',
+        right: 8,
+        top: 8,
+        height: 26,
+        width: 26,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 999,
+        // Pressed fills light grey rather than fading. A 26pt control is
+        // completely hidden under a fingertip at the moment of the press, so
+        // the feedback has to survive being covered -- a colour that persists
+        // for the frames after the finger lifts does that, an opacity dip
+        // does not.
+        backgroundColor: active ? colors.brand : pressed ? colors.surfaceMuted : colors.surface,
+        // Same lift as the home carousel's save button, so a white circle on a
+        // pale poster still reads as a button rather than a smudge.
+        shadowColor: '#000', // theme-exempt: shadows are black in both themes
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 3,
+      }}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+export default function ProfileEventCard({
+  event,
+  onToggleSave,
+  onManage,
+  managing,
+}: ProfileEventCardProps) {
   const router = useRouter();
   const colors = useThemeColors();
   const isSaved = !!event.is_saved;
@@ -97,34 +184,53 @@ export default function ProfileEventCard({ event, onToggleSave, onManage }: Prof
           two round buttons stacked in one corner on a 150pt tile would leave
           neither comfortably tappable.
         */}
+        {/*
+          Pencil and bookmark are the SAME button in every respect that shows:
+          same 26pt circle, same corner, same 13pt glyph, same press feedback.
+          They were built separately and had drifted, so the pencil sat in a
+          circle that behaved differently from the one it replaces -- and since
+          only one of the two is ever mounted, the difference showed up as the
+          Posted tab feeling subtly unlike Going and Saved rather than as two
+          buttons that look wrong side by side.
+
+          Pressed goes to a light grey fill rather than dimming: a 26pt control
+          under a fingertip is entirely hidden at the moment of the press, so
+          the feedback has to survive being covered, and a colour that persists
+          for the frames after the finger lifts does that where a fade does not.
+
+          The pencil additionally lights brand-orange while its sheet is open.
+          That is not decoration either: the sheet can cover the card it came
+          from, and on the way back you want to see which of four near-identical
+          tiles you were working on.
+        */}
         {onManage ? (
-          <Pressable
-            accessibilityRole="button"
+          <CornerButton
             accessibilityLabel={`Manage ${event.title}`}
-            hitSlop={8}
+            accessibilityState={{ expanded: !!managing }}
+            active={managing}
+            colors={colors}
             onPress={(e) => {
               // Otherwise the tap also opens the event detail underneath.
               e.stopPropagation();
               onManage(event.id);
             }}
-            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
-            <PencilIcon width={13} height={13} color={colors.ink} />
-          </Pressable>
+            {/* theme-exempt: white on the filled brand circle, as on every
+                other brand-filled control. */}
+            <PencilIcon width={13} height={13} color={managing ? '#FFFFFF' : colors.ink} />
+          </CornerButton>
         ) : onToggleSave ? (
-          <Pressable
-            accessibilityRole="button"
+          <CornerButton
             accessibilityLabel={isSaved ? `Unsave ${event.title}` : `Save ${event.title}`}
-            hitSlop={8}
+            colors={colors}
             onPress={(e) => {
               // Otherwise the tap also opens the event detail underneath.
               e.stopPropagation();
               onToggleSave(event.id);
             }}
-            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
           >
             <BookmarkGlyph saved={isSaved} width={13} height={13} />
-          </Pressable>
+          </CornerButton>
         ) : null}
       </View>
 
