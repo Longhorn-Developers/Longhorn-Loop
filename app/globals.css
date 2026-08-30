@@ -45,6 +45,12 @@
      controls and has to stay visible. */
   --lhl-divider: 210 222 224; /* #D2DEE0 */
   --lhl-placeholder: 217 217 217; /* #D9D9D9  avatar / image placeholders */
+  /* The recessed track behind a segmented control. The SELECTED segment is
+     painted --lhl-background, i.e. the page colour, so the control reads as a
+     groove with a hole punched through it. That is why this is a token of its
+     own and not surface-muted: the relationship it has to hold is "contrasts
+     with the page", and in dark that means going lighter, not darker. */
+  --lhl-segment-track: 232 227 220; /* #E8E3DC */
 
   /* Filled buttons. White text sits on this, so it can't lighten in dark. */
   --lhl-brand: 157 75 6; /* #9D4B06 */
@@ -88,6 +94,9 @@
   --lhl-border: 79 86 97; /* #4F5661  lightened to stay visible on #1D2128 */
   --lhl-divider: 46 52 61; /* #2E343D */
   --lhl-placeholder: 51 57 66; /* #333942 */
+  /* Lighter than the dark page, as the light value is darker than the light
+     page. Same figure/ground relationship, inverted. */
+  --lhl-segment-track: 38 43 51; /* #262B33 */
 
   --lhl-brand: 189 85 0; /* #BD5500  unchanged; white text still clears AA */
   --lhl-accent: 240 151 92; /* #F0975C */

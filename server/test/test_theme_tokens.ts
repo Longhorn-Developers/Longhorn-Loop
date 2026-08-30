@@ -68,6 +68,7 @@ const PAIRS: [string, string][] = [
   ['border', 'border'],
   ['divider', 'divider'],
   ['placeholder', 'placeholder'],
+  ['segment-track', 'segmentTrack'],
   ['brand', 'brand'],
   ['accent', 'accent'],
   ['brand-soft', 'brandSoft'],

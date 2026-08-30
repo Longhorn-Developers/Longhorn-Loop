@@ -25,6 +25,8 @@ export interface ThemeColors {
   /** Hairline rules between sections; softer than `border`. */
   divider: string;
   placeholder: string;
+  /** Recessed track behind a segmented control; the selected pill is `background`. */
+  segmentTrack: string;
   brand: string;
   accent: string;
   /** Tinted fill behind a selected card / saved state. */
@@ -57,6 +59,7 @@ export const LIGHT_COLORS: ThemeColors = {
   border: '#C7C7C7',
   divider: '#D2DEE0',
   placeholder: '#D9D9D9',
+  segmentTrack: '#E8E3DC',
   brand: '#9D4B06',
   accent: '#A84B00',
   brandSoft: '#FFF5E5',
@@ -77,6 +80,7 @@ export const DARK_COLORS: ThemeColors = {
   border: '#4F5661',
   divider: '#2E343D',
   placeholder: '#333942',
+  segmentTrack: '#262B33',
   brand: '#BD5500',
   accent: '#F0975C',
   brandSoft: '#3A2612',

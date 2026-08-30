@@ -36,6 +36,8 @@ module.exports = {
         // Hairline rules between sections; softer than the control border.
         lhlDivider: 'rgb(var(--lhl-divider) / <alpha-value>)',
         lhlPlaceholderGrey: 'rgb(var(--lhl-placeholder) / <alpha-value>)',
+        // Segmented-control groove; the selected pill uses lhlBackgroundColor.
+        lhlSegmentTrack: 'rgb(var(--lhl-segment-track) / <alpha-value>)',
 
         // Filled buttons; white text sits on this in both themes.
         lhlBurntOrange: 'rgb(var(--lhl-brand) / <alpha-value>)',

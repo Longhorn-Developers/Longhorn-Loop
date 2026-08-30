@@ -33,6 +33,9 @@ import ManageEventSheet from '@/app/components/modals/ManageEventSheet';
 import PostAnnouncementModal from '@/app/components/modals/PostAnnouncementModal';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import SegmentBookmarkIcon from '@/assets/images/segment-bookmark.svg';
+import SegmentCalendarIcon from '@/assets/images/segment-calendar.svg';
+import SegmentCheckIcon from '@/assets/images/segment-check.svg';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_FILTER_LABELS,
@@ -53,6 +56,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { SvgProps } from 'react-native-svg';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 interface MeResponse {
@@ -80,10 +84,37 @@ interface MyEventsResponse {
   counts: Record<ProfileEventTab, number>;
 }
 
-const TABS: { key: ProfileEventTab; label: string; empty: string }[] = [
-  { key: 'going', label: 'Going', empty: 'Events you RSVP to will show up here' },
-  { key: 'saved', label: 'Saved', empty: 'Events you save will show up here' },
-  { key: 'posted', label: 'Posted', empty: 'Events you create will show up here' },
+// Icon sizes come straight from the Figma and differ on purpose: the
+// checkmark is a solid glyph that reads heavy at 15, the outline bookmark and
+// calendar read thin at 12. Matching optical weight, not box size.
+const TABS: {
+  key: ProfileEventTab;
+  label: string;
+  empty: string;
+  Icon: React.FC<SvgProps>;
+  iconSize: number;
+}[] = [
+  {
+    key: 'going',
+    label: 'Going',
+    empty: 'Events you RSVP to will show up here',
+    Icon: SegmentCheckIcon,
+    iconSize: 12,
+  },
+  {
+    key: 'saved',
+    label: 'Saved',
+    empty: 'Events you save will show up here',
+    Icon: SegmentBookmarkIcon,
+    iconSize: 15,
+  },
+  {
+    key: 'posted',
+    label: 'Posted',
+    empty: 'Events you create will show up here',
+    Icon: SegmentCalendarIcon,
+    iconSize: 15,
+  },
 ];
 
 export default function ProfileScreen() {
@@ -444,8 +475,25 @@ export default function ProfileScreen() {
               My Events
             </Text>
 
-            {/* Segmented control with counts */}
-            <View className="mt-[10px] flex-row gap-[6px]">
+            {/*
+              Segmented control, Figma "Frame 482".
+
+              One track with three segments inside it, not three separate
+              pills. The old version was three bordered buttons with a gap
+              between them, which reads as three independent toggles -- any
+              number of which might be on. A single groove with one filled
+              segment is the shape that says "pick exactly one of these".
+
+              The selected segment is painted the PAGE colour rather than a
+              lighter grey, so it reads as a hole punched through the groove.
+              That is also why the whole row has no border: the groove itself
+              is the boundary.
+
+              Labels and icons stay full-strength ink on every segment, per the
+              Figma. The fill is doing the work of showing which one is on, and
+              dimming the other two as well would say it twice.
+            */}
+            <View className="mt-[10px] flex-row items-center gap-[4px] rounded-[16px] bg-lhlSegmentTrack p-[4px]">
               {TABS.map((t) => {
                 const isActive = t.key === tab;
                 const count = counts?.[t.key];
@@ -455,17 +503,12 @@ export default function ProfileScreen() {
                     accessibilityRole="tab"
                     accessibilityState={{ selected: isActive }}
                     onPress={() => setTab(t.key)}
-                    className={`flex-1 flex-row items-center justify-center rounded-full border py-[7px] ${
-                      isActive
-                        ? 'border-lhlInk bg-lhlSurface'
-                        : 'border-lhlMutedBorder bg-lhlSurfaceGrey'
+                    className={`flex-1 flex-row items-center justify-center gap-[6px] rounded-[16px] px-[16px] py-[4px] ${
+                      isActive ? 'bg-lhlBackgroundColor' : ''
                     }`}
                   >
-                    <Text
-                      className={`font-['Roboto-Flex'] text-[11px] ${
-                        isActive ? 'font-semibold text-lhlInk' : 'text-lhlSecondaryTextGrey'
-                      }`}
-                    >
+                    <t.Icon width={t.iconSize} height={t.iconSize} color={colors.ink} />
+                    <Text className="font-['Roboto-Flex'] text-[12px] leading-[14px] text-lhlInk">
                       {t.label}
                       {count !== undefined ? ` (${count})` : ''}
                     </Text>
