@@ -26,9 +26,37 @@ export interface ProfileEventCardProps {
    * keeps the badge from replacing the save button on those tabs.
    */
   onManage?: (eventId: number) => void;
+  /**
+   * True while the Manage Event sheet is open for THIS card. Lights the pencil
+   * so the sheet visibly belongs to a card rather than floating free -- four
+   * tiles in a grid look alike, and the sheet covers the bottom half of the
+   * screen including, often, the card you tapped.
+   */
+  managing?: boolean;
 }
 
-export default function ProfileEventCard({ event, onToggleSave, onManage }: ProfileEventCardProps) {
+/**
+ * Shared geometry for the card's top-right control. One constant because the
+ * pencil and the bookmark are the same button wearing different glyphs, and
+ * two copies of these numbers is how they came apart in the first place.
+ */
+const cornerButtonStyle = {
+  position: 'absolute' as const,
+  right: 8,
+  top: 8,
+  height: 26,
+  width: 26,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  borderRadius: 999,
+};
+
+export default function ProfileEventCard({
+  event,
+  onToggleSave,
+  onManage,
+  managing,
+}: ProfileEventCardProps) {
   const router = useRouter();
   const colors = useThemeColors();
   const isSaved = !!event.is_saved;
@@ -97,19 +125,50 @@ export default function ProfileEventCard({ event, onToggleSave, onManage }: Prof
           two round buttons stacked in one corner on a 150pt tile would leave
           neither comfortably tappable.
         */}
+        {/*
+          Pencil and bookmark are the SAME button in every respect that shows:
+          same 26pt circle, same corner, same 13pt glyph, same press feedback.
+          They were built separately and had drifted, so the pencil sat in a
+          circle that behaved differently from the one it replaces -- and since
+          only one of the two is ever mounted, the difference showed up as the
+          Posted tab feeling subtly unlike Going and Saved rather than as two
+          buttons that look wrong side by side.
+
+          Pressed goes to a light grey fill rather than dimming: a 26pt control
+          under a fingertip is entirely hidden at the moment of the press, so
+          the feedback has to survive being covered, and a colour that persists
+          for the frames after the finger lifts does that where a fade does not.
+
+          The pencil additionally lights brand-orange while its sheet is open.
+          That is not decoration either: the sheet can cover the card it came
+          from, and on the way back you want to see which of four near-identical
+          tiles you were working on.
+        */}
         {onManage ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Manage ${event.title}`}
+            accessibilityState={{ expanded: !!managing }}
             hitSlop={8}
             onPress={(e) => {
               // Otherwise the tap also opens the event detail underneath.
               e.stopPropagation();
               onManage(event.id);
             }}
-            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
+            style={({ pressed }) => [
+              cornerButtonStyle,
+              {
+                backgroundColor: managing
+                  ? colors.brand
+                  : pressed
+                    ? colors.surfaceMuted
+                    : colors.surface,
+              },
+            ]}
           >
-            <PencilIcon width={13} height={13} color={colors.ink} />
+            {/* theme-exempt: white on the filled brand circle, as on every
+                other brand-filled control. */}
+            <PencilIcon width={13} height={13} color={managing ? '#FFFFFF' : colors.ink} />
           </Pressable>
         ) : onToggleSave ? (
           <Pressable
@@ -121,7 +180,10 @@ export default function ProfileEventCard({ event, onToggleSave, onManage }: Prof
               e.stopPropagation();
               onToggleSave(event.id);
             }}
-            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
+            style={({ pressed }) => [
+              cornerButtonStyle,
+              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
+            ]}
           >
             <BookmarkGlyph saved={isSaved} width={13} height={13} />
           </Pressable>

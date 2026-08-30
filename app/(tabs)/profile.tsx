@@ -602,6 +602,7 @@ export default function ProfileScreen() {
                       key={event.id}
                       event={event}
                       onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
+                      managing={managed?.id === event.id}
                       onManage={
                         tab === 'posted'
                           ? () => {
