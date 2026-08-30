@@ -234,6 +234,39 @@ for (const building of BY_CODE.values()) {
 }
 
 /**
+ * "Gearing 114" -- a surname and a room number, with no building type at all.
+ *
+ * The short-name index above needs the type word: "Bellmont Hall 962" resolves,
+ * "Gearing 114" does not, and listings write both. So each distinctive word in
+ * a building's name is also indexed on its own.
+ *
+ * ON ITS OWN THAT IS DANGEROUS, and word-uniqueness is not enough to make it
+ * safe. Exactly one building name contains "CAMPUS" (East Campus Garage), so
+ * uniqueness admits it -- and "UT Austin campus" would then pin to a car park.
+ * The same goes for COLLEGE, BIOLOGY, DINING, ENERGY and a dozen more that are
+ * rare in this file and common in the world.
+ *
+ * The guard is therefore positional: the word must LEAD the string and be
+ * followed immediately by something starting with a digit. "Gearing 114" and
+ * "Welch 2.224" are building-and-room references and read as nothing else.
+ *
+ * The digit test alone was not enough. Addresses put numbers after words too,
+ * and "Patton Center for Marine Science Education 855 E. Cotter Ave. Port
+ * Aransas" matched on EDUCATION -- unique to the Engineering Education and
+ * Research Center -- and pinned a marine lab 200 miles away to EER. Requiring
+ * the first position is what separates a room reference from a street address.
+ */
+const SURNAME_TOKENS = new Map<string, UtBuilding | null>();
+for (const building of BY_CODE.values()) {
+  for (const word of new Set(normalize(building.name).split(' '))) {
+    if (word.length < 5) continue;
+    if (BUILDING_TYPE_WORDS.has(word) || word === 'BLDG') continue;
+    if ((wordUse.get(word) ?? 0) !== 1) continue;
+    SURNAME_TOKENS.set(word, SURNAME_TOKENS.has(word) ? null : building);
+  }
+}
+
+/**
  * Aliases split by shape, because one word and several behave differently.
  *
  * A multi-word alias is safe to look for anywhere in a string -- "Student
@@ -311,6 +344,11 @@ export function resolveBuilding(location: string | null | undefined): UtBuilding
 
   for (const [key, building] of SHORT_NAMES) {
     if (building && normalized.includes(key)) return building;
+  }
+
+  if (tokens.length >= 2 && /^\d/.test(tokens[1])) {
+    const building = SURNAME_TOKENS.get(tokens[0]);
+    if (building) return building;
   }
 
   return null;

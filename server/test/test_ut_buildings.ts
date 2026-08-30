@@ -146,6 +146,41 @@ describe('UT building resolver', () => {
     });
   });
 
+  describe('surname and room number, with no building type', () => {
+    // "Gearing 114" is how listings write it; UT calls it GEARING HALL, and
+    // the short-name index needs the type word to fire.
+    it.each([
+      ['Gearing 114', 'GEA'],
+      ['Welch 2.224', 'WEL'],
+      ['Burdine 106', 'BUR'],
+      ['Waggener 420', 'WAG'],
+      ['Batts 5.108', 'BAT'],
+    ])('resolves %j to %s', (location, code) => {
+      expect(resolveBuilding(location)?.code).toBe(code);
+    });
+
+    it('refuses a street address that happens to follow a rare word', () => {
+      // The guard this exists for. EDUCATION appears in exactly one building
+      // name -- the Engineering Education and Research Center -- so word
+      // uniqueness admits it, and "...Education 855 E. Cotter Ave..." then
+      // pins a marine lab in Port Aransas to EER, 200 miles away. Requiring
+      // the word to LEAD the string is what separates a room reference from a
+      // street address.
+      expect(
+        resolveBuilding(
+          'Patton Center for Marine Science Education 855 E. Cotter Ave. Port Aransas, TX 78373',
+        ),
+      ).toBeNull();
+    });
+
+    it('refuses a rare word with no room number after it', () => {
+      // CAMPUS is unique to East Campus Garage. Without the digit test, every
+      // event vaguely located "on campus" would pin to a car park.
+      expect(resolveBuilding('UT Austin campus')).toBeNull();
+      expect(resolveBuilding('Texas Global Lounge')).toBeNull();
+    });
+  });
+
   describe('full names', () => {
     it('resolves a written-out building name with no code present', () => {
       expect(resolveBuilding('Perry-Castaneda Library')?.code).toBe('PCL');
