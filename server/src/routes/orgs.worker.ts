@@ -24,6 +24,7 @@ import {
   PROFILE_EVENT_FILTERS,
   PUBLIC_PROFILE_TABS,
 } from '../../../shared/profileEventFilters';
+import { MAX_BIO, normalizeBio } from '../../../shared/bio';
 import { getAuthUser, getUserId } from '../lib/utils';
 import { DEFAULT_EMAIL_FROM, sendEmail } from '../email/send';
 import { orgInviteEmail, orgVerificationEmail } from '../email/templates';
@@ -362,7 +363,7 @@ orgRoutes.get('/search', async (c) => {
   const { results } = await c.env.DB.prepare(
     `WITH scored AS (
        SELECT o.id, o.name, o.profile_picture, o.category, o.verified,
-              o.verification_status, o.updated_at,
+              o.verification_status, o.bio, o.updated_at,
               (SELECT COUNT(*) FROM org_members m
                 WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count,
               (SELECT COUNT(*) FROM org_followers f
@@ -404,6 +405,9 @@ orgRoutes.get('/search', async (c) => {
         name: o.name,
         profile_picture: o.profile_picture,
         category: o.category,
+        // Returned so org search can preview and, once LOOP-257 lands, match
+        // on it. NULL on every row until an admin writes one via PATCH.
+        bio: o.bio,
         verified: Number(o.verified) === 1,
         verification_status: o.verification_status,
         claim_state,
@@ -807,7 +811,7 @@ orgRoutes.get('/:orgId', async (c) => {
   if (!member.ok) return c.json({ error: member.error }, member.status);
 
   const org = await c.env.DB.prepare(
-    'SELECT id, name, slug, profile_picture, verified FROM organizations WHERE id = ?',
+    'SELECT id, name, slug, profile_picture, verified, bio FROM organizations WHERE id = ?',
   )
     .bind(member.orgId)
     .first();
@@ -854,6 +858,74 @@ orgRoutes.get('/:orgId', async (c) => {
       saved: (totals?.saved as number) ?? 0,
     },
   });
+});
+
+// PATCH /orgs/:orgId -- edit the org's own profile fields (LOOP-261).
+//
+// `organizations.bio` arrived with migration 0016 for the public org profile,
+// and until now nothing anywhere wrote it: not registration, not the console,
+// not the scraper. Every row was NULL in production, so the read side that
+// LOOP-180 shipped had nothing to render. This is the write side.
+//
+// ADMIN ONLY, deliberately, and NOT the admin-or-editor gate that guards
+// PATCH /events/:id. schema.sql draws the line at "an editor can post/manage
+// events, cannot manage people", and the org's own public description is not
+// an event -- it sits with the notification settings and the member roster,
+// both of which are admin-only here. An editor posting an event is acting
+// within their remit; an editor rewriting how the org describes itself is not.
+//
+// Partial by contract, like PATCH /events/:id: a key the caller omits is never
+// written. `bio: null` or "" clears it, which is why the presence check is on
+// the key rather than on truthiness.
+//
+// Body:
+//   bio  string|null, <=150 after normalizeBio (shared/bio.ts)
+//
+// Responses:
+//   200 { org: { id, bio } }
+//   400 { error: 'INVALID_BODY' | 'INVALID_ORG_ID' }
+//   400 { error: 'VALIDATION_ERROR', fields: { bio } }
+//   401 { error: 'UNAUTHORIZED' }
+//   403 { error: 'NOT_A_MEMBER' | 'FORBIDDEN' }
+//   404 { error: 'USER_NOT_FOUND' | 'ORG_NOT_FOUND' }
+orgRoutes.patch('/:orgId', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+  if (member.role !== 'admin') return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'INVALID_BODY' }, 400);
+
+  if (!Object.prototype.hasOwnProperty.call(body, 'bio')) {
+    return c.json({ error: 'INVALID_BODY' }, 400);
+  }
+
+  const rawBio = (body as { bio: unknown }).bio;
+  if (rawBio !== null && typeof rawBio !== 'string') {
+    return c.json({ error: 'VALIDATION_ERROR', fields: { bio: 'Must be a string or null' } }, 400);
+  }
+
+  // Normalize BEFORE measuring. The cap is on what gets stored, and
+  // normalizeBio strips trailing spaces and collapses blank-line runs -- so a
+  // bio that is only over the limit because of trailing whitespace should be
+  // accepted and tidied, not rejected.
+  const bio = normalizeBio(rawBio);
+  if (bio !== null && bio.length > MAX_BIO) {
+    return c.json(
+      { error: 'VALIDATION_ERROR', fields: { bio: `Must be ${MAX_BIO} characters or fewer` } },
+      400,
+    );
+  }
+
+  const result = await c.env.DB.prepare('UPDATE organizations SET bio = ? WHERE id = ?')
+    .bind(bio, member.orgId)
+    .run();
+
+  if ((result.meta as { changes?: number }).changes === 0) {
+    return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+  }
+
+  return c.json({ org: { id: member.orgId, bio } });
 });
 
 // GET /orgs/:orgId/members -- Members tab: "Team (N)" + rows with role badges.

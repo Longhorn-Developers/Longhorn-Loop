@@ -45,14 +45,15 @@ export default function FlowLayout({
             <StepPills step={step} totalSteps={totalSteps} style={{ marginTop: 36 }} />
           )}
 
+          {/* font-roboto-semibold, not font-['Roboto-Flex'] + font-semibold:
+              RN can't pick a weight off a variable font, so that pair renders
+              at 400 on device. Same everywhere weights are set. */}
           {title && (
-            <Text className="mt-[42px] font-['Roboto-Flex'] text-[32px] font-semibold text-lhlInk">
-              {title}
-            </Text>
+            <Text className="mt-[42px] font-roboto-semibold text-[32px] text-lhlInk">{title}</Text>
           )}
 
           {subTitle && (
-            <Text className="mb-[4px] mt-[6px] font-['Roboto-Flex'] text-[16px] font-semibold text-lhlInk">
+            <Text className="mb-[4px] mt-[6px] font-roboto-semibold text-[16px] text-lhlInk">
               {subTitle}
             </Text>
           )}

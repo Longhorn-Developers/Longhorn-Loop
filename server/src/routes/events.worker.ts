@@ -1,6 +1,11 @@
 // Events routes for Cloudflare Worker
 import { Hono } from 'hono';
 import { parseStoredAvatarConfig } from '../../../shared/avatar';
+import {
+  MAX_BENEFIT_COUNT,
+  MAX_BENEFIT_NAME_LENGTH,
+  normalizeBenefitName,
+} from '../../../shared/eventBenefits';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
@@ -300,6 +305,62 @@ function normalizeCategories(
   return errors.categories ? [] : categories;
 }
 
+/**
+ * Perks, for `event_benefits`.
+ *
+ * Deliberately looser than normalizeCategories: a benefit is a bare string
+ * with no id to slugify, and the vocabulary is HornsLink's rather than ours
+ * (see shared/eventBenefits.ts). Anything within the caps is accepted, so a
+ * value the scraper already writes stays writable from the app.
+ *
+ * Deduplicated case-insensitively even though case is preserved on the way in
+ * — "Free Food" and "free food" are one perk, and the UNIQUE(event_id,
+ * benefit_name) index would not catch that pair.
+ */
+function normalizeBenefits(body: CreateEventBody, errors: ValidationErrors): string[] {
+  const raw = body.benefits ?? body.perks;
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    errors.benefits = 'Must be an array';
+    return [];
+  }
+  if (raw.length > MAX_BENEFIT_COUNT) {
+    errors.benefits = `Must include ${MAX_BENEFIT_COUNT} perks or fewer`;
+    return [];
+  }
+
+  const benefits: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const name = normalizeBenefitName(item);
+    if (!name) {
+      errors.benefits = 'Each perk must be a non-empty string';
+      return [];
+    }
+    if (name.length > MAX_BENEFIT_NAME_LENGTH) {
+      errors.benefits = `Perk values must be ${MAX_BENEFIT_NAME_LENGTH} characters or fewer`;
+      return [];
+    }
+    const dedupeKey = name.toLowerCase();
+    if (!seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
+      benefits.push(name);
+    }
+  }
+
+  return benefits;
+}
+
+/** Write the perk set for an event. Callers own the delete-first when editing. */
+async function insertBenefits(db: D1Database, eventId: number, benefits: string[]): Promise<void> {
+  for (const benefit of benefits) {
+    await db
+      .prepare(`INSERT OR IGNORE INTO event_benefits (event_id, benefit_name) VALUES (?, ?)`)
+      .bind(eventId, benefit)
+      .run();
+  }
+}
+
 function normalizeAspectRatio(
   raw: string | null,
   width: number | null,
@@ -446,8 +507,17 @@ async function storeImageBytes(
   };
 }
 
+/** Body keys that arrive as a JSON array (or a comma list) inside multipart. */
+const ARRAY_FORM_KEYS = new Set([
+  'categories',
+  'interestTags',
+  'interest_tags',
+  'benefits',
+  'perks',
+]);
+
 function assignFormField(body: CreateEventBody, key: string, value: string): void {
-  if (key === 'categories' || key === 'interestTags' || key === 'interest_tags') {
+  if (ARRAY_FORM_KEYS.has(key)) {
     try {
       body[key] = JSON.parse(value);
       return;
@@ -712,6 +782,23 @@ eventRoutes.post('/create', async (c) => {
     errors.end_datetime = 'Must be on or after start_datetime';
   }
 
+  // venue_type arrived with LOOP-260 as a hard requirement, but the create
+  // wizard has no in-person/online control and sends no such field — so every
+  // post from the app was failing validation with a message about a control
+  // the user cannot see. Absent now means in_person, which is what a free-text
+  // location has always meant and what every row predating LOOP-260 is.
+  //
+  // A value that IS sent is still checked: this is a default for the client
+  // that doesn't know about the field yet, not a relaxation of the field. Once
+  // the wizard grows the toggle, the default stops being reachable from the
+  // app and can be reconsidered.
+  const rawVenueType = readStringField(body, ['venue_type', 'venueType']);
+  const venueType = rawVenueType ?? 'in_person';
+
+  if (venueType !== 'in_person' && venueType !== 'online') {
+    errors.venue_type = 'Must be either in_person or online';
+  }
+
   const locationObject = isRecord(body.location) ? body.location : null;
   const locationFull =
     parseOptionalString(
@@ -754,6 +841,7 @@ eventRoutes.post('/create', async (c) => {
   const latitude = readNumberField(body, ['latitude', 'lat']);
   const longitude = readNumberField(body, ['longitude', 'lng', 'lon']);
   const categories = normalizeCategories(body, errors);
+  const benefits = normalizeBenefits(body, errors);
   const imageFields =
     Object.keys(errors).length === 0
       ? await resolveImageFields(c.env, user.id, body, uploadedImage, errors)
@@ -777,7 +865,7 @@ eventRoutes.post('/create', async (c) => {
   const result = await c.env.DB.prepare(
     `INSERT INTO events (
        source, source_event_id, title, description,
-       start_datetime, end_datetime, location_short, location_full,
+       start_datetime, end_datetime, venue_type, location_short, location_full,
        latitude, longitude, host_organization_name,
        event_url, rsvp_url,
        image_url, image_width, image_height,
@@ -786,7 +874,7 @@ eventRoutes.post('/create', async (c) => {
        created_by_user_id
      ) VALUES (
        ?, ?, ?, ?,
-       ?, ?, ?, ?,
+       ?, ?, ?, ?, ?,
        ?, ?, ?,
        ?, ?,
        ?, ?, ?,
@@ -802,6 +890,7 @@ eventRoutes.post('/create', async (c) => {
       description,
       startDatetime,
       endDatetime,
+      venueType,
       locationShort,
       locationFull,
       latitude,
@@ -830,6 +919,12 @@ eventRoutes.post('/create', async (c) => {
       .bind(eventId, category.id, category.name)
       .run();
   }
+
+  // Perks. The `?benefit=` filter and the ingest write have existed since the
+  // first HornsLink scrape; this is the create path finally populating the
+  // same table, so a user event can be found by the filter that already works
+  // for scraped ones (LOOP-259).
+  await insertBenefits(c.env.DB, eventId, benefits);
 
   // Feed ranking reads event_tags, not event_categories. Scraped events get
   // tagged by the classifier at ingest; user-created events are hand-tagged
@@ -885,6 +980,7 @@ eventRoutes.post('/create', async (c) => {
 //   end_datetime     ISO 8601 with timezone, or null to pin it to the start
 //   location         string, <=200  (also location_full / location_short)
 //   categories       string[] | {id,name}[], <=20   (also interestTags)
+//   benefits         string[], <=10, each <=60      (also perks)
 //   discovery_bucket taxonomy bucket id; rewrites event_tags when sent
 //                    alongside categories
 //
@@ -909,6 +1005,7 @@ const LOCATION_KEYS = [
 const START_KEYS = ['start_datetime', 'startDatetime', 'datetime'];
 const END_KEYS = ['end_datetime', 'endDatetime'];
 const CATEGORY_KEYS = ['categories', 'interestTags', 'interest_tags'];
+const BENEFIT_KEYS = ['benefits', 'perks'];
 
 /**
  * May `userId` edit this event?
@@ -1085,6 +1182,9 @@ eventRoutes.patch('/:id', async (c) => {
   const patchesCategories = hasField(body, CATEGORY_KEYS);
   const categories = patchesCategories ? normalizeCategories(body, errors) : [];
 
+  const patchesBenefits = hasField(body, BENEFIT_KEYS);
+  const benefits = patchesBenefits ? normalizeBenefits(body, errors) : [];
+
   const discoveryBucket = readStringField(body, ['discovery_bucket', 'discoveryBucket']);
   if (discoveryBucket) {
     // theme is a pure function of the bucket on the create path; recomputing it
@@ -1122,6 +1222,15 @@ eventRoutes.patch('/:id', async (c) => {
         .bind(eventId, category.id, category.name)
         .run();
     }
+  }
+
+  // Perks are a set too, and replace-all for the same reason as categories:
+  // there is no per-row identity to diff against, and an edit that removes a
+  // perk has to be expressible. Sending `benefits: []` clears them; omitting
+  // the key leaves them alone.
+  if (patchesBenefits) {
+    await c.env.DB.prepare('DELETE FROM event_benefits WHERE event_id = ?').bind(eventId).run();
+    await insertBenefits(c.env.DB, eventId, benefits);
   }
 
   // event_tags drives feed ranking and is rewritten only when the caller sent
@@ -1496,6 +1605,48 @@ eventRoutes.post('/:id/view', async (c) => {
   }
 
   return c.json({ ok: true });
+});
+
+// POST /events/:id/coordinates -- backfill an event's coordinates.
+// Body: { latitude: number, longitude: number }
+//
+// Scraped events store a location label but no coordinates; the first iOS
+// client that resolves the label via MKLocalSearch posts the result back here
+// so it's persisted for every later viewer and for feed ranking. Only fills
+// when both columns are currently NULL, so a real coordinate is never
+// overwritten and concurrent resolvers converge on the first write.
+eventRoutes.post('/:id/coordinates', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 401);
+
+  const eventId = parseInt(c.req.param('id'));
+  if (!Number.isFinite(eventId)) {
+    return c.json({ error: 'INVALID_EVENT_ID' }, 400);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const latitude = readNumberField(isRecord(body) ? body : {}, ['latitude', 'lat']);
+  const longitude = readNumberField(isRecord(body) ? body : {}, ['longitude', 'lng', 'lon']);
+  if (
+    latitude == null ||
+    longitude == null ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    return c.json({ error: 'INVALID_COORDINATES' }, 400);
+  }
+
+  const updated = await c.env.DB.prepare(
+    `UPDATE events SET latitude = ?, longitude = ?
+     WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
+  )
+    .bind(latitude, longitude, eventId)
+    .run();
+
+  return c.json({ ok: true, updated: updated.meta.changes > 0 });
 });
 
 // POST /events/:id/report -- user reports an event for moderation.

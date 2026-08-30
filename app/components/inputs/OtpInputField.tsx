@@ -25,6 +25,9 @@ const OtpInput: React.FC<OtpInputProps> = ({
       {code.map((digit, index) => {
         const isFocused = focusedIndex === index;
 
+        // Near-black at rest — heavier than the usual control border, since an
+        // empty code box is the thing to aim at. ink, not '#000', so it inverts
+        // in dark mode.
         let borderColor = colors.ink;
         if (error) {
           borderColor = colors.destructive;
@@ -42,7 +45,10 @@ const OtpInput: React.FC<OtpInputProps> = ({
                 inputs.current[index] = ref;
               }
             }}
-            className="h-14 w-12 rounded-lg font-['Roboto-Flex'] text-center text-xl font-semibold text-lhlInk"
+            // bg-lhlSurface, not bg-white: these had no fill and showed the
+            // page through, so they never sat on the same surface as the app's
+            // other inputs.
+            className="h-14 w-12 rounded-lg bg-lhlSurface font-roboto-semibold text-center text-xl text-lhlInk"
             style={{
               borderColor,
               borderWidth,

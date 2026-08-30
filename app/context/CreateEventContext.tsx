@@ -1,3 +1,4 @@
+import { DEFAULT_VENUE_TYPE, type VenueType } from '@/shared/venueType';
 import React, { createContext, useContext, useState } from 'react';
 
 export type PosterKind = 'personal' | 'org';
@@ -55,7 +56,11 @@ export interface CreateEventData {
   startDatetime: string | null;
   endDatetime: string | null;
   locationFull: string;
+  /** In-person vs online. Required by the server since LOOP-260. */
+  venueType: VenueType;
   rsvpUrl: string;
+  /** Perks offered at the event -- writes event_benefits (LOOP-259). */
+  benefits: string[];
   imageUrl: string | null;
   imageName: string | null;
   imageMimeType: string | null;
@@ -99,7 +104,9 @@ const DEFAULT_DATA: CreateEventData = {
   startDatetime: null,
   endDatetime: null,
   locationFull: '',
+  venueType: DEFAULT_VENUE_TYPE,
   rsvpUrl: '',
+  benefits: [],
   imageUrl: null,
   imageName: null,
   imageMimeType: null,

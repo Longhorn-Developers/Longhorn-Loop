@@ -39,7 +39,7 @@ import type { AvatarConfig } from '@/shared/avatar';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
@@ -109,6 +109,28 @@ export default function ProfileScreen() {
     enabled: !!token,
   });
 
+  /**
+   * Pull to refresh.
+   *
+   * Refetches BOTH queries, not just the visible collection. The counts on the
+   * Going / Saved / Posted pills come back with the events payload, so
+   * refreshing only the active tab would leave the other two showing numbers
+   * from whenever they were last fetched — and those are the numbers a user
+   * pulls down to check. The header goes too, since follower counts move for
+   * the same reasons the collections do.
+   *
+   * `isRefetching` rather than a piece of local state: react-query already
+   * tracks a refetch distinctly from the initial load, so the spinner is tied
+   * to the actual request instead of to a boolean we would have to remember to
+   * clear on the error path.
+   */
+  const onRefresh = React.useCallback(() => {
+    profileQuery.refetch();
+    eventsQuery.refetch();
+  }, [profileQuery, eventsQuery]);
+
+  const isRefreshing = profileQuery.isRefetching || eventsQuery.isRefetching;
+
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
 
@@ -161,6 +183,14 @@ export default function ProfileScreen() {
           className="flex-1 bg-lhlBackgroundColor"
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brand}
+              colors={[colors.brand]}
+            />
+          }
         >
           {/* --- Hamburger: org management + settings --- */}
           <View className="flex-row justify-end px-[20px] pt-[6px]">

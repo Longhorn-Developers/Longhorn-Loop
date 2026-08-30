@@ -10,6 +10,7 @@ import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
+import { runEventCleanup } from './lib/eventCleanup';
 import type { SendEmailBinding } from './email/send';
 
 export type Env = {
@@ -82,6 +83,12 @@ const REMINDER_CRON = '*/15 * * * *';
 // bounded pass of per-org HTML fetches that there is no reason to repeat four
 // times a day.
 const ORG_DIRECTORY_CRON = '0 8 * * *';
+
+// LOOP-150. Daily sweep that hard-deletes expired events nobody ever engaged
+// with and archives (soft-deletes) expired events a user created, RSVP'd to,
+// or saved. A distinct hour from ORG_DIRECTORY_CRON — event.cron is matched
+// exactly below, so two jobs on the same string would starve one of them.
+const EVENT_CLEANUP_CRON = '0 9 * * *';
 
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -157,6 +164,19 @@ export default {
 
     if (event.cron === ORG_DIRECTORY_CRON) {
       ctx.waitUntil(ORG_DIRECTORY_SCRAPER.run(env));
+      return;
+    }
+
+    if (event.cron === EVENT_CLEANUP_CRON) {
+      ctx.waitUntil(
+        runEventCleanup(env.DB).then(
+          (counts) =>
+            console.log(
+              `[cron] event cleanup: archived ${counts.archived}, purged ${counts.purged}`,
+            ),
+          (err) => console.error('[cron] event cleanup failed:', err),
+        ),
+      );
       return;
     }
 

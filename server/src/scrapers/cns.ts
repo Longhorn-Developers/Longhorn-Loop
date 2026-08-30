@@ -15,6 +15,7 @@ import { classifyAspectRatio, stripHtml } from '../events/normalize';
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { ImageAspectRatio, NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://calendar.utexas.edu';
 const API_BASE = `${BASE_URL}/api/2/events`;
@@ -153,6 +154,7 @@ export function parseEventInstance(
     startDatetime: inst.start,
     endDatetime: inst.end ?? null,
     // Fall back to the street address when Localist has no named venue.
+    venueType: inferVenueType(e.location, e.address),
     locationShort: buildLocationShort(e.location || e.address),
     locationFull: buildLocationFull(e.location, e.address),
     latitude: null,

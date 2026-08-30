@@ -52,8 +52,36 @@ export default function ProfileEventCard({ event, onToggleSave }: ProfileEventCa
             />
           </>
         ) : (
-          <EventFlyerPlaceholder />
+          <EventFlyerPlaceholder seed={event.id} />
         )}
+
+        {/*
+          The perk tag, matching components/EventCard. It was only ever on that
+          card, so an event with Free Food showed the tag in the home carousels
+          and nothing on your own profile — the same event looking different
+          depending on where you found it.
+
+          Bottom-RIGHT for the same reason it moved there on EventCard:
+          EventFlyerPlaceholder anchors its artwork bottom-left, where the tower
+          is, so a tag in that corner lands on it every time a flyerless event
+          renders. Save sits top-right, so the corner is free.
+
+          A grid tile is about half the width of a carousel card, so the pill is
+          a step down from EventCard's — 9px text in tighter padding — and only
+          ever shows the first perk. Two would wrap and eat the poster.
+        */}
+        {event.benefits?.length ? (
+          <View className="absolute bottom-[8px] right-[8px] rounded-[10px] bg-lhlBurntOrange px-[7px] py-[2px]">
+            <Text
+              numberOfLines={1}
+              // theme-exempt: white on the filled brand pill in both themes,
+              // same as the EventCard tag it mirrors.
+              className="font-['Roboto-Flex'] text-[9px] font-semibold text-white"
+            >
+              {event.benefits[0]}
+            </Text>
+          </View>
+        ) : null}
 
         {onToggleSave ? (
           <Pressable

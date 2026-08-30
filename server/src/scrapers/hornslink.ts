@@ -13,6 +13,7 @@ import {
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 // Types
 
@@ -110,6 +111,7 @@ function toNormalizedEvent(raw: HornsLinkEvent): NormalizedEvent {
     description: stripHtml(raw.description),
     startDatetime: raw.startsOn,
     endDatetime: raw.endsOn,
+    venueType: inferVenueType(raw.location, null),
     locationShort: truncateLocation(raw.location),
     locationFull: raw.location,
     latitude: parseCoordinate(raw.latitude),

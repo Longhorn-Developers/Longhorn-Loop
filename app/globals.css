@@ -39,14 +39,15 @@
      light app rather than add dark mode. */
   --lhl-ink-muted: 154 154 154; /* #9A9A9A */
 
-  --lhl-border: 180 178 178; /* #B4B2B2 */
+  /* Figma's --LHL-Border-Color. Was #B4B2B2, a step darker than the design. */
+  --lhl-border: 199 199 199; /* #C7C7C7 */
   /* Hairline rules between sections. Softer than border, which delimits
      controls and has to stay visible. */
   --lhl-divider: 210 222 224; /* #D2DEE0 */
   --lhl-placeholder: 217 217 217; /* #D9D9D9  avatar / image placeholders */
 
   /* Filled buttons. White text sits on this, so it can't lighten in dark. */
-  --lhl-brand: 189 85 0; /* #BD5500 */
+  --lhl-brand: 157 75 6; /* #9D4B06 */
   /* Accent TEXT (links, "Edit"/"Done"). Darker than brand in light so it
      clears 4.5:1 on the page; much lighter in dark for the same reason. */
   --lhl-accent: 168 75 0; /* #A84B00 */

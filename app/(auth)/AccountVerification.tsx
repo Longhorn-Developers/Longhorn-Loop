@@ -265,9 +265,10 @@ export default function AccountVerification() {
       </View>
 
       <Pressable className="mt-4" disabled={sendingInitialCode || resending} onPress={handleResend}>
-        <Text className="font-['Roboto-Flex'] text-base text-center">
+        {/* All 400 — the accent colour marks the tappable half. */}
+        <Text className="text-center font-roboto text-base text-lhlInk">
           {"Didn't receive the code? "}
-          <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">
+          <Text className="font-roboto text-lhlAccent">
             {resending ? 'Sending...' : 'Resend Code'}
           </Text>
         </Text>

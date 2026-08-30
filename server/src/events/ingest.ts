@@ -1,9 +1,9 @@
 // Writes NormalizedEvent[] into D1. Only place that knows the schema.
 
-import type { IngestResult, NormalizedEvent } from './types';
-import type { Env } from '../worker';
 import { writeEventTags } from '../lib/classifier';
 import { classifyEventsBatch } from '../lib/semanticTags';
+import type { Env } from '../worker';
+import type { IngestResult, NormalizedEvent } from './types';
 
 // LOOP-150 retention window. Purge job uses expires_at.
 const EXPIRES_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -53,7 +53,7 @@ async function upsertEvent(
       .prepare(
         `UPDATE events SET
           title = ?, description = ?, start_datetime = ?, end_datetime = ?,
-          location_short = ?, location_full = ?, latitude = ?, longitude = ?,
+          venue_type = ?, location_short = ?, location_full = ?, latitude = ?, longitude = ?,
           host_organization_id = ?, host_organization_name = ?,
           event_url = ?, rsvp_url = ?,
           image_url = ?, image_width = ?, image_height = ?,
@@ -67,6 +67,7 @@ async function upsertEvent(
         event.description,
         event.startDatetime,
         event.endDatetime,
+        event.venueType,
         event.locationShort,
         event.locationFull,
         event.latitude,
@@ -97,7 +98,7 @@ async function upsertEvent(
     .prepare(
       `INSERT INTO events (
         source, source_event_id, title, description,
-        start_datetime, end_datetime, location_short, location_full,
+        start_datetime, end_datetime, venue_type, location_short, location_full,
         latitude, longitude, host_organization_id, host_organization_name,
         event_url, rsvp_url,
         image_url, image_width, image_height,
@@ -105,7 +106,7 @@ async function upsertEvent(
         theme, visibility, rsvp_total, expires_at, status
       ) VALUES (
         ?, ?, ?, ?,
-        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?,
         ?, ?, ?,
@@ -120,6 +121,7 @@ async function upsertEvent(
       event.description,
       event.startDatetime,
       event.endDatetime,
+      event.venueType,
       event.locationShort,
       event.locationFull,
       event.latitude,

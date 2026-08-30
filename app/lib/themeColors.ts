@@ -45,7 +45,7 @@ export const LIGHT_COLORS: ThemeColors = {
   ink: '#09090B',
   inkSecondary: '#485656',
   inkMuted: '#9A9A9A',
-  border: '#B4B2B2',
+  border: '#C7C7C7',
   divider: '#D2DEE0',
   placeholder: '#D9D9D9',
   brand: '#BD5500',

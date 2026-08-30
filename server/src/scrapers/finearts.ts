@@ -17,6 +17,7 @@ import { ingestEvents } from '../events/ingest';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
+import { inferVenueType } from './helpers';
 
 const BASE_URL = 'https://finearts.utexas.edu';
 const LISTING_URL = `${BASE_URL}/events`;
@@ -174,6 +175,7 @@ export function parseEventRow(rowHtml: string, now = Date.now()): NormalizedEven
     description: null,
     startDatetime: range.start,
     endDatetime: range.end,
+    venueType: inferVenueType(locationName, null),
     locationShort: locationName ? locationName.slice(0, 40) : null,
     locationFull: locationName,
     latitude: null,

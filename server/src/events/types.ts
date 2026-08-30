@@ -21,6 +21,7 @@ export interface NormalizedEvent {
   startDatetime: string;
   endDatetime: string | null;
 
+  venueType: 'in_person' | 'online';
   locationShort: string | null;
   locationFull: string | null;
   latitude: number | null;
