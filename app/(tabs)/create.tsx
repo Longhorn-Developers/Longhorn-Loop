@@ -92,14 +92,21 @@ export default function CreateEventTab() {
       // it, because such a strip swallows every tap in the left margin --
       // including the header's back arrow. So the edge test happens here, on
       // where the finger actually landed, and everything else no-ops.
+      //
+      // This records WHERE the touch started and nothing else. Mounting the
+      // layer behind used to happen here too, and that was the jitter: onBegin
+      // fires on touch-DOWN, so every tap landing within 28pt of the left edge
+      // mounted an entire screen behind the current one and unmounted it again
+      // a moment later. Step 1 has no previous screen, which is exactly why it
+      // only showed up from step 2 onward.
       fromEdge.value = e.x < EDGE_WIDTH;
-      if (fromEdge.value) {
-        // Mount the layer behind NOW, on touch-down, not on activation. The
-        // pan needs 20pt of travel to activate, which buys the frames the
-        // mount costs -- start it later and the first half of the drag reveals
-        // an empty screen.
-        runOnJS(beginDrag)();
-      }
+    })
+    .onStart(() => {
+      // Activation, not touch-down. The pan needs 20pt of travel to get here,
+      // so this only runs on a real drag -- and at 20pt of a 375pt screen the
+      // layer behind is a sliver, so the frame the mount costs is hidden under
+      // the front screen rather than being the first thing you see.
+      if (fromEdge.value) runOnJS(beginDrag)();
     })
     .onUpdate((e) => {
       if (!fromEdge.value) return;
@@ -124,9 +131,10 @@ export default function CreateEventTab() {
       }
     })
     .onFinalize(() => {
-      // Covers the touch that never became a drag: onBegin already mounted the
-      // layer behind, and without this it would sit there until the next one.
-      if (fromEdge.value && dragX.value === 0) runOnJS(endDrag)();
+      // Safety net for a gesture that is cancelled between activating and
+      // ending -- an incoming call, the app backgrounding. Without it the
+      // layer behind stays mounted until the next swipe.
+      if (dragX.value === 0) runOnJS(endDrag)();
     });
 
   const frontStyle = useAnimatedStyle(() => ({
@@ -147,7 +155,10 @@ export default function CreateEventTab() {
       <GestureDetector gesture={edgeSwipe}>
         <View style={styles.fill}>
           {dragging && PreviousScreen ? (
-            <View style={StyleSheet.absoluteFill}>
+            // Painted rather than transparent: this mounts one frame before it
+            // is first visible, and an unpainted frame reads as a white flash
+            // in dark mode.
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}>
               <PreviousScreen />
             </View>
           ) : null}
