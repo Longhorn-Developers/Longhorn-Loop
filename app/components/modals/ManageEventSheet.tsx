@@ -50,10 +50,30 @@ import type { SvgProps } from 'react-native-svg';
 const ICON_COLUMN = 24;
 const ICON_GAP = 14;
 
-/** Drag further than this and the sheet closes instead of springing back. */
-const DISMISS_DISTANCE = 90;
-/** Or flick faster than this, however far you actually got. */
-const DISMISS_VELOCITY = 0.6;
+/**
+ * Dismissal is decided on where the drag was GOING, not where it stopped.
+ *
+ * Distance and velocity as two separate tests is the naive version and it
+ * feels wrong at both ends: a slow, deliberate 40% drag springs back, and a
+ * fast flick that only travelled 20pt does nothing. Projecting the throw the
+ * way a scroll view does -- current offset plus velocity times a time
+ * constant -- gives one number that both gestures agree on.
+ */
+const VELOCITY_PROJECTION_MS = 140;
+/** Projected past this fraction of the sheet's own height and it closes. */
+const DISMISS_FRACTION = 0.32;
+/** Below this the gesture is a tap, not a drag, and the row underneath keeps it. */
+const DRAG_SLOP = 5;
+/**
+ * iOS's rubber band. Pulling UP past the top does not translate 1:1 -- it
+ * yields less and less, asymptotically, so the sheet feels attached rather
+ * than either rigid (nothing happens, feels broken) or loose (it slides up and
+ * exposes the backdrop under it).
+ */
+const RUBBER_BAND = 0.55;
+function resist(overshoot: number, dimension: number): number {
+  return (1 - 1 / ((overshoot * RUBBER_BAND) / dimension + 1)) * dimension;
+}
 
 export interface ManageEventSheetProps {
   visible: boolean;
@@ -134,6 +154,8 @@ export default function ManageEventSheet({
     // Start below the fold and come up. Until the first layout lands we do not
     // know how far "below" is, so the sheet simply appears in place for that
     // one frame rather than flying in from an arbitrary distance.
+    offsetY.current = sheetHeightRef.current || 0;
+    dragStart.current = 0;
     translateY.setValue(sheetHeightRef.current || 0);
     Animated.spring(translateY, {
       toValue: 0,
@@ -141,7 +163,9 @@ export default function ManageEventSheet({
       damping: 26,
       stiffness: 260,
       mass: 0.9,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) offsetY.current = 0;
+    });
     // sheetHeight is deliberately not a dependency: re-running this on a
     // measurement change would replay the entrance mid-interaction.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,44 +182,94 @@ export default function ManageEventSheet({
       duration: 180,
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (finished) closeRef.current();
+      if (finished) {
+        offsetY.current = 0;
+        closeRef.current();
+      }
     });
   };
 
   const closeRefSlide = useRef(closeWithSlide);
   closeRefSlide.current = closeWithSlide;
 
+  // Where the sheet actually is, updated as the drag runs. `translateY` cannot
+  // be read synchronously once the native driver owns it, and release needs the
+  // current offset to project the throw.
+  const offsetY = useRef(0);
+  const dragStart = useRef(0);
+
+  const springHome = () => {
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 26,
+      stiffness: 260,
+      mass: 0.9,
+    }).start(({ finished }) => {
+      if (finished) offsetY.current = 0;
+    });
+  };
+
   /**
-   * The grabber was decorative, which is the one thing a grabber must never be.
-   * It is the universal "drag me" affordance, so a sheet that draws one and
-   * then ignores the drag reads as broken rather than as fixed.
+   * The drag, and why it is on the whole sheet rather than the grabber.
+   *
+   * A grabber that alone responds to dragging is a smaller version of the same
+   * bug as a grabber that does nothing: it looks draggable everywhere and is
+   * draggable in one 30pt band. Every system sheet -- iOS, Maps, the share
+   * sheet -- lets you push down from anywhere on a sheet whose content does not
+   * itself scroll. This one does not scroll, so the whole thing takes the
+   * gesture.
+   *
+   * That means stealing the touch back from the action rows, which are
+   * Pressables and claim the responder the moment a finger lands. The CAPTURE
+   * variant is the only phase that can take over from a child that already
+   * holds it -- the non-capture `onMoveShouldSetPanResponder` is never
+   * consulted once the row has claimed the touch, which is why the previous
+   * version had to live on a band with nothing pressable in it. The slop
+   * threshold is what keeps taps working: no movement, no capture, the row
+   * keeps its press.
    *
    * PanResponder rather than react-native-gesture-handler: GH needs its own
    * root view inside a Modal to receive touches on Android, and this is a
-   * single-axis drag that the core responder system handles fine.
+   * single-axis drag the core responder system handles fine.
    */
   const pan = useRef(
     PanResponder.create({
-      // Claim the gesture only once it is clearly a downward drag. A lower
-      // threshold steals taps meant for the rows underneath.
-      onMoveShouldSetPanResponder: (_evt, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_evt, g) => {
-        // Downward only. Dragging up would peel the sheet off the bottom edge
-        // and show the backdrop underneath it.
-        translateY.setValue(Math.max(0, g.dy));
+      onMoveShouldSetPanResponderCapture: (_evt, g) =>
+        Math.abs(g.dy) > DRAG_SLOP && Math.abs(g.dy) > Math.abs(g.dx),
+
+      onPanResponderGrant: () => {
+        // Grabbing a sheet mid-flight should catch it where it is, not snap it
+        // somewhere. stopAnimation hands back the exact interrupted value.
+        translateY.stopAnimation((value: number) => {
+          dragStart.current = value;
+          offsetY.current = value;
+        });
       },
+
+      onPanResponderMove: (_evt, g) => {
+        const raw = dragStart.current + g.dy;
+        const height = sheetHeightRef.current || 400;
+        // Down tracks the finger exactly. Up resists, so the sheet gives a
+        // little and then stops -- "attached", not "stuck" and not "loose".
+        const next = raw >= 0 ? raw : -resist(-raw, height);
+        offsetY.current = next;
+        translateY.setValue(next);
+      },
+
       onPanResponderRelease: (_evt, g) => {
-        if (g.dy > DISMISS_DISTANCE || g.vy > DISMISS_VELOCITY) {
+        const height = sheetHeightRef.current || 400;
+        const projected = offsetY.current + g.vy * VELOCITY_PROJECTION_MS;
+        if (projected > height * DISMISS_FRACTION) {
           closeRefSlide.current();
         } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 26,
-            stiffness: 260,
-          }).start();
+          springHome();
         }
       },
+
+      // A system interruption (a call, the app backgrounding) should leave the
+      // sheet where it belongs rather than wherever the finger abandoned it.
+      onPanResponderTerminate: () => springHome(),
       onPanResponderTerminationRequest: () => false,
     }),
   ).current;
@@ -223,6 +297,7 @@ export default function ManageEventSheet({
       </Animated.View>
 
       <Animated.View
+        {...pan.panHandlers}
         style={[styles.sheet, { transform: [{ translateY }] }]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
@@ -230,10 +305,10 @@ export default function ManageEventSheet({
           setSheetHeight(h);
         }}
       >
-        {/* The drag handle is this whole band, not the 5pt pill. A 5pt-tall
-            target is under half the platform minimum, so the affordance would
-            be visible and still essentially unusable. */}
-        <View {...pan.panHandlers} style={styles.grabberArea}>
+        {/* The pill is now purely the affordance -- the drag lives on the
+            sheet. It still gets its own padded band so it reads as a handle and
+            not as a stray rule. */}
+        <View style={styles.grabberArea}>
           <View style={styles.grabber} />
         </View>
 
@@ -328,8 +403,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingBottom: 34,
     },
     grabberArea: {
-      // 12 above + 13 below reproduces the Figma's spacing around the pill
-      // while giving the drag a 30pt band to start in.
+      // 12 above + 13 below is the Figma's spacing around the pill.
       paddingTop: 12,
       paddingBottom: 13,
       alignItems: 'center',
