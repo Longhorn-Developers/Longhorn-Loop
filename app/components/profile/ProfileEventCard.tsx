@@ -126,7 +126,6 @@ export default function ProfileEventCard({ event, onToggleSave, onManage }: Prof
             <BookmarkGlyph saved={isSaved} width={13} height={13} />
           </Pressable>
         ) : null}
-
       </View>
 
       <View className="px-[10px] py-[9px]">

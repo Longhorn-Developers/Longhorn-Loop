@@ -1,6 +1,8 @@
 // Cloudflare Worker entry point -- replaces Express index.ts for production
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { SendEmailBinding } from './email/send';
+import { runEventCleanup } from './lib/eventCleanup';
 import { authRoutes } from './routes/auth.worker';
 import { eventRoutes } from './routes/events.worker';
 import { feedRoutes } from './routes/feed.worker';
@@ -10,18 +12,14 @@ import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
-import { runEventCleanup } from './lib/eventCleanup';
-import type { SendEmailBinding } from './email/send';
 
 export type Env = {
   DB: D1Database;
   EVENT_IMAGES?: R2Bucket;
   EVENT_IMAGE_PUBLIC_BASE_URL?: string;
-  // Workers AI binding (embeddings). Optional so tests/CI without the binding
-  // still typecheck; ingest falls back to the keyword classifier when absent.
+  // Workers AI binding used for LLM event-tag classification. Optional so
+  // tests/local dev still typecheck; tagging falls back to keywords when absent.
   AI?: Ai;
-  // Vectorize index holding taxonomy tag vectors, queried at ingest.
-  VECTORIZE?: VectorizeIndex;
   JWT_SECRET: string;
   RESEND_API_KEY: string;
   // When set to "true" in .dev.vars, the Worker logs verification codes to

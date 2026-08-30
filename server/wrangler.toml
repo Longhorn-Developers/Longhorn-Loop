@@ -14,16 +14,9 @@ database_id = "dc2be36a-b3b9-45a5-9fc8-fb223eb336bf"
 binding = "EVENT_IMAGES"
 bucket_name = "longhorn-loop-event-images"
 
-# Workers AI: gives c.env.AI for running embedding models at ingest.
+# Workers AI: used for structured LLM event-tag classification at ingest.
 [ai]
 binding = "AI"
-
-# Vectorize: stores the ~70 taxonomy tag vectors that events are matched
-# against at ingest. Index created via:
-#   npx wrangler vectorize create loop-event-tags --dimensions=1024 --metric=cosine
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "loop-event-tags"
 
 [triggers]
 # All schedules fire the same scheduled() handler in worker.ts, which
@@ -76,8 +69,8 @@ EMAIL_PROVIDER = "resend"
 #
 # WHY THIS EXISTS
 #
-# Workers AI and Vectorize have no local emulation. When wrangler sees the
-# top-level [ai] and [[vectorize]] bindings it opens a "remote proxy session"
+# Workers AI has no local emulation. When wrangler sees the top-level [ai]
+# binding it opens a "remote proxy session"
 # against this account before it will serve a single request, so `wrangler dev`
 # fails outright for anyone not signed in to the Longhorn Developers Cloudflare
 # account:
@@ -86,11 +79,9 @@ EMAIL_PROVIDER = "resend"
 #           (/accounts/9f38.../workers/subdomain/edge-preview) failed.
 #   [ERROR] Failed to start the remote proxy session.
 #
-# Those two bindings are only used by the ingest path — semantic tagging of
-# scraped events, which runs on a cron. Nothing a person clicks in the app
-# touches them, and every call site already guards on the binding being absent
-# (see lib/semanticTags.ts and lib/utils.ts, which return null or a no-op
-# result). So local dev drops them and stays entirely offline.
+# The AI binding is only used by the ingest/tagging path. Nothing a person
+# clicks in normal local app development requires it. The local environment
+# intentionally omits AI, so tagging falls back to the keyword classifier.
 #
 # Bindings are NOT inherited by named environments in wrangler — that is a
 # footgun most of the time and exactly what we want here, but it does mean DB,
