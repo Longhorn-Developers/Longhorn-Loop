@@ -1875,14 +1875,42 @@ eventRoutes.post('/:id/coordinates', async (c) => {
     return c.json({ error: 'INVALID_COORDINATES' }, 400);
   }
 
+  /**
+   * THE SERVER'S OWN ANSWER WINS.
+   *
+   * This endpoint exists so a client that geocoded an unpinned event can save
+   * the result. That client is Apple's geocoder, and it does not know UT
+   * building codes -- it put "WAG 212" in Lake Travis, 20km from Waggener
+   * Hall, and the row stayed wrong because nothing rechecks a coordinate once
+   * it exists.
+   *
+   * So the location is resolved here first. When the building file has an
+   * answer, that is what gets stored and the client's guess is discarded;
+   * UT's published marker beats a postal geocoder reading a room number.
+   * Otherwise the client's value is used, which is still better than no pin.
+   */
+  const row = await c.env.DB.prepare(
+    `SELECT location_short, location_full FROM events WHERE id = ?`,
+  )
+    .bind(eventId)
+    .first<{ location_short: string | null; location_full: string | null }>();
+
+  const building = row ? resolveBuilding(row.location_full ?? row.location_short) : null;
+  const finalLat = building ? building.latitude : latitude;
+  const finalLng = building ? building.longitude : longitude;
+
   const updated = await c.env.DB.prepare(
     `UPDATE events SET latitude = ?, longitude = ?
      WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
   )
-    .bind(latitude, longitude, eventId)
+    .bind(finalLat, finalLng, eventId)
     .run();
 
-  return c.json({ ok: true, updated: updated.meta.changes > 0 });
+  return c.json({
+    ok: true,
+    updated: updated.meta.changes > 0,
+    source: building ? 'building' : 'client',
+  });
 });
 
 /**
@@ -1910,23 +1938,48 @@ eventRoutes.post('/backfill-coordinates', async (c) => {
   }
 
   const dryRun = c.req.query('dryRun') === '1';
+  /**
+   * Re-resolve rows that ALREADY have coordinates.
+   *
+   * Needed because a row with a wrong coordinate is invisible to the normal
+   * pass, which only fills nulls. EventLocationMapModal has long geocoded
+   * unpinned events through Apple and persisted the answer, and Apple does not
+   * know "WAG 212" -- one such row put a Waggener Hall event 20km north-west of
+   * campus, in Lake Travis. Once written, nothing corrected it.
+   *
+   * Only rows the resolver can actually answer are touched, and only where the
+   * stored point disagrees by more than ~55m. UT's own building marker beats a
+   * postal geocoder's guess at a room number.
+   */
+  const force = c.req.query('force') === '1';
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, location_short, location_full, venue_type
-       FROM events
-      WHERE latitude IS NULL
-        AND longitude IS NULL
-        AND COALESCE(location_full, location_short) IS NOT NULL`,
+    force
+      ? `SELECT id, location_short, location_full, venue_type, latitude, longitude
+           FROM events
+          WHERE COALESCE(location_full, location_short) IS NOT NULL`
+      : `SELECT id, location_short, location_full, venue_type, latitude, longitude
+           FROM events
+          WHERE latitude IS NULL
+            AND longitude IS NULL
+            AND COALESCE(location_full, location_short) IS NOT NULL`,
   ).all<{
     id: number;
     location_short: string | null;
     location_full: string | null;
     venue_type: string | null;
+    latitude: number | null;
+    longitude: number | null;
   }>();
+
+  // ~55m. Below this the stored point and the building marker are the same
+  // place to any reader, and rewriting would only churn rows.
+  const DISAGREEMENT_DEGREES = 0.0005;
 
   const updates: { id: number; latitude: number; longitude: number }[] = [];
   const unresolved = new Map<string, number>();
   let skippedOnline = 0;
+  let corrected = 0;
 
   for (const row of results ?? []) {
     const location = row.location_full ?? row.location_short;
@@ -1940,6 +1993,14 @@ eventRoutes.post('/backfill-coordinates', async (c) => {
       unresolved.set(key, (unresolved.get(key) ?? 0) + 1);
       continue;
     }
+    const hasPoint = row.latitude != null && row.longitude != null;
+    if (hasPoint) {
+      const moved =
+        Math.abs(row.latitude! - building.latitude) > DISAGREEMENT_DEGREES ||
+        Math.abs(row.longitude! - building.longitude) > DISAGREEMENT_DEGREES;
+      if (!moved) continue;
+      corrected++;
+    }
     updates.push({ id: row.id, latitude: building.latitude, longitude: building.longitude });
   }
 
@@ -1951,8 +2012,10 @@ eventRoutes.post('/backfill-coordinates', async (c) => {
       await c.env.DB.batch(
         updates.slice(i, i + CHUNK).map((u) =>
           c.env.DB.prepare(
-            `UPDATE events SET latitude = ?, longitude = ?
-              WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
+            force
+              ? `UPDATE events SET latitude = ?, longitude = ? WHERE id = ?`
+              : `UPDATE events SET latitude = ?, longitude = ?
+                  WHERE id = ? AND latitude IS NULL AND longitude IS NULL`,
           ).bind(u.latitude, u.longitude, u.id),
         ),
       );
@@ -1969,8 +2032,11 @@ eventRoutes.post('/backfill-coordinates', async (c) => {
   return c.json({
     ok: true,
     dryRun,
+    force,
     candidates: results?.length ?? 0,
     resolved: updates.length,
+    // Of those, the ones that already had a point and were in the wrong place.
+    corrected,
     skippedNonPhysical: skippedOnline,
     unresolvedDistinct: unresolved.size,
     topUnresolved,
