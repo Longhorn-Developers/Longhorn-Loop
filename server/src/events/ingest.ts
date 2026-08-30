@@ -1,6 +1,7 @@
 // Writes NormalizedEvent[] into D1. Only place that knows the schema.
 
 import { writeEventTags } from '../lib/classifier';
+import { isNonPhysicalLocation, resolveBuilding } from '../lib/utBuildings';
 import { classifyEventsBatch } from '../lib/semanticTags';
 import type { Env } from '../worker';
 import type { IngestResult, NormalizedEvent } from './types';
@@ -234,9 +235,66 @@ async function replaceCategoriesAndBenefits(
 
 // Per-event errors are isolated so one bad row doesn't sink the batch.
 // Takes the whole env (not just db) because tagging now needs Workers AI.
+/**
+ * Fill in coordinates for events whose scraper could not.
+ *
+ * HERE, not in each scraper and not on the client.
+ *
+ * Ten of the twelve scrapers hardcode `latitude: null` -- they get a location
+ * string from their feed and nothing more. Doing this in each of them would be
+ * the same code ten times and would miss the eleventh the day someone adds it.
+ * ingestEvents is the one place every scraped event passes through.
+ *
+ * Server-side rather than in the map for the same reason: resolved coordinates
+ * land in D1, so the Explore pins, the event detail's location modal and
+ * anything built later all read them from the row. On the client it would be
+ * recomputed on every render and would only ever fix the map.
+ *
+ * A scraper that DID supply coordinates keeps them. HornsLink and Pharmacy
+ * publish real ones, and a building centroid is a worse answer than the point
+ * the organiser actually gave.
+ */
+function attachBuildingCoordinates(events: NormalizedEvent[]): void {
+  // One warning per distinct location per run. Without this a single
+  // unrecognised building produces a line for every event held in it, which on
+  // a busy scrape is hundreds of identical lines.
+  const warned = new Set<string>();
+
+  for (const event of events) {
+    if (event.latitude != null && event.longitude != null) continue;
+    if (event.venueType === 'online') continue;
+
+    const location = event.locationFull ?? event.locationShort;
+    if (isNonPhysicalLocation(location)) continue;
+
+    const building = resolveBuilding(location);
+    if (!building) {
+      const key = (location ?? '').trim().toUpperCase();
+      if (key && !warned.has(key)) {
+        warned.add(key);
+        console.warn('[ingest] unresolved event location', {
+          source: event.source,
+          sourceEventId: event.sourceEventId,
+          location,
+        });
+      }
+      continue;
+    }
+
+    event.latitude = building.latitude;
+    event.longitude = building.longitude;
+    // locationShort carries the code so a pin's card can say GSB rather than
+    // repeating the full address, and so the resolution is visible in the data
+    // rather than only in the coordinates.
+    if (!event.locationShort) event.locationShort = building.code;
+  }
+}
+
 export async function ingestEvents(env: Env, events: NormalizedEvent[]): Promise<IngestResult> {
   const db = env.DB;
   const result: IngestResult = { inserted: 0, updated: 0, errors: [] };
+
+  attachBuildingCoordinates(events);
 
   // Classify all events up front in one batched LLM pass. tagsByIndex[i]
   // lines up with events[i].
