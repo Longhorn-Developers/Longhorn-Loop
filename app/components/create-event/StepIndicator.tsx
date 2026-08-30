@@ -59,12 +59,14 @@ const TICK_SLOT = 14;
 function Segment({
   index,
   stepIndex,
+  direction,
   label,
   onPress,
   colors,
 }: {
   index: number;
   stepIndex: number;
+  direction: 'forward' | 'backward' | 'none';
   label: string;
   onPress?: () => void;
   colors: ThemeColors;
@@ -73,7 +75,22 @@ function Segment({
   const current = index === stepIndex;
   const filled = index <= stepIndex;
 
-  const fill = useSharedValue(index < stepIndex ? 1 : 0);
+  /**
+   * ONLY THE BAR YOU ARE ADVANCING ONTO ANIMATES IN. Everything else mounts
+   * already at its final value.
+   *
+   * Every step is a separate mount, so a segment cannot see its own past --
+   * it can only be told which way the flow just moved. Starting the current
+   * bar at 0 unconditionally is what made tapping a completed step jitter: you
+   * tap Poster from step 4, the indicator remounts, and the bar under Poster
+   * -- which was full a frame ago and is full again a moment later -- empties
+   * and refills in between.
+   *
+   * Forward is the one case where an entrance is honest, because that bar
+   * really was empty before you pressed Continue.
+   */
+  const animatesIn = direction === 'forward' && current;
+  const fill = useSharedValue(animatesIn ? 0 : filled ? 1 : 0);
   const [pressed, setPressed] = React.useState(false);
 
   useEffect(() => {
@@ -152,7 +169,7 @@ export interface StepIndicatorProps {
 }
 
 export default function StepIndicator({ style }: StepIndicatorProps) {
-  const { stepIndex, goToStep } = useCreateEvent();
+  const { stepIndex, goToStep, stepDirection } = useCreateEvent();
   const colors = useThemeColors();
   const steps = useMemo(() => CREATE_EVENT_STEPS, []);
 
@@ -168,6 +185,7 @@ export default function StepIndicator({ style }: StepIndicatorProps) {
           key={key}
           index={i}
           stepIndex={stepIndex}
+          direction={stepDirection}
           label={CREATE_EVENT_STEP_LABELS[key]}
           // Only completed steps are pressable. The current one has nowhere to
           // go, and an upcoming one would skip the validation that Continue

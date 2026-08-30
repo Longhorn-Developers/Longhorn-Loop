@@ -1,5 +1,5 @@
 import { DEFAULT_VENUE_TYPE, type VenueType } from '@/shared/venueType';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
 
 export type PosterKind = 'personal' | 'org';
 
@@ -122,6 +122,16 @@ interface CreateEventContextType {
    */
   goToStep: (index: number) => void;
   /**
+   * Which way the last move went.
+   *
+   * Every step is a separate mount, so the indicator has no memory of where it
+   * was a moment ago -- it has to be told. Without this it replays its "the
+   * current bar fills in" entrance every time, including on the way BACK,
+   * where the bar you are landing on was already full and visibly empties
+   * before refilling.
+   */
+  stepDirection: 'forward' | 'backward' | 'none';
+  /**
    * Whether the draft preview is open over the wizard.
    *
    * Deliberately NOT a seventh entry in CREATE_EVENT_STEPS: the preview is not
@@ -161,6 +171,7 @@ const CreateEventContext = createContext<CreateEventContextType>({
   goNext: () => {},
   goBack: () => {},
   goToStep: () => {},
+  stepDirection: 'none',
   previewing: false,
   setPreviewing: () => {},
 });
@@ -168,6 +179,9 @@ const CreateEventContext = createContext<CreateEventContextType>({
 export function CreateEventProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<CreateEventData>(DEFAULT_DATA);
   const [stepIndex, setStepIndex] = useState(0);
+  // A ref, not state: it is read during the render that the step change
+  // triggers, and it should never cause a render of its own.
+  const stepDirection = useRef<'forward' | 'backward' | 'none'>('none');
   const [previewing, setPreviewing] = useState(false);
 
   const update = (partial: Partial<CreateEventData>) => {
@@ -178,16 +192,26 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
   const reset = () => {
     setData(DEFAULT_DATA);
     setStepIndex(0);
+    stepDirection.current = 'none';
     // Otherwise posting from a preview-then-back flow leaves previewing true,
     // and the next event you create opens straight into a preview of nothing.
     setPreviewing(false);
   };
 
-  const goNext = () => setStepIndex((i) => Math.min(i + 1, CREATE_EVENT_STEPS.length - 1));
-  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+  const goNext = () => {
+    stepDirection.current = 'forward';
+    setStepIndex((i) => Math.min(i + 1, CREATE_EVENT_STEPS.length - 1));
+  };
 
-  const goToStep = (index: number) =>
+  const goBack = () => {
+    stepDirection.current = 'backward';
+    setStepIndex((i) => Math.max(i - 1, 0));
+  };
+
+  const goToStep = (index: number) => {
+    stepDirection.current = 'backward';
     setStepIndex((i) => (index >= 0 && index < i ? index : i));
+  };
 
   return (
     <CreateEventContext.Provider
@@ -200,6 +224,7 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
         goNext,
         goBack,
         goToStep,
+        stepDirection: stepDirection.current,
         previewing,
         setPreviewing,
       }}
