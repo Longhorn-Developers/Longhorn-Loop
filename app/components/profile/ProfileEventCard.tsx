@@ -8,6 +8,7 @@ import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 // uses: image with a bookmark overlay, title, "Posted by <org> ✓", date, room.
 
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
+import PencilIcon from '@/assets/images/pencil.svg';
 import LocationIcon from '@/assets/images/location.svg';
 import { formatEventDate, type ApiEvent } from '@/app/components/EventCard';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -18,10 +19,16 @@ import { Image, Pressable, Text, View } from 'react-native';
 export interface ProfileEventCardProps {
   event: ApiEvent & { org_verified?: boolean; is_saved?: boolean };
   onToggleSave?: (eventId: number) => void;
-  onEdit?: (event: ApiEvent) => void;
+  /**
+   * Opens the Manage Event sheet. Only the Posted tab passes it — the same
+   * card renders under Going and Saved, where these are other people's events
+   * and there is nothing to manage. Absent means no pencil, which is also what
+   * keeps the badge from replacing the save button on those tabs.
+   */
+  onManage?: (eventId: number) => void;
 }
 
-export default function ProfileEventCard({ event, onToggleSave, onEdit }: ProfileEventCardProps) {
+export default function ProfileEventCard({ event, onToggleSave, onManage }: ProfileEventCardProps) {
   const router = useRouter();
   const colors = useThemeColors();
   const isSaved = !!event.is_saved;
@@ -84,7 +91,27 @@ export default function ProfileEventCard({ event, onToggleSave, onEdit }: Profil
           </View>
         ) : null}
 
-        {onToggleSave ? (
+        {/*
+          The pencil takes the save button's corner on the Posted tab. Your own
+          event is not something you save, so nothing is lost by the swap, and
+          two round buttons stacked in one corner on a 150pt tile would leave
+          neither comfortably tappable.
+        */}
+        {onManage ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Manage ${event.title}`}
+            hitSlop={8}
+            onPress={(e) => {
+              // Otherwise the tap also opens the event detail underneath.
+              e.stopPropagation();
+              onManage(event.id);
+            }}
+            className="absolute right-[8px] top-[8px] h-[26px] w-[26px] items-center justify-center rounded-full bg-lhlSurface/90"
+          >
+            <PencilIcon width={13} height={13} color={colors.ink} />
+          </Pressable>
+        ) : onToggleSave ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isSaved ? `Unsave ${event.title}` : `Save ${event.title}`}
@@ -100,22 +127,6 @@ export default function ProfileEventCard({ event, onToggleSave, onEdit }: Profil
           </Pressable>
         ) : null}
 
-        {onEdit ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${event.title}`}
-            hitSlop={8}
-            onPress={(e) => {
-              e.stopPropagation();
-              onEdit(event);
-            }}
-            className="absolute left-[8px] top-[8px] flex-row items-center rounded-full bg-lhlSurface/90 px-[9px] py-[5px]"
-          >
-            <Text className="font-['Roboto-Flex'] text-[10px] font-semibold text-lhlAccent">
-              Edit
-            </Text>
-          </Pressable>
-        ) : null}
       </View>
 
       <View className="px-[10px] py-[9px]">

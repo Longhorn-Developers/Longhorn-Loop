@@ -91,6 +91,16 @@ interface CreateEventContextType {
   step: CreateEventStep;
   goNext: () => void;
   goBack: () => void;
+  /**
+   * Whether the draft preview is open over the wizard.
+   *
+   * Deliberately NOT a seventh entry in CREATE_EVENT_STEPS: the preview is not
+   * a step you complete, it is a look at what you already have. Putting it in
+   * that list would make StepPills read "7 of 7", let Back walk into it from
+   * step 5, and make the linear index mean two different things.
+   */
+  previewing: boolean;
+  setPreviewing: (previewing: boolean) => void;
 }
 
 const DEFAULT_DATA: CreateEventData = {
@@ -120,11 +130,14 @@ const CreateEventContext = createContext<CreateEventContextType>({
   step: CREATE_EVENT_STEPS[0],
   goNext: () => {},
   goBack: () => {},
+  previewing: false,
+  setPreviewing: () => {},
 });
 
 export function CreateEventProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<CreateEventData>(DEFAULT_DATA);
   const [stepIndex, setStepIndex] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
 
   const update = (partial: Partial<CreateEventData>) => {
     setData((prev) => ({ ...prev, ...partial }));
@@ -134,6 +147,9 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
   const reset = () => {
     setData(DEFAULT_DATA);
     setStepIndex(0);
+    // Otherwise posting from a preview-then-back flow leaves previewing true,
+    // and the next event you create opens straight into a preview of nothing.
+    setPreviewing(false);
   };
 
   const goNext = () => setStepIndex((i) => Math.min(i + 1, CREATE_EVENT_STEPS.length - 1));
@@ -149,6 +165,8 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
         step: CREATE_EVENT_STEPS[stepIndex],
         goNext,
         goBack,
+        previewing,
+        setPreviewing,
       }}
     >
       {children}

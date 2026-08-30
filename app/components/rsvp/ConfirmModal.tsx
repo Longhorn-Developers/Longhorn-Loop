@@ -6,7 +6,8 @@
 // Layout follows the Figma:
 //   - Large bold title
 //   - Optional body paragraph (regular weight)
-//   - Optional emphasised question line (bold)
+//   - Optional emphasised line (bold), after the body by default or before it
+//     with `emphasisFirst` — see the prop
 //   - Secondary button on top (outlined / safe option)
 //   - Primary button on bottom (filled; red when destructive)
 
@@ -20,6 +21,16 @@ interface ConfirmModalProps {
   title: string;
   body?: string;
   emphasis?: string;
+  /**
+   * Put the bold line ABOVE the paragraph.
+   *
+   * The RSVP flow reads "here is what will happen" then asks "did you RSVP?",
+   * so its emphasis is a closing question and belongs last. Delete Event runs
+   * the other way: it names what you are about to do, then explains the
+   * consequences. Same two slots, opposite order, so this is a flag rather
+   * than a second component.
+   */
+  emphasisFirst?: boolean;
   primaryLabel: string;
   secondaryLabel: string;
   onPrimary: () => void;
@@ -32,6 +43,7 @@ export default function ConfirmModal({
   title,
   body,
   emphasis,
+  emphasisFirst = false,
   primaryLabel,
   secondaryLabel,
   onPrimary,
@@ -51,8 +63,9 @@ export default function ConfirmModal({
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
 
+          {emphasisFirst && emphasis ? <Text style={styles.emphasis}>{emphasis}</Text> : null}
           {body ? <Text style={styles.body}>{body}</Text> : null}
-          {emphasis ? <Text style={styles.emphasis}>{emphasis}</Text> : null}
+          {!emphasisFirst && emphasis ? <Text style={styles.emphasis}>{emphasis}</Text> : null}
 
           <Pressable onPress={onSecondary} style={styles.secondaryButton}>
             <Text style={styles.secondaryText}>{secondaryLabel}</Text>

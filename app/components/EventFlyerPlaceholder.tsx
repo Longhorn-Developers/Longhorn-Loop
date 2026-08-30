@@ -42,13 +42,13 @@ const FLYER_INK = '#F1E7DE'; // theme-exempt: artwork, see note above
  * as it did before.
  */
 export const FLYER_COLORWAYS = [
-  { bg: '#F4B486', tile: '#F2A56F' }, // orange
-  { bg: '#B4C5E3', tile: '#A9BEE0' }, // blue
-  { bg: '#FADD99', tile: '#FAD786' }, // yellow
-  { bg: '#FDD2FA', tile: '#E9BBE6' }, // lilac
-  { bg: '#BFDBD1', tile: '#B2D4C9' }, // mint
-  { bg: '#E8AEB2', tile: '#E6A1A8' }, // rose
-] as const; // theme-exempt: artwork, see note above
+  { bg: '#F4B486', tile: '#F2A56F' }, // theme-exempt: artwork, not chrome -- orange
+  { bg: '#B4C5E3', tile: '#A9BEE0' }, // theme-exempt: artwork, not chrome -- blue
+  { bg: '#FADD99', tile: '#FAD786' }, // theme-exempt: artwork, not chrome -- yellow
+  { bg: '#FDD2FA', tile: '#E9BBE6' }, // theme-exempt: artwork, not chrome -- lilac
+  { bg: '#BFDBD1', tile: '#B2D4C9' }, // theme-exempt: artwork, not chrome -- mint
+  { bg: '#E8AEB2', tile: '#E6A1A8' }, // theme-exempt: artwork, not chrome -- rose
+] as const;
 
 /**
  * Pick a colourway for an event.

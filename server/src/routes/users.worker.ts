@@ -636,14 +636,30 @@ const MY_EVENT_TABS = {
   going: {
     join: 'JOIN event_rsvps r ON r.event_id = e.id AND r.user_id = ?',
     where: '1 = 1',
+    // Nobody needs a list of parties they already went to.
+    upcomingOnly: true,
   },
   saved: {
     join: 'JOIN saved_events s ON s.event_id = e.id AND s.user_id = ?',
     where: '1 = 1',
+    upcomingOnly: true,
   },
   posted: {
     join: '',
     where: 'e.created_by_user_id = ?',
+    /**
+     * Posted keeps your past events. It is not a to-do list, it is the record
+     * of what you have hosted -- an event vanishing the hour it starts reads
+     * as "the app lost my event", which is exactly how this was reported.
+     *
+     * It also matters for the Manage Event sheet: edit, announce and delete
+     * all hang off a card in this grid, so an upcoming-only filter takes the
+     * cancel button away at the precise moment a host needs it -- the event
+     * has started and something has gone wrong.
+     *
+     * Archived events stay hidden either way; those are the deleted ones.
+     */
+    upcomingOnly: false,
   },
 } as const;
 
@@ -659,6 +675,21 @@ type MyEventTab = keyof typeof MY_EVENT_TABS;
  * quietly get wrong. The SQL assumes the events table is aliased `e`.
  */
 export const UPCOMING_CONDITION = `(e.is_archived = 0 AND COALESCE(e.end_datetime, e.start_datetime) >= datetime('now'))`;
+
+/**
+ * Posted's window: everything you have hosted that you have not deleted.
+ *
+ * Cancelled counts as deleted here. Delete on the Manage Event sheet sets
+ * status = 'cancelled' rather than archiving (LOOP-277), so a window that only
+ * checked is_archived would leave a cancelled event sitting in the host's own
+ * grid with a Manage button on it.
+ */
+const NOT_ARCHIVED_CONDITION = `(e.is_archived = 0 AND e.status != 'cancelled')`;
+
+/** The time window for a tab, honouring its own upcomingOnly. */
+function windowFor(tab: MyEventTab): string {
+  return MY_EVENT_TABS[tab].upcomingOnly ? UPCOMING_CONDITION : NOT_ARCHIVED_CONDITION;
+}
 
 // GET /users/me/events -- the My Events section of the profile.
 //
@@ -734,8 +765,19 @@ userRoutes.get('/me/events', async (c) => {
   const blocked = blockedAuthorFilter(userId);
   binds.push(...blocked.params);
 
-  const orderBy =
-    sort === 'recent' ? 'e.created_at DESC' : 'COALESCE(e.start_datetime, e.end_datetime) ASC';
+  // Date sort on a list that now spans both sides of "now" needs to say which
+  // side comes first, or a host opens Posted on last semester's events. Upcoming
+  // ascending (soonest first), then past descending (most recent first) --
+  // the two halves each run away from today. Going and Saved are upcoming-only,
+  // so the first term is constant there and this collapses to what it was.
+  const dateOrder = MY_EVENT_TABS[tab].upcomingOnly
+    ? 'COALESCE(e.start_datetime, e.end_datetime) ASC'
+    : `CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now') THEN 0 ELSE 1 END,
+       CASE WHEN COALESCE(e.end_datetime, e.start_datetime) >= datetime('now')
+            THEN COALESCE(e.start_datetime, e.end_datetime) END ASC,
+       COALESCE(e.start_datetime, e.end_datetime) DESC`;
+
+  const orderBy = sort === 'recent' ? 'e.created_at DESC' : dateOrder;
 
   const { results } = await c.env.DB.prepare(
     `SELECT e.*,
@@ -748,7 +790,7 @@ userRoutes.get('/me/events', async (c) => {
      ${join}
      LEFT JOIN organizations o ON e.host_organization_id = o.id
      WHERE ${where}
-       AND ${UPCOMING_CONDITION}
+       AND ${windowFor(tab)}
        ${searchClause}
        ${bucketClause}
        ${blocked.sql}
@@ -767,7 +809,7 @@ userRoutes.get('/me/events', async (c) => {
     // below refuses to show reads as a bug — "Saved (3)" over two cards.
     const row = await c.env.DB.prepare(
       `SELECT COUNT(*) AS c FROM events e ${t.join}
-       WHERE ${t.where} AND ${UPCOMING_CONDITION} ${blocked.sql}`,
+       WHERE ${t.where} AND ${windowFor(key as MyEventTab)} ${blocked.sql}`,
     )
       .bind(userId, ...blocked.params)
       .first();
