@@ -127,7 +127,9 @@ describeOrSkip('GET /orgs/search -- pagination and validation (LOOP-264)', () =>
     db = new DatabaseSync!(':memory:');
     db.exec(readFileSync(join(__dirname, '..', '..', 'schema.sql'), 'utf-8'));
 
-    db.exec(`INSERT INTO users (id, email, first_name, last_name) VALUES (${ME}, '${EMAIL}', 'Mel', 'Mine')`);
+    db.exec(
+      `INSERT INTO users (id, email, first_name, last_name) VALUES (${ME}, '${EMAIL}', 'Mel', 'Mine')`,
+    );
 
     db.exec(`INSERT INTO organizations (id, name) VALUES
       (${PAGE_ORG_IDS[0]}, 'Cursor Org A'),
