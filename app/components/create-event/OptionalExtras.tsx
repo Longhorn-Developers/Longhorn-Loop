@@ -15,11 +15,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -118,6 +119,7 @@ export default function OptionalExtras() {
   const { data, update, reset, goBack, setPreviewing } = useCreateEvent();
   const { data: onboarding } = useOnboarding();
   const queryClient = useQueryClient();
+  const [removePressed, setRemovePressed] = useState(false);
   const token = onboarding.token || null;
 
   const createEvent = useMutation<CreateEventResponse>({
@@ -231,24 +233,50 @@ export default function OptionalExtras() {
 
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Flyer/Cover Image</Text>
-            <TouchableOpacity
-              onPress={onUpload}
-              activeOpacity={0.85}
-              style={[styles.uploadTile, data.imageUrl ? styles.uploadTileFilled : null]}
-            >
+            {/* The tile itself re-opens the picker, which lets you swap the
+                flyer but never get back to no flyer at all. The X is the only
+                way out, so it sits over the image rather than below the tile --
+                a control that only exists once there is something to remove. */}
+            <View>
+              <TouchableOpacity
+                onPress={onUpload}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={data.imageUrl ? 'Change flyer image' : 'Upload flyer image'}
+                style={[styles.uploadTile, data.imageUrl ? styles.uploadTileFilled : null]}
+              >
+                {data.imageUrl ? (
+                  <Image
+                    source={{ uri: data.imageUrl }}
+                    style={styles.uploadImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={styles.uploadPrompt}>
+                    <ImagePlusIcon width={22} height={22} color={colors.ink} />
+                    <Text style={styles.uploadText}>Tap to Upload</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
               {data.imageUrl ? (
-                <Image
-                  source={{ uri: data.imageUrl }}
-                  style={styles.uploadImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={styles.uploadPrompt}>
-                  <ImagePlusIcon width={22} height={22} color={colors.ink} />
-                  <Text style={styles.uploadText}>Tap to Upload</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove flyer image"
+                  hitSlop={10}
+                  onPress={() =>
+                    update({ imageUrl: null, imageName: null, imageMimeType: null })
+                  }
+                  onPressIn={() => setRemovePressed(true)}
+                  onPressOut={() => setRemovePressed(false)}
+                  style={[
+                    styles.removeImageButton,
+                    removePressed && styles.removeImageButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.removeImageGlyph}>✕</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           {/*
@@ -474,6 +502,29 @@ const makeStyles = (c: ThemeColors) =>
     uploadImage: {
       width: '100%',
       height: '100%',
+    },
+    // Dark disc, not a themed surface: this sits on top of whatever photo the
+    // user picked, and a light chip disappears against a pale flyer. Fixed in
+    // both themes for the same reason.
+    removeImageButton: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      height: 28,
+      width: 28,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    removeImageButtonPressed: {
+      backgroundColor: 'rgba(0,0,0,0.78)',
+    },
+    removeImageGlyph: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      lineHeight: 17,
+      fontWeight: '600',
     },
     perkRow: {
       flexDirection: 'row',
