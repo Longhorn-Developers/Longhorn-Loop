@@ -1,4 +1,4 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { EventTypeId } from '@/app/context/CreateEventContext';
 import type { ThemeColors } from '@/app/lib/themeColors';
@@ -67,7 +67,7 @@ export default function EventDetails() {
             <Text style={styles.stepTitle}>Event Details</Text>
           </View>
 
-          <StepPills step={4} totalSteps={6} style={{ marginBottom: 20 }} />
+          <StepIndicator style={{ marginBottom: 20 }} />
 
           <Text style={styles.instruction}>Add some details for your event.</Text>
 

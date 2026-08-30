@@ -1,4 +1,4 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import CheckIcon from '@/assets/images/check-selected.svg';
 import PosterOrgIcon from '@/assets/images/poster-org.svg';
 import PosterPersonalIcon from '@/assets/images/poster-personal.svg';
@@ -120,7 +120,7 @@ export default function WhosPosting() {
           <Text style={styles.stepTitle}>Who&apos;s Posting?</Text>
         </View>
 
-        <StepPills step={1} totalSteps={6} style={{ marginBottom: 20 }} />
+        <StepIndicator style={{ marginBottom: 20 }} />
 
         <Text style={styles.instruction}>
           Your event will be attributed to the profile or organization that you select.

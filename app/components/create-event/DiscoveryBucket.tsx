@@ -1,4 +1,4 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DiscoveryBucketId } from '@/app/context/CreateEventContext';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
@@ -100,7 +100,7 @@ export default function DiscoveryBucket() {
             <Text style={styles.stepTitle}>Choose a Discovery Bucket</Text>
           </View>
 
-          <StepPills step={2} totalSteps={6} />
+          <StepIndicator />
         </View>
 
         <Text style={[styles.instruction, styles.gutter]}>

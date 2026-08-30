@@ -1,4 +1,4 @@
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import ChipCloseIcon from '@/assets/images/chip-close.svg';
 import ChipPlusIcon from '@/assets/images/chip-plus.svg';
 import { MAX_INTEREST_TAGS, useCreateEvent } from '@/app/context/CreateEventContext';
@@ -58,7 +58,7 @@ export default function InterestTags() {
           <Text style={styles.stepTitle}>Add Up to 5 Interest Tags</Text>
         </View>
 
-        <StepPills step={3} totalSteps={6} style={{ marginBottom: 20 }} />
+        <StepIndicator style={{ marginBottom: 20 }} />
 
         <View style={styles.instructionRow}>
           <Text style={styles.instruction}>

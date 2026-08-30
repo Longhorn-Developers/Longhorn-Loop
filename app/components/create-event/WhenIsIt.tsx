@@ -3,7 +3,7 @@
 // edits datetimes through the same control; this step keeps the wizard
 // chrome and the Single Day / Date Range decision, which is create-only.
 
-import StepPills from '@/app/components/StepPills';
+import StepIndicator from '@/app/components/create-event/StepIndicator';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import type { DateMode } from '@/app/context/CreateEventContext';
 import DateTimeField from '@/app/components/create-event/DateTimeField';
@@ -50,7 +50,7 @@ export default function WhenIsIt() {
           <Text style={styles.stepTitle}>When is it?</Text>
         </View>
 
-        <StepPills step={5} totalSteps={6} style={{ marginBottom: 20 }} />
+        <StepIndicator style={{ marginBottom: 20 }} />
 
         <View style={styles.modeRow}>
           <ModeButton

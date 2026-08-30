@@ -80,6 +80,28 @@ export const CREATE_EVENT_STEPS = [
 
 export type CreateEventStep = (typeof CREATE_EVENT_STEPS)[number];
 
+/**
+ * The one-word name of each step, shown under its segment in the indicator.
+ *
+ * Deliberately short. Six of these share the screen width, so at 375pt each
+ * column gets about 50pt -- "Category" is already close to that, and anything
+ * longer either truncates or forces the labels to a size nobody can read.
+ *
+ * These describe THIS flow, not the one in the design exploration, which was
+ * mocked up with Details / Date & Time / Tags / Location / Photo / Review. The
+ * real wizard asks who is posting first and folds location and photo into a
+ * single optional step at the end, so those labels would have been wrong on
+ * four of six segments.
+ */
+export const CREATE_EVENT_STEP_LABELS: Record<CreateEventStep, string> = {
+  whosPosting: 'Poster',
+  discoveryBucket: 'Category',
+  interestTags: 'Tags',
+  eventDetails: 'Details',
+  whenIsIt: 'Date',
+  optionalExtras: 'Extras',
+};
+
 export const CREATE_EVENT_STEP_COUNT = CREATE_EVENT_STEPS.length;
 
 interface CreateEventContextType {
@@ -91,6 +113,14 @@ interface CreateEventContextType {
   step: CreateEventStep;
   goNext: () => void;
   goBack: () => void;
+  /**
+   * Jump straight to an earlier step, for tapping a completed segment.
+   *
+   * BACKWARDS ONLY. Forward movement stays with Continue, which is where each
+   * step's validation lives -- letting a tap skip ahead would walk past the
+   * check that the current step is even answered.
+   */
+  goToStep: (index: number) => void;
   /**
    * Whether the draft preview is open over the wizard.
    *
@@ -130,6 +160,7 @@ const CreateEventContext = createContext<CreateEventContextType>({
   step: CREATE_EVENT_STEPS[0],
   goNext: () => {},
   goBack: () => {},
+  goToStep: () => {},
   previewing: false,
   setPreviewing: () => {},
 });
@@ -155,6 +186,9 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
   const goNext = () => setStepIndex((i) => Math.min(i + 1, CREATE_EVENT_STEPS.length - 1));
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
+  const goToStep = (index: number) =>
+    setStepIndex((i) => (index >= 0 && index < i ? index : i));
+
   return (
     <CreateEventContext.Provider
       value={{
@@ -165,6 +199,7 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
         step: CREATE_EVENT_STEPS[stepIndex],
         goNext,
         goBack,
+        goToStep,
         previewing,
         setPreviewing,
       }}
