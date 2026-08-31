@@ -206,21 +206,46 @@ export default function OrgConsoleScreen() {
 
   if (!token) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-lhlBackgroundColor">
-        <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
-          Sign in to manage your organization.
-        </Text>
+      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+        <View className="px-[20px] py-[12px]">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => router.back()}
+          >
+            <ArrowLeftIcon width={22} height={22} color={colors.ink} />
+          </Pressable>
+        </View>
+        <View className="flex-1 items-center justify-center">
+          <Text className="font-['Roboto-Flex'] text-[14px] text-lhlSecondaryTextGrey">
+            Sign in to manage your organization.
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   if (header.isError) {
     const message = describeError(header.error, 'Could not load this organization.');
+    // Landing here (e.g. NOT_A_MEMBER, tapped straight from the Explore feed)
+    // used to be a dead end -- no header, no tabs, nothing to press but the
+    // hardware back gesture. One user reported getting stuck on it.
     return (
-      <SafeAreaView className="flex-1 items-center justify-center px-[30px] bg-lhlBackgroundColor">
-        <Text className="font-['Roboto-Flex'] text-center text-[14px] text-lhlSecondaryTextGrey">
-          {message === 'NOT_A_MEMBER' ? 'You’re not a member of this organization.' : message}
-        </Text>
+      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+        <View className="px-[20px] py-[12px]">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => router.back()}
+          >
+            <ArrowLeftIcon width={22} height={22} color={colors.ink} />
+          </Pressable>
+        </View>
+        <View className="flex-1 items-center justify-center px-[30px]">
+          <Text className="font-['Roboto-Flex'] text-center text-[14px] text-lhlSecondaryTextGrey">
+            {message === 'NOT_A_MEMBER' ? 'You’re not a member of this organization.' : message}
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
