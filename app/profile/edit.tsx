@@ -64,6 +64,12 @@ const UNIQUE_CLASS_OPTIONS = ['First Generation', 'International', 'Transfer', '
 const MAX_NAME = 50;
 const MAX_SOCIALS = 3;
 
+// Kamsi's profile-customization-bugbash branch replaces this preset picker
+// with a full Bevo customize screen and isn't merged yet. Rest of Edit
+// Profile stays live; only the "Edit photo" -> avatar grid path is switched
+// off here so it's a one-line flip back on once that work lands.
+const AVATAR_PICKER_ENABLED = false;
+
 interface MeResponse {
   user: {
     first_name: string;
@@ -333,16 +339,18 @@ export default function EditProfileScreen() {
               <View className="h-[92px] w-[92px] overflow-hidden rounded-full border-2 border-lhlInk bg-lhlPlaceholderGrey">
                 {loaded ? <AvatarDisplay user={loaded} size={92} /> : null}
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit photo"
-                onPress={() => setShowAvatarPicker(true)}
-                className="mt-[10px] rounded-full border border-lhlInk bg-lhlSurface px-[16px] py-[5px]"
-              >
-                <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
-                  Edit photo
-                </Text>
-              </Pressable>
+              {AVATAR_PICKER_ENABLED ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit photo"
+                  onPress={() => setShowAvatarPicker(true)}
+                  className="mt-[10px] rounded-full border border-lhlInk bg-lhlSurface px-[16px] py-[5px]"
+                >
+                  <Text className="font-['Roboto-Flex'] text-[12px] font-medium text-lhlInk">
+                    Edit photo
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {/* First / Last name */}
