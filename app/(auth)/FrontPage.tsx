@@ -33,7 +33,9 @@ const TITLE_BLOCK_HEIGHT = TITLE_LINE_HEIGHT * 2;
 
 // The text block is content-sized, not the old fixed 194px (the height of the
 // tallest possible copy), which left ~50px of slack below shorter slides.
-const TEXT_PILL_GAP = 32;
+// Trimmed from 32 alongside the other margins in this file to close the gap
+// against a real-device comparison against Figma -- see PAGINATION_BUTTON_GAP.
+const TEXT_PILL_GAP = 20;
 
 // Keeps the hero from shrinking when the bottom content takes up more room.
 const HERO_HEIGHT_RATIO = 0.86;
@@ -57,10 +59,17 @@ const HERO_ASPECT = 312 / 328;
 const BUTTON_HEIGHT = 55;
 const BUTTON_GAP = 16;
 
-// Figma's 90 was measured against the old fixed-height text block; against the
-// content-sized one it drops the CTAs to the bottom edge. Fixed, not a flexible
-// spacer — a growing spacer pins the footer to the bottom of the screen.
-const PAGINATION_BUTTON_GAP = 48;
+// Figma's 90 was measured against the old fixed-height text block. Against
+// the content-sized one, and now that this is a genuinely fixed gap (not a
+// `flex: 1` spacer -- see where it's used below), 90 sat the CTAs noticeably
+// lower than the mock: measured against a real device screenshot, the total
+// margin/gap stack between the hero and the buttons was running ~70-90px
+// heavier than Figma even with the old flex approach, because on most phones
+// there was no slack left for a growing spacer to collapse into -- it was
+// already at its floor. Trimmed here and at the other margins in this file
+// that aren't protecting against a specific bug (TITLE_BLOCK_HEIGHT's
+// reservation is; this isn't).
+const PAGINATION_BUTTON_GAP = 20;
 
 // Reserve room for both buttons on every slide so the layout doesn't jump when
 // the second one appears. Bottom-aligned below, so the lone "Continue" lands on
@@ -193,7 +202,7 @@ export default function FrontPage() {
           copy underneath show through. The copy is not inside the list — it
           still belongs to activeIndex and still stays put while you swipe. The
           list is only here to catch the gesture. */}
-      <View style={{ marginTop: 30 }}>
+      <View style={{ marginTop: 18 }}>
         <View style={{ height: heroBandHeight }} />
 
         {/* This stays in place. Only the words change. */}
@@ -201,7 +210,7 @@ export default function FrontPage() {
           style={{
             width: width - TEXT_MARGIN * 2,
             alignSelf: 'center',
-            marginTop: 14,
+            marginTop: 10,
           }}
         >
           <Text className="text-center font-roboto-bold text-[16px] text-lhlAccent">
@@ -210,7 +219,7 @@ export default function FrontPage() {
 
           <Text
             style={{
-              marginTop: 29,
+              marginTop: 18,
               fontSize: TITLE_SIZE,
               lineHeight: TITLE_LINE_HEIGHT,
               height: TITLE_BLOCK_HEIGHT,
@@ -223,7 +232,7 @@ export default function FrontPage() {
 
           <Text
             style={{
-              marginTop: 12,
+              marginTop: 8,
             }}
             numberOfLines={3}
             className="text-center font-roboto text-[16px] leading-[22px] text-lhlInk"
@@ -272,23 +281,16 @@ export default function FrontPage() {
       </View>
 
       {/*
-        FLEXES, rather than being a fixed 48pt gap.
+        FIXED 48pt gap, not a growing spacer.
 
-        Nothing in this column grew, so the footer sat wherever the content
-        above it happened to end -- and the content above it is sized from the
-        screen height (the hero band is a ratio) plus a two-line title block
-        plus copy that differs per slide. The buttons therefore landed at a
-        different distance from the bottom on every device, which is what "the
-        Continue button is not in the correct spot" was.
-
-        As a growing spacer the footer is pinned to the bottom and everything
-        above keeps its natural size, so `justifyContent: flex-end` below
-        finally does what its comment always claimed: the lone Continue lands
-        on the same baseline as "Already Have An Account" does on slide three.
-        minHeight keeps the designed 48pt when a short screen leaves nothing
-        spare.
+        That was tried: a `flex: 1` spacer here pins the footer to the bottom
+        of the screen, which keeps a consistent distance from the bottom edge
+        but pushes Continue/Get Started well below where the Figma puts it —
+        the buttons should sit close under the pagination dots, with slack
+        left over at the bottom of the screen, not the other way around.
+        Matches PAGINATION_BUTTON_GAP's own original intent above.
       */}
-      <View style={{ flex: 1, minHeight: PAGINATION_BUTTON_GAP }} />
+      <View style={{ height: PAGINATION_BUTTON_GAP }} />
 
       {/* Buttons stay fixed */}
       <View className="px-5 pb-2">

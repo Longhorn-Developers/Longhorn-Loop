@@ -492,11 +492,13 @@ export default function SettingsPreferencesScreen() {
                 setConfirmLogout(false);
                 reset();
                 queryClient.clear();
-                // dismissAll before replace. Log Out runs from a screen PUSHED
-                // on top of (tabs), so replace alone swaps THIS screen and
-                // leaves the tabs in the stack for a back-swipe to find.
-                if (router.canDismiss()) router.dismissAll();
-                router.replace('/');
+                // AuthGate (components/AuthGate.tsx) does the dismissAll +
+                // replace('/') itself, reactively, the instant token clears.
+                // This used to duplicate that navigation inline, and having
+                // both fire produced a `POP_TO_TOP` warning: AuthGate's
+                // effect ran a beat after this handler's own dismissAll had
+                // already emptied the stack, so its dismissAll had nothing
+                // left to pop. reset() is enough to trigger the redirect.
               }}
             />
           </>

@@ -133,11 +133,12 @@ export default function DeleteAccountScreen() {
       // return to.
       queryClient.clear();
       reset();
-      // dismissAll first: this screen sits on top of settings, which sits on
-      // top of (tabs). replace alone would leave the whole signed-in stack
-      // beneath the front page -- for an account that no longer exists.
-      if (router.canDismiss()) router.dismissAll();
-      router.replace('/');
+      // AuthGate (components/AuthGate.tsx) does the dismissAll + replace('/')
+      // itself, reactively, the instant token clears -- same fix as the Log
+      // Out handler in settings/preferences.tsx. Calling dismissAll here too
+      // raced it: this handler's dismissAll would empty the stack first, then
+      // AuthGate's effect ran a beat later and tried to dismiss an already-
+      // empty stack, logging a `POP_TO_TOP` warning. reset() alone is enough.
     } catch (err) {
       // The important guarantee: a wrong code changes nothing. The server
       // burns an attempt and the account is untouched, so the screen stays
