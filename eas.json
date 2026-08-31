@@ -22,7 +22,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
@@ -30,7 +30,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://loop-db.longhorn-developers.workers.dev",
-        "EXPO_PUBLIC_SENTRY_DSN": ""
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
