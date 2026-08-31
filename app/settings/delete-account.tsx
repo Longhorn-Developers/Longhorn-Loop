@@ -133,6 +133,10 @@ export default function DeleteAccountScreen() {
       // return to.
       queryClient.clear();
       reset();
+      // dismissAll first: this screen sits on top of settings, which sits on
+      // top of (tabs). replace alone would leave the whole signed-in stack
+      // beneath the front page -- for an account that no longer exists.
+      if (router.canDismiss()) router.dismissAll();
       router.replace('/');
     } catch (err) {
       // The important guarantee: a wrong code changes nothing. The server

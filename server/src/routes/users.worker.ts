@@ -8,6 +8,7 @@ import {
   validateSocialUrl,
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { redeemPendingOrgInvites } from '../lib/orgInvites';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
   extensionForMimeType,
@@ -314,6 +315,21 @@ userRoutes.post('/me/profile', async (c) => {
   if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
+
+  /**
+   * Accept any org invite waiting on this address.
+   *
+   * HERE, and not only at sign-up. An invite is very often sent to somebody
+   * who ALREADY has an account, and that person has no reason to verify their
+   * email ever again -- so hooking redemption to the auth flow would leave
+   * exactly the common case unhandled. /users/me is the route every signed-in
+   * client hits, which makes it the one place that catches an invite whenever
+   * it arrives.
+   *
+   * Cheap when there is nothing to do: one indexed lookup on
+   * idx_org_invites_email that returns no rows, and no writes at all.
+   */
+  await redeemPendingOrgInvites(c.env.DB, userId, user.email);
 
   // A photo takes precedence over the Bevo config on display (client-side),
   // but both are stored — removing the photo later should fall back to

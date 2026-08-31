@@ -1,5 +1,4 @@
 import LonghornLoopLogo from '@/app/components/icons/LonghornLoopLogo';
-import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { Image, type ImageSource } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -104,7 +103,6 @@ const SLIDES: Slide[] = [
 
 export default function FrontPage() {
   const router = useRouter();
-  const { update } = useOnboarding();
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
@@ -273,7 +271,24 @@ export default function FrontPage() {
         )}
       </View>
 
-      <View style={{ height: PAGINATION_BUTTON_GAP }} />
+      {/*
+        FLEXES, rather than being a fixed 48pt gap.
+
+        Nothing in this column grew, so the footer sat wherever the content
+        above it happened to end -- and the content above it is sized from the
+        screen height (the hero band is a ratio) plus a two-line title block
+        plus copy that differs per slide. The buttons therefore landed at a
+        different distance from the bottom on every device, which is what "the
+        Continue button is not in the correct spot" was.
+
+        As a growing spacer the footer is pinned to the bottom and everything
+        above keeps its natural size, so `justifyContent: flex-end` below
+        finally does what its comment always claimed: the lone Continue lands
+        on the same baseline as "Already Have An Account" does on slide three.
+        minHeight keeps the designed 48pt when a short screen leaves nothing
+        spare.
+      */}
+      <View style={{ flex: 1, minHeight: PAGINATION_BUTTON_GAP }} />
 
       {/* Buttons stay fixed */}
       <View className="px-5 pb-2">
@@ -304,23 +319,14 @@ export default function FrontPage() {
         </View>
       </View>
 
-      {/* Dev-only bypass */}
-      {__DEV__ && (
-        <Pressable
-          className="absolute bottom-1 left-0 right-0 items-center"
-          onPress={() => {
-            update({
-              firstName: 'Dev',
-              lastName: 'User',
-              email: 'dev@utexas.edu',
-            });
-
-            router.replace('/(tabs)/home');
-          }}
-        >
-          <Text className="text-xs text-lhlMutedText underline">[DEV] Skip to Home</Text>
-        </Pressable>
-      )}
+      {/*
+        The [DEV] Skip to Home bypass lived here. Removed for the tester
+        build, and not only because testers should not see it: it wrote a fake
+        name and email into the session and navigated to the tabs WITHOUT a
+        token, which is the exact signed-out-but-inside state AuthGate now
+        exists to prevent. Keeping it would have meant a deliberate hole
+        beside the guard closing the accidental one.
+      */}
     </SafeAreaView>
   );
 }
