@@ -1,7 +1,12 @@
 // Auth routes for Cloudflare Worker + D1
 import { Hono } from 'hono';
 import type { Env } from '../worker';
-import { UT_EMAIL_ERROR, isAllowedUTEmail, normalizeUTEmail } from '../../../shared/utEmail';
+import {
+  APP_REVIEW_EMAIL,
+  UT_EMAIL_ERROR,
+  isAllowedUTEmail,
+  normalizeUTEmail,
+} from '../../../shared/utEmail';
 import { DEFAULT_EMAIL_FROM, type EmailMessage, sendEmail } from '../email/send';
 
 const MAX_ATTEMPTS = 5;
@@ -105,9 +110,24 @@ type CodeRow = {
  * compensating write rather than a rollback. The window between the insert and
  * the restore is real but small, and the failure mode inside it — a valid code
  * briefly replaced — is the one we already had permanently.
+ *
+ * One exception: APP_REVIEW_EMAIL gets a fixed code from the APP_REVIEW_CODE
+ * secret instead of a random one, and is never actually emailed — there is no
+ * inbox behind that address, only Apple's reviewer typing whatever we put in
+ * App Store Connect's Sign-In Information. See shared/utEmail.ts for why this
+ * address exists at all (Guideline 2.1(a), build 4).
  */
 async function issueVerificationCode(email: string, env: Env): Promise<void> {
-  const code = generateCode();
+  const isAppReview = email === APP_REVIEW_EMAIL;
+
+  if (isAppReview && !env.APP_REVIEW_CODE) {
+    // Misconfigured deploy, not a user-facing failure -- surfaces as the
+    // normal SEND_FAILED/502 response below rather than silently falling
+    // back to a random code nobody can retrieve.
+    throw new Error('APP_REVIEW_CODE secret is not set');
+  }
+
+  const code = isAppReview ? (env.APP_REVIEW_CODE as string) : generateCode();
   const codeHash = await hashCode(code);
   const now = Date.now();
 
@@ -131,6 +151,13 @@ async function issueVerificationCode(email: string, env: Env): Promise<void> {
   )
     .bind(email, codeHash, now + CODE_EXPIRY_MS, now)
     .run();
+
+  if (isAppReview) {
+    // No inbox to send to, and nothing to roll back to -- the row above is
+    // the whole job.
+    console.log(`[email] verification code -> ${email} skipped (app review bypass)`);
+    return;
+  }
 
   try {
     await deliverVerificationCode(email, code, env);
