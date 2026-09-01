@@ -40,6 +40,11 @@ export type Env = {
   POSTMARK_API_TOKEN?: string;
   CRON_SECRET: string;
   WORKER_URL: string;
+  // Fixed code for the App Review reviewer bypass (LOOP-???, see APP_REVIEW_EMAIL
+  // in shared/utEmail.ts and issueVerificationCode in auth.worker.ts). A Worker
+  // secret, never committed, so the public bypass address alone isn't enough to
+  // sign in. Unset in local dev -- the bypass address just 400s there.
+  APP_REVIEW_CODE?: string;
 };
 
 const app = new Hono<{ Bindings: Env }>();

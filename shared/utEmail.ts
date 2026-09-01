@@ -43,6 +43,19 @@
 export const ALLOWED_UT_DOMAINS = ['utexas.edu', 'my.utexas.edu', 'eid.utexas.edu'] as const;
 
 /**
+ * Apple's Beta App Review reviewer, and only Apple's reviewer (LOOP-???).
+ *
+ * Build 4 was rejected under Guideline 2.1(a) — the reviewer has no UT email
+ * and no way to receive a one-time code on our timeline, so they could not
+ * sign in at all. This one address is exempted from the domain gate below; it
+ * does not get a random emailed code like everyone else, it gets a fixed one
+ * from the APP_REVIEW_CODE Worker secret (see issueVerificationCode in
+ * auth.worker.ts). The address itself being public in this source file is
+ * fine — the code that makes it usable isn't in the repo.
+ */
+export const APP_REVIEW_EMAIL = 'appreview@longhorndevelopers.org';
+
+/**
  * Is this an address we will email a code to?
  *
  * Case-insensitive and whitespace-tolerant, because this runs on whatever a
@@ -59,6 +72,8 @@ export function isAllowedUTEmail(value: unknown): boolean {
   if (typeof value !== 'string') return false;
 
   const email = value.trim().toLowerCase();
+
+  if (email === APP_REVIEW_EMAIL) return true;
 
   // Exactly one '@', with something either side.
   const at = email.indexOf('@');

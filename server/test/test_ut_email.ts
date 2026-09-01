@@ -8,13 +8,30 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ALLOWED_UT_DOMAINS, isAllowedUTEmail, normalizeUTEmail } from '../../shared/utEmail';
+import {
+  ALLOWED_UT_DOMAINS,
+  APP_REVIEW_EMAIL,
+  isAllowedUTEmail,
+  normalizeUTEmail,
+} from '../../shared/utEmail';
 
 describe('isAllowedUTEmail — accepts', () => {
   it('the three allowed domains', () => {
     expect(isAllowedUTEmail('mwalker@utexas.edu')).toBe(true);
     expect(isAllowedUTEmail('mwalker@my.utexas.edu')).toBe(true);
     expect(isAllowedUTEmail('tv6269@eid.utexas.edu')).toBe(true);
+  });
+
+  it('the App Review bypass address, and only that exact address', () => {
+    // Guideline 2.1(a), build 4: Apple's reviewer has no UT email. This one
+    // non-UT address is let through the domain gate on purpose — see
+    // APP_REVIEW_EMAIL's doc comment and issueVerificationCode in
+    // auth.worker.ts for how it still can't sign in without the
+    // APP_REVIEW_CODE secret.
+    expect(isAllowedUTEmail(APP_REVIEW_EMAIL)).toBe(true);
+    expect(isAllowedUTEmail(' AppReview@LonghornDevelopers.ORG ')).toBe(true);
+    expect(isAllowedUTEmail('appreview@longhorndevelopers.org.attacker.com')).toBe(false);
+    expect(isAllowedUTEmail('notappreview@longhorndevelopers.org')).toBe(false);
   });
 
   it('any case and surrounding whitespace', () => {
