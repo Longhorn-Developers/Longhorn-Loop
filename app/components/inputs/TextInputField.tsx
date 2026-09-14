@@ -1,7 +1,10 @@
 import LhlPillCross from '@/assets/icons/LhlPillCross';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
+
+/** Form-field default. Deliberately unchanged — see the `height` prop. */
+const DEFAULT_HEIGHT = 33;
 
 interface TextInputFieldProps extends TextInputProps {
   label?: string;
@@ -9,6 +12,26 @@ interface TextInputFieldProps extends TextInputProps {
   clearable?: boolean;
   borderRadius?: number; // px
   forceFocusStyles?: boolean;
+  /**
+   * Control height in px.
+   *
+   * Opt-in rather than a blanket change: 33 is below the 44pt tap-target floor
+   * everywhere it is used, but this component backs eleven screens' worth of
+   * form fields and raising all of them is a design call, not a bug fix. Only
+   * Explore's search bar overrides it today (LOOP-283 flagged the same
+   * hit-target problem for that screen's other controls). If the team decides
+   * to lift the floor app-wide, change DEFAULT_HEIGHT and drop the overrides.
+   */
+  height?: number;
+  /**
+   * Forwarded to the inner TextInput, so a parent can blur/focus it.
+   *
+   * React 19 passes `ref` as an ordinary prop, which matters here: it is
+   * destructured out below rather than left in `...props`, because the spread
+   * lands AFTER the internal `ref` on the TextInput and would silently
+   * overwrite it — breaking focusInput() and the clear button with it.
+   */
+  ref?: React.Ref<TextInput>;
 }
 
 export default function TextInputField({
@@ -17,12 +40,25 @@ export default function TextInputField({
   clearable,
   borderRadius = 4,
   forceFocusStyles = false,
+  height = DEFAULT_HEIGHT,
+  ref,
   ...props
 }: TextInputFieldProps) {
   const colors = useThemeColors();
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Callback ref that feeds both the internal ref and the caller's, so
+  // forwarding costs the component none of its own control over the input.
+  const setInputRef = useCallback(
+    (node: TextInput | null) => {
+      inputRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.RefObject<TextInput | null>).current = node;
+    },
+    [ref],
+  );
 
   // A blur schedules a 100ms timer so handleClear() can still fire. If the
   // field unmounts inside that window the timer is still pending and will call
@@ -89,12 +125,15 @@ export default function TextInputField({
           mt-[6px]
           flex-row items-center
           border
-          px-[9px] h-[33px] gap-2
+          px-[9px] gap-2
           ${borderColorClass}
           bg-lhlSurface
         `}
+        // height moved out of the className: NativeWind needs static classes at
+        // build time, so `h-[${height}px]` would not compile to anything.
         style={{
           borderRadius: borderRadius,
+          height,
         }}
       >
         {/* Left Icon */}
@@ -107,7 +146,7 @@ export default function TextInputField({
           That was the "dark mode is not working" report on every search field.
         */}
         <TextInput
-          ref={inputRef}
+          ref={setInputRef}
           accessibilityLabel={label}
           accessibilityRole="text"
           className={`

@@ -20,7 +20,17 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type EventsListResponse = { events: ApiEvent[] };
@@ -129,6 +139,9 @@ const TOGGLE_ICON_SIZE = 22;
 
 /** Takes each 32x42 button to 44x50 — past the 44pt floor, same control height. */
 const TOGGLE_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 };
+
+/** The 44pt tap-target floor, met with height rather than hitSlop. */
+const SEARCH_BAR_HEIGHT = 44;
 
 export default function ExploreScreen() {
   const colors = useThemeColors();
@@ -255,8 +268,25 @@ export default function ExploreScreen() {
    */
   const getLastRegion = useCallback(() => lastRegion.current ?? undefined, []);
 
+  /**
+   * Drop focus on the search field.
+   *
+   * Both calls are needed. `Keyboard.dismiss()` is what actually retracts the
+   * keyboard on iOS and Android, but it is a no-op on web, where the caret and
+   * the focus ring would otherwise stay put; `blur()` handles that and also
+   * guarantees onBlur fires, which is what clears the field's orange border.
+   */
+  const searchRef = useRef<TextInput>(null);
+  const dismissSearch = useCallback(() => {
+    searchRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
+
   /** Stable identity: an inline arrow re-renders every Marker (see MapViewWrapper). */
-  const handleMapPress = useCallback(() => setSelectedEventId(null), []);
+  const handleMapPress = useCallback(() => {
+    setSelectedEventId(null);
+    dismissSearch();
+  }, [dismissSearch]);
 
   const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
@@ -390,17 +420,34 @@ export default function ExploreScreen() {
       </View>
 
       {/* Search (LOOP-175) */}
+      {/*
+        SEARCH_BAR_HEIGHT overrides the 33px form-field default. That default is
+        the smallest tap target on this screen and the one the user is aimed at
+        first — the same hit-target complaint LOOP-283 raises about the section
+        arrows. 44 is the platform floor, and unlike the arrows it can be met
+        with real height rather than hitSlop, because a search bar is supposed
+        to look like a big soft target. The glyph and text scale with it or the
+        control reads as an empty box with something small floating in it.
+
+        Height only here, not in the shared component: TextInputField backs
+        every form in the app and raising all of them is a design decision.
+      */}
       <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
         <TextInputField
+          ref={searchRef}
           value={query}
           onChangeText={setQuery}
           placeholder="Search events and orgs..."
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
+          // Dismisses on the keyboard's own Search key, so the field is not the
+          // one place on the screen with no way out.
+          onSubmitEditing={dismissSearch}
           clearable
           borderRadius={999}
-          leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
+          height={SEARCH_BAR_HEIGHT}
+          leftIcon={<LhlSearchIcon size={18} color={colors.inkSecondary} />}
         />
       </View>
 
@@ -482,7 +529,12 @@ export default function ExploreScreen() {
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
+          // persistTaps "handled": a tap on dead space in the list dismisses
+          // the keyboard, but a tap on a card still opens the card instead of
+          // being eaten as a dismiss. dismissMode "on-drag": starting a scroll
+          // counts as leaving the field, which is what a scroll means.
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           // Android detaches clipped subviews by default. Combined with a data
           // array that changes on every keystroke, that is the other reliable
           // way to end up reading a detached cell. Cheap to disable here: the
@@ -534,12 +586,37 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
       {/*
-        The header stays OUTSIDE the boundary on purpose (LOOP-279). If results
-        throw, the search field has to survive — the fallback's "try again" is
-        useless if the only way out of a bad query is to kill the app. Resetting
-        on `needle` means editing the query clears the fallback on its own.
+        Tap anywhere off the search field to leave it.
+
+        Four handlers cover the screen between them, and each has to live where
+        it does. This Pressable takes the header — the title row, the padding
+        around the search bar, the gaps — which is everything up here that owns
+        no touch handler of its own. Below it, the list dismisses via
+        keyboardShouldPersistTaps / keyboardDismissMode and the map via
+        onMapPress, because a ScrollView claims the responder for touches inside
+        it and a native map swallows its own; neither would ever bubble a tap up
+        to a wrapper.
+
+        Which is also why this wraps ONLY the header and not the whole screen.
+        A Pressable around body() would sit over the MapView, and Pressable
+        answers onStartShouldSetResponder with true — on the default view of
+        this screen that risks eating the first touch of a pan. Nothing is lost
+        by staying up here: the region below the header is always either the
+        list or the map, and both already handle it.
+
+        accessible={false} keeps this out of the screen reader's element list.
+        It is a fallback gesture, not a control.
       */}
-      {pinnedHeader}
+      <Pressable onPress={dismissSearch} accessible={false} android_disableSound>
+        {/*
+          The header stays OUTSIDE the boundary on purpose (LOOP-279). If
+          results throw, the search field has to survive — the fallback's "try
+          again" is useless if the only way out of a bad query is to kill the
+          app. Resetting on `needle` means editing the query clears the fallback
+          on its own.
+        */}
+        {pinnedHeader}
+      </Pressable>
       <ResultsErrorBoundary
         label="explore.results"
         resetKeys={[needle, activeSelectionKey, showList]}
