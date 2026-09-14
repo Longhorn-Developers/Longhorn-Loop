@@ -1,3 +1,4 @@
+import ResultsErrorBoundary from '@/app/components/ErrorBoundary';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
@@ -16,9 +17,9 @@ import { useThemeColors } from '@/app/lib/themeColors';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import { ORG_SEARCH_MIN_QUERY } from '@/shared/orgRegistration';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,7 +54,66 @@ function matchesEvent(event: ApiEvent, needle: string): boolean {
     ...(event.categories ?? []).map((c) => c?.name),
   ];
 
-  return haystack.some((field) => field != null && field.toLowerCase().includes(needle));
+  // typeof, not `!= null` (LOOP-279). The types say every entry is a string,
+  // but these come straight off the wire: `tags` and `categories` are joined
+  // server-side from event_tags / event_categories, so a row with an unexpected
+  // shape puts a non-string in here and `.toLowerCase()` throws mid-keystroke —
+  // an unhandled throw in render, which in a release build is a hard crash and
+  // not a red box. Worth noting `.some()` short-circuits: a needle that matches
+  // the title never reaches the tags, so a bad tag only bites on queries that
+  // miss everything above it. That is exactly the shape of a crash report that
+  // names one specific search term.
+  return haystack.some(
+    (field) => typeof field === 'string' && field.toLowerCase().includes(needle),
+  );
+}
+
+/**
+ * Route-level backstop (LOOP-279). Expo Router renders this instead of the
+ * screen when anything under `/explore` throws during render.
+ *
+ * The in-screen <ResultsErrorBoundary> below is the one that should normally
+ * fire: it swaps only the results and leaves the search field alive, so the
+ * user can type their way out. This exists because a boundary cannot catch a
+ * throw in its own parent's render, and ExploreScreen does real work before it
+ * mounts anything (the search filter, the located-events narrowing). Without
+ * this, that class of throw escapes to the native handler, which in a release
+ * build is a hard crash with no trace — `app/lib/monitoring.ts` is still a
+ * documented no-op, so there would be nothing to symbolicate afterwards.
+ *
+ * `retry` remounts the route, which resets the query to empty.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const colors = useThemeColors();
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
+      >
+        <Text style={{ fontSize: 17, fontWeight: '600', color: colors.ink, textAlign: 'center' }}>
+          Explore ran into a problem
+        </Text>
+        <Text
+          style={{ fontSize: 14, color: colors.inkMuted, textAlign: 'center', marginTop: 8 }}
+          // Shown, not hidden: TestFlight feedback is the only crash channel
+          // this app has while monitoring is stubbed, and a tester who can read
+          // the message can paste it into a report.
+          selectable
+        >
+          {error?.message ?? 'Unknown error'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => void retry()}
+          accessibilityRole="button"
+          accessibilityLabel="Reload Explore"
+          hitSlop={8}
+          style={{ marginTop: 20 }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.accent }}>Reload</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 /** The "Explore" title, and the list/map toggle measured against it. */
@@ -82,8 +142,6 @@ export default function ExploreScreen() {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [selection, setSelection] = useState<ExploreSelection>({ kind: 'trending' });
   const [query, setQuery] = useState('');
-
-  const listRef = useRef<FlatList<ApiEvent>>(null);
 
   const debouncedQuery = useDebounced(query.trim(), SEARCH_DEBOUNCE_MS);
   const needle = debouncedQuery.toLowerCase();
@@ -125,22 +183,30 @@ export default function ExploreScreen() {
   const orgResults = orgsQuery.data?.organizations ?? [];
 
   /**
-   * Snap back to the top whenever the result set changes.
+   * Identity of the grid. Changing it remounts the list.
    *
-   * Not cosmetic — this is the crash fix. VirtualizedList keeps a render window
-   * of cell frames keyed by index. Editing the query rewrites `data` underneath
-   * that window, and if the list is still scrolled to an offset that only
-   * existed for the LONGER previous list, it asks for a frame at an index the
-   * new data no longer has and throws ("Tried to get frame for out of range
-   * index"). Typing, deleting and retyping quickly is the reliable way to hit
-   * it, because each edit shrinks and regrows `data` before the list settles.
+   * This is the crash fix (LOOP-279), and it replaces an earlier scroll-to-top
+   * effect that only mostly worked. The bug: VirtualizedList keeps a render
+   * window of cell frames keyed by index. Editing the query rewrites `data`
+   * underneath that window, and if the list is still scrolled to an offset that
+   * only existed for the LONGER previous list, it asks for a frame at an index
+   * the new data no longer has and throws ("Tried to get frame for out of range
+   * index"). An unhandled throw in render is a red box in dev and a hard crash
+   * in a release build, which is what a tester reports as "broke when I typed".
    *
-   * scrollToOffset (not scrollToIndex) is deliberate: it is safe on an empty
-   * list, where scrollToIndex would throw on its own.
+   * Why the old fix was not enough: `listRef.current.scrollToOffset(...)` from
+   * a useEffect runs AFTER commit, and the native scroll it asks for lands
+   * later still. The list has already reconciled the shrunken `data` against
+   * the old offset by then, so the throw beats the correction. Racing it with
+   * useLayoutEffect just narrows the window instead of closing it.
+   *
+   * Remounting closes it: a new list starts at offset 0 with no cached frames,
+   * so there is no stale window left to read. The cost is rebuilding ~100 cells
+   * at each debounce boundary — cheap, and the content is changing wholesale at
+   * that moment anyway. Note this keys off `needle` (the DEBOUNCED query), not
+   * `query`, so it is once per typing pause, not once per keystroke.
    */
-  useEffect(() => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [needle, isSearching, activeSelectionKey]);
+  const gridKey = `explore-grid-${activeSelectionKey}-${isSearching ? needle : ''}`;
 
   // Type-narrowed subset: only events with non-null coordinates go on the map.
   // Driven by visibleEvents so the pins honour the search too.
@@ -175,6 +241,22 @@ export default function ExploreScreen() {
   const handleRegionSettled = useCallback((region: MapRegion) => {
     lastRegion.current = region;
   }, []);
+
+  /**
+   * Handed to the map as a GETTER rather than as `initialRegion={lastRegion.current}`.
+   *
+   * Two reasons, and they point the same way. The lint one: reading `.current`
+   * in the render body is `react-hooks/refs` ("Cannot access refs during
+   * render") and fails CI. The real one: an uncontrolled MapView reads its
+   * initial region exactly once, at mount, so passing it as a rendered value
+   * was always misleading — the map re-reads nothing on later renders. A getter
+   * the map calls from a useState initializer makes the mount-only read
+   * explicit instead of suppressing the warning about it.
+   */
+  const getLastRegion = useCallback(() => lastRegion.current ?? undefined, []);
+
+  /** Stable identity: an inline arrow re-renders every Marker (see MapViewWrapper). */
+  const handleMapPress = useCallback(() => setSelectedEventId(null), []);
 
   const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
@@ -392,8 +474,7 @@ export default function ExploreScreen() {
     if (showList) {
       return (
         <FlatList
-          ref={listRef}
-          key={`explore-grid-${selectionKey(selection)}`}
+          key={gridKey}
           data={showEventSection ? visibleEvents : []}
           extraData={savedIds}
           keyExtractor={keyExtractor}
@@ -426,8 +507,8 @@ export default function ExploreScreen() {
           events={locatedEvents}
           selectedEventId={selectedEventId}
           onPinPress={handlePinPress}
-          onMapPress={() => setSelectedEventId(null)}
-          initialRegion={lastRegion.current ?? undefined}
+          onMapPress={handleMapPress}
+          getInitialRegion={getLastRegion}
           onRegionSettled={handleRegionSettled}
         />
 
@@ -452,8 +533,20 @@ export default function ExploreScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
+      {/*
+        The header stays OUTSIDE the boundary on purpose (LOOP-279). If results
+        throw, the search field has to survive — the fallback's "try again" is
+        useless if the only way out of a bad query is to kill the app. Resetting
+        on `needle` means editing the query clears the fallback on its own.
+      */}
       {pinnedHeader}
-      {body()}
+      <ResultsErrorBoundary
+        label="explore.results"
+        resetKeys={[needle, activeSelectionKey, showList]}
+        message="Could not show these results. Try a different search."
+      >
+        {body()}
+      </ResultsErrorBoundary>
     </SafeAreaView>
   );
 }
