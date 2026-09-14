@@ -61,6 +61,7 @@ import { api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
 import { useThemeColors } from '@/app/lib/themeColors';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import PencilIcon from '@/assets/images/pencil.svg';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_FILTER_LABELS,
@@ -280,6 +281,7 @@ function OrgEventRow({
   canManage: boolean;
   onEdit: () => void;
 }) {
+  const colors = useThemeColors();
   const location = event.location_short ?? event.location_full;
 
   return (
@@ -320,14 +322,14 @@ function OrgEventRow({
           hitSlop={10}
           className="ml-[8px] h-[30px] w-[30px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
         >
-          {/* Text glyph rather than an SVG: there is no pencil in
-              assets/images, and the profile header's Edit Profile pill already
-              uses this one.
+          {/* assets/images/pencil.svg. This was a "✎" text glyph, on the note
+              that no pencil existed in assets — one does now, and the emoji
+              rendered at a different weight and baseline on every platform.
 
               The only management affordance on the row. A delete control would
               sit beside it, and doesn't, because no endpoint deletes or
               archives an event — see note 3 in the file header. */}
-          <Text className="text-[13px] text-lhlAccent">✎</Text>
+          <PencilIcon width={13} height={13} color={colors.accent} />
         </Pressable>
       ) : null}
     </View>

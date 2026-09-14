@@ -933,8 +933,19 @@ orgRoutes.get('/:orgId/members', async (c) => {
   const member = await resolveMembership(c);
   if (!member.ok) return c.json({ error: member.error }, member.status);
 
+  // year_classification + one major back the row subtitle the Figma draws
+  // ("Junior · Aerospace Engineering"). Both are nullable — a member who
+  // skipped those onboarding steps has neither — so the client falls back to
+  // the email, which is what it showed before this select grew.
+  //
+  // The major is a correlated subquery rather than a JOIN because user_majors
+  // is one-to-many: joining would multiply the member rows and turn "Team (4)"
+  // into "Team (7)" for anyone with three majors. Only the first is displayed,
+  // so only the first is fetched.
   const { results: members } = await c.env.DB.prepare(
-    `SELECT u.id, u.first_name, u.last_name, u.email, u.avatar, m.role, m.created_at
+    `SELECT u.id, u.first_name, u.last_name, u.email, u.avatar, u.year_classification,
+            (SELECT major FROM user_majors WHERE user_id = u.id ORDER BY id ASC LIMIT 1) AS major,
+            m.role, m.created_at
      FROM org_members m
      JOIN users u ON u.id = m.user_id
      WHERE m.org_id = ?
