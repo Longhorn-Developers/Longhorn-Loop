@@ -39,7 +39,9 @@ class SqliteD1Statement {
   }
   async run() {
     const r = this.db.prepare(this.sql).run(...this.params);
-    return { meta: { last_row_id: Number(r.lastInsertRowid ?? 0), changes: Number(r.changes ?? 0) } };
+    return {
+      meta: { last_row_id: Number(r.lastInsertRowid ?? 0), changes: Number(r.changes ?? 0) },
+    };
   }
 }
 class SqliteD1 {
@@ -126,9 +128,7 @@ describeOrSkip('accepting org invites', () => {
     // Membership that appears silently is indistinguishable from a bug.
     addInvite(ORG, EMAIL, 'editor');
     await redeemPendingOrgInvites(db, STUDENT, EMAIL);
-    const notes = raw
-      .prepare('SELECT user_id, type, title FROM notifications')
-      .all();
+    const notes = raw.prepare('SELECT user_id, type, title FROM notifications').all();
     expect(notes).toEqual([
       { user_id: STUDENT, type: 'org_invite', title: 'You joined Texas Rocketry' },
     ]);

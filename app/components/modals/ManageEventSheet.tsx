@@ -166,7 +166,11 @@ function ActionRow({
           style={{ marginLeft: inkNudge(iconSize, inkLeftRatio) }}
         />
       </View>
-      <Text style={destructive ? { ...styles.actionLabel, color: colors.destructive } : styles.actionLabel}>
+      <Text
+        style={
+          destructive ? { ...styles.actionLabel, color: colors.destructive } : styles.actionLabel
+        }
+      >
         {label}
       </Text>
     </Pressable>

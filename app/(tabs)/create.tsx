@@ -165,9 +165,7 @@ export default function CreateEventTab() {
 
           {/* Opaque on purpose: the layer behind is a whole other screen, and
               a translucent front would show both at once through the drag. */}
-          <Animated.View
-            style={[styles.fill, { backgroundColor: colors.background }, frontStyle]}
-          >
+          <Animated.View style={[styles.fill, { backgroundColor: colors.background }, frontStyle]}>
             <StepScreen />
           </Animated.View>
         </View>

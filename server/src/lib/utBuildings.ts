@@ -294,7 +294,8 @@ export function isNonPhysicalLocation(location: string | null | undefined): bool
   if (!location || !location.trim()) return true;
   const normalized = normalize(location);
   return NON_PHYSICAL.some(
-    (term) => normalized === term || normalized.startsWith(`${term} `) || normalized.includes(` ${term} `),
+    (term) =>
+      normalized === term || normalized.startsWith(`${term} `) || normalized.includes(` ${term} `),
   );
 }
 

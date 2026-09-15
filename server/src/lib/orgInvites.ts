@@ -90,9 +90,7 @@ export async function redeemPendingOrgInvites(
         .bind(invite.org_id, userId, invite.role),
     );
     statements.push(
-      db
-        .prepare(`UPDATE org_invites SET status = 'accepted' WHERE id = ?`)
-        .bind(invite.id),
+      db.prepare(`UPDATE org_invites SET status = 'accepted' WHERE id = ?`).bind(invite.id),
     );
     // TELL THEM. Membership that appears silently is indistinguishable from a
     // bug: the org console simply exists on your next visit, with no

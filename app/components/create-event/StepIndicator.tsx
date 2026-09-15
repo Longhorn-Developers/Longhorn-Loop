@@ -140,10 +140,7 @@ function Segment({
         }}
       >
         <Animated.View
-          style={[
-            { height: '100%', borderRadius: 999, backgroundColor: colors.brand },
-            barStyle,
-          ]}
+          style={[{ height: '100%', borderRadius: 999, backgroundColor: colors.brand }, barStyle]}
         />
       </View>
 

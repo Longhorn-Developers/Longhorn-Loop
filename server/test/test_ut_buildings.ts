@@ -7,11 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  LOCATION_ALIASES,
-  isNonPhysicalLocation,
-  resolveBuilding,
-} from '../src/lib/utBuildings';
+import { LOCATION_ALIASES, isNonPhysicalLocation, resolveBuilding } from '../src/lib/utBuildings';
 import buildingData from '../src/data/ut-buildings.json';
 
 describe('UT building resolver', () => {
@@ -210,7 +206,10 @@ describe('UT building resolver', () => {
 
   describe('the data itself', () => {
     const buildings = Object.values(
-      buildingData.buildings as Record<string, { latitude: number; longitude: number; code: string }>,
+      buildingData.buildings as Record<
+        string,
+        { latitude: number; longitude: number; code: string }
+      >,
     );
 
     it('has every building on the UT campus, right way round', () => {
