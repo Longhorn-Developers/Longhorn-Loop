@@ -20,16 +20,9 @@ import PencilIcon from '@/assets/images/pencil.svg';
 import TrashIcon from '@/assets/images/trash.svg';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import DragDismissSheet from '@/app/components/modals/DragDismissSheet';
+import React, { useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
 /**
@@ -63,39 +56,9 @@ function inkNudge(size: number, inkLeftRatio: number): number {
   return BASE_INK_LEFT - size * inkLeftRatio;
 }
 
-/** Projected past this fraction of the sheet's own height and it closes. */
-const DISMISS_FRACTION = 0.32;
-/**
- * Dismissal is decided on where the drag was GOING, not where it stopped.
- * Distance and velocity as two separate tests feels wrong at both ends: a slow
- * deliberate 40% drag springs back, and a fast flick that only travelled 20pt
- * does nothing. Projecting the throw the way a scroll view does gives one
- * number both gestures agree on. Seconds, because gesture-handler reports
- * velocity in points per second.
- */
-const VELOCITY_PROJECTION_S = 0.14;
-/** Vertical travel before the drag takes over from a row's tap. */
-const DRAG_SLOP = 8;
-
-const SPRING = { damping: 26, stiffness: 260, mass: 0.9 };
-
-/**
- * Where "offscreen" is before the sheet has ever been measured. Only ever a
- * fallback -- onLayout replaces it with the real height on the first frame --
- * but it has to be a real distance rather than 0, or the first open has
- * nowhere to travel from and simply appears.
- */
-const OFFSCREEN = Dimensions.get('window').height;
-
-/**
- * iOS's rubber band. Pulling UP past the top yields less and less,
- * asymptotically, so the sheet feels attached to the bottom edge rather than
- * rigid (reads as broken) or loose (peels off and shows the backdrop under it).
- */
-function resist(overshoot: number, dimension: number): number {
-  'worklet';
-  return (1 - 1 / ((overshoot * 0.55) / dimension + 1)) * dimension;
-}
+// The sheet mechanics — spring, drag, scrim, and every comment explaining what
+// each of them cost to get right — now live in DragDismissSheet, which
+// ExploreFilterSheet also uses. They were extracted from this file unchanged.
 
 export interface ManageEventSheetProps {
   visible: boolean;
@@ -189,253 +152,107 @@ export default function ManageEventSheet({
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  /**
-   * GESTURE-HANDLER AND REANIMATED, after two failed attempts with
-   * PanResponder + Animated.
-   *
-   * app.json runs newArchEnabled. Under Fabric, once a native animated node
-   * owns a view's transform, a setValue() from JS is not reliably delivered to
-   * that view -- so the entrance spring played, and then every frame of the
-   * drag wrote a value nothing read. The gesture was firing the whole time and
-   * moving nothing, which is why the second attempt felt identical to the
-   * first.
-   *
-   * Shared values do not have that failure mode: the drag and the springs are
-   * the same value on the same (UI) thread. This mirrors the swipe in
-   * app/notifications.tsx, which is the one gesture in this codebase already
-   * proven to work on device.
-   *
-   * GestureHandlerRootView is REQUIRED here and is the usual reason a gesture
-   * silently does nothing inside a Modal: a Modal is its own native view
-   * hierarchy, so the root view at the top of the app does not cover it.
-   */
-  /**
-   * STARTS OFFSCREEN, NOT AT REST, and that is the whole fix for the flash on
-   * open.
-   *
-   * This was useSharedValue(0) -- the sheet's resting position. Effects run
-   * AFTER paint, so the Modal mounted and painted one frame of the finished
-   * sheet sitting exactly where it ends up, and only then did the effect yank
-   * it down to spring back up. A single frame of the completed thing before it
-   * animates in, which is what "freeze frame" describes precisely.
-   */
-  const translateY = useSharedValue(OFFSCREEN);
-  const startY = useSharedValue(0);
-  const sheetH = useSharedValue(0);
-
-  const finishClose = useCallback(() => {
-    // Deliberately does NOT reset translateY. It used to, and that was the
-    // afterimage on dismiss: the slide-down finished with the sheet offscreen,
-    // this snapped it back to fully visible, and the Modal only unmounted once
-    // React had processed onClose -- painting the sheet back in place for those
-    // frames in between. Parking it offscreen is the effect's job below.
-    onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    if (visible) {
-      translateY.value = sheetH.value || OFFSCREEN;
-      translateY.value = withSpring(0, SPRING);
-    } else {
-      // Park it offscreen while hidden, so the next open cannot paint a frame
-      // at rest before its effect runs. Without this the flash comes back on
-      // every open after the first, because translateY is still 0 from
-      // whatever closed it.
-      translateY.value = sheetH.value || OFFSCREEN;
-    }
-  }, [visible, translateY, sheetH]);
-
-  const closeWithSlide = useCallback(() => {
-    translateY.value = withTiming(sheetH.value || 400, { duration: 180 }, (finished) => {
-      if (finished) runOnJS(finishClose)();
-    });
-  }, [translateY, sheetH, finishClose]);
-
-  /**
-   * activeOffsetY is what lets the action rows keep their taps: the pan does
-   * not activate until the finger has travelled 8pt vertically, so a press
-   * never becomes a drag. failOffsetX gives up entirely on a clearly sideways
-   * movement. This is the part PanResponder made hard and gesture-handler
-   * makes declarative.
-   */
-  const pan = Gesture.Pan()
-    .activeOffsetY([-DRAG_SLOP, DRAG_SLOP])
-    .failOffsetX([-24, 24])
-    .onStart(() => {
-      // Catch a sheet mid-flight where it actually is, rather than snapping.
-      startY.value = translateY.value;
-    })
-    .onUpdate((e) => {
-      const raw = startY.value + e.translationY;
-      // Down tracks the finger exactly; up resists.
-      translateY.value = raw >= 0 ? raw : -resist(-raw, sheetH.value || 400);
-    })
-    .onEnd((e) => {
-      const height = sheetH.value || 400;
-      const projected = translateY.value + e.velocityY * VELOCITY_PROJECTION_S;
-      if (projected > height * DISMISS_FRACTION) {
-        translateY.value = withTiming(height, { duration: 180 }, (finished) => {
-          if (finished) runOnJS(finishClose)();
-        });
-      } else {
-        translateY.value = withSpring(0, SPRING);
-      }
-    });
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  // The scrim fades with the drag, so a half-dismissed sheet looks half
-  // dismissed rather than fully modal right up until it vanishes.
-  const backdropStyle = useAnimatedStyle(() => {
-    // Same fallback as the sheet. Reading a bare 1 before measurement made the
-    // scrim snap to full black on the first open while the sheet was still
-    // sliding, so the two halves of the entrance disagreed for a few frames.
-    const height = sheetH.value || OFFSCREEN;
-    return { opacity: Math.max(0, 1 - translateY.value / height) };
-  });
-
   // The sheet is driven by which card was tapped, so `event` is null between
   // dismissal and the next open. Rendering nothing is better than rendering a
   // sheet about no event for one frame.
   if (!event) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={closeWithSlide}>
-      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-        {/* Tapping the dimmed area closes, which is what a bottom sheet trains
-            people to expect. */}
-        <Animated.View style={[styles.backdrop, backdropStyle]}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={closeWithSlide}
-            accessibilityLabel="Close"
-          />
-        </Animated.View>
+    // dragFrom defaults to 'sheet': the pill is the affordance, but the drag
+    // lives on the whole surface, the way it does on a system sheet whose
+    // content does not scroll. The four action rows keep their taps because of
+    // the pan's activeOffsetY — see DragDismissSheet.
+    <DragDismissSheet visible={visible} onClose={onClose} sheetStyle={styles.sheetPadding}>
+      <View style={styles.body}>
+        <Text style={styles.heading}>Manage Event</Text>
 
-        <GestureDetector gesture={pan}>
-          <Animated.View
-            style={[styles.sheet, sheetStyle]}
-            onLayout={(e) => {
-              sheetH.value = e.nativeEvent.layout.height;
-            }}
-          >
-            {/* The pill is the affordance; the drag lives on the whole sheet,
-                the way it does on a system sheet whose content does not
-                scroll. */}
-            <View style={styles.grabberArea}>
-              <View style={styles.grabber} />
-            </View>
-
-            <Text style={styles.heading}>Manage Event</Text>
-
-            {/* Which event this is about. Not decoration: four of these cards
+        {/* Which event this is about. Not decoration: four of these cards
                 look alike in a grid, and the sheet is where you confirm you
                 tapped the right one before deleting it. */}
-            <View style={styles.summary}>
-              <View style={styles.thumb}>
-                {event.image_url ? (
-                  <Image
-                    source={{ uri: event.image_url }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <EventFlyerPlaceholder seed={event.id} />
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.summaryTitle} numberOfLines={1}>
-                  {event.title}
-                </Text>
-                <Text style={styles.summaryMeta} numberOfLines={1}>
-                  {formatEventDate(event.start_datetime)}
-                  {event.location_short ? ` · ${event.location_short}` : ''}
-                </Text>
-              </View>
-              {/* Echoes the pencil on the card you tapped to get here, so the
+        <View style={styles.summary}>
+          <View style={styles.thumb}>
+            {event.image_url ? (
+              <Image
+                source={{ uri: event.image_url }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            ) : (
+              <EventFlyerPlaceholder seed={event.id} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.summaryTitle} numberOfLines={1}>
+              {event.title}
+            </Text>
+            <Text style={styles.summaryMeta} numberOfLines={1}>
+              {formatEventDate(event.start_datetime)}
+              {event.location_short ? ` · ${event.location_short}` : ''}
+            </Text>
+          </View>
+          {/* Echoes the pencil on the card you tapped to get here, so the
                   sheet reads as "this is the one you picked". Decorative on
                   purpose -- Edit Event Details is the row below, and two
                   controls doing the same thing a centimetre apart is how you
                   get mis-taps. */}
-              <PencilIcon width={16} height={16} color={colors.ink} />
-            </View>
+          <PencilIcon width={16} height={16} color={colors.ink} />
+        </View>
 
-            <View style={styles.actions}>
-              <ActionRow
-                Icon={EyeIcon}
-                iconSize={24}
-                inkLeftRatio={0.0994}
-                label="View Event Page"
-                onPress={onViewEventPage}
-                styles={styles}
-                colors={colors}
-              />
-              <ActionRow
-                Icon={PencilIcon}
-                iconSize={20}
-                inkLeftRatio={0.125}
-                label="Edit Event Details"
-                onPress={onEditDetails}
-                styles={styles}
-                colors={colors}
-              />
-              <ActionRow
-                Icon={MegaphoneIcon}
-                iconSize={19}
-                inkLeftRatio={0.125}
-                label="Post Announcement"
-                onPress={onPostAnnouncement}
-                styles={styles}
-                colors={colors}
-              />
-              <ActionRow
-                Icon={TrashIcon}
-                iconSize={20}
-                inkLeftRatio={0.1667}
-                label="Delete Event"
-                onPress={onDeleteEvent}
-                destructive
-                styles={styles}
-                colors={colors}
-              />
-            </View>
-          </Animated.View>
-        </GestureDetector>
-      </GestureHandlerRootView>
-    </Modal>
+        <View style={styles.actions}>
+          <ActionRow
+            Icon={EyeIcon}
+            iconSize={24}
+            inkLeftRatio={0.0994}
+            label="View Event Page"
+            onPress={onViewEventPage}
+            styles={styles}
+            colors={colors}
+          />
+          <ActionRow
+            Icon={PencilIcon}
+            iconSize={20}
+            inkLeftRatio={0.125}
+            label="Edit Event Details"
+            onPress={onEditDetails}
+            styles={styles}
+            colors={colors}
+          />
+          <ActionRow
+            Icon={MegaphoneIcon}
+            iconSize={19}
+            inkLeftRatio={0.125}
+            label="Post Announcement"
+            onPress={onPostAnnouncement}
+            styles={styles}
+            colors={colors}
+          />
+          <ActionRow
+            Icon={TrashIcon}
+            iconSize={20}
+            inkLeftRatio={0.1667}
+            label="Delete Event"
+            onPress={onDeleteEvent}
+            destructive
+            styles={styles}
+            colors={colors}
+          />
+        </View>
+      </View>
+    </DragDismissSheet>
   );
 }
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.4)', // theme-exempt: scrim over both themes
-    },
-    sheet: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: c.surface,
-      borderTopLeftRadius: 14,
-      borderTopRightRadius: 14,
-      paddingHorizontal: 20,
+    // The surface, the scrim and the grabber belong to DragDismissSheet now.
+    // What is left here is this sheet's own padding — kept OFF the surface and
+    // on an inner view, because the grabber the shell renders has to span the
+    // full width while the content is inset by 20.
+    sheetPadding: {
       paddingBottom: 34,
     },
-    grabberArea: {
-      // 12 above + 13 below is the Figma's spacing around the pill.
-      paddingTop: 12,
-      paddingBottom: 13,
-      alignItems: 'center',
-    },
-    grabber: {
-      width: 81,
-      height: 5,
-      borderRadius: 999,
-      backgroundColor: c.ink,
+    body: {
+      paddingHorizontal: 20,
     },
     heading: {
       fontSize: 16,

@@ -47,7 +47,10 @@ export default function TextInputField({
   const colors = useThemeColors();
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ReturnType<typeof setTimeout>, not NodeJS.Timeout: RN's types no longer
+  // pull in Node's globals (Expo SDK 57), and the handle here is whatever the
+  // RN runtime's setTimeout returns — a number on Hermes — not a Node Timeout.
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Callback ref that feeds both the internal ref and the caller's, so
   // forwarding costs the component none of its own control over the input.
@@ -158,6 +161,40 @@ export default function TextInputField({
           onFocus={handleFocus}
           onBlur={handleBlur}
           {...props}
+          /*
+            WHY THE TEXT SAT OFF-CENTRE, and why three properties are needed
+            rather than one.
+
+            The row is 33pt with `items-center`, so the input is centred by the
+            layout — but a TextInput is not just its text. It ships with its own
+            padding, and on Android with extra font padding on top of that, and
+            neither is symmetric. Centring a box that has 9pt of built-in top
+            padding and 4pt of bottom padding centres the BOX, which leaves the
+            glyphs sitting low.
+
+              padding: 0            drops RN's built-in inset on both platforms
+              includeFontPadding    Android's extra ascender/descender space,
+                                    which is what makes text look high in a
+                                    short field
+              textAlignVertical     Android defaults this to 'top' for a
+                                    single-line input in some configurations
+
+            height 100% so the input fills the row and centres its own text
+            inside it, rather than being a short box centred in a taller one.
+
+            Last, after the spread, so these are not silently dropped by a
+            caller passing `style` — the caller's own style is merged in rather
+            than replaced.
+          */
+          style={[
+            {
+              height: '100%',
+              padding: 0,
+              includeFontPadding: false,
+              textAlignVertical: 'center',
+            },
+            props.style,
+          ]}
         />
         {/* Clear Button */}
         {/*

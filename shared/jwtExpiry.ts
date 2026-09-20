@@ -30,8 +30,26 @@ export function jwtExpiry(token: string): number | null {
     // that dialect, so it works today. If the server is ever corrected to emit
     // real base64url, add the inverse mapping here at the same time or every
     // stored session silently becomes unreadable.
+    // The Buffer fallback is reached only off-Hermes, off-Workers — i.e. an old
+    // Node. It is read off globalThis behind a narrow inline type rather than
+    // by installing @types/node, because this module is imported by the RN
+    // client and pulling Node's global types in here would let genuinely
+    // Node-only APIs typecheck everywhere shared/ is used. TypeScript 5.9
+    // (Expo SDK 57) started erroring on the bare `Buffer` reference that used
+    // to compile only because an ambient declaration leaked in transitively.
+    const nodeBuffer = (
+      globalThis as {
+        Buffer?: { from(data: string, encoding: string): { toString(encoding: string): string } };
+      }
+    ).Buffer;
+
     const json =
-      typeof atob === 'function' ? atob(payload) : Buffer.from(payload, 'base64').toString('utf-8');
+      typeof atob === 'function'
+        ? atob(payload)
+        : (nodeBuffer?.from(payload, 'base64').toString('utf-8') ?? null);
+
+    // No decoder at all: "no opinion", the same answer the catch below gives.
+    if (json === null) return null;
 
     const claims = JSON.parse(json) as { exp?: unknown };
     return typeof claims.exp === 'number' && Number.isFinite(claims.exp) ? claims.exp : null;

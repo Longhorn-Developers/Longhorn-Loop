@@ -224,6 +224,13 @@ export function CreateEventProvider({ children }: { children: React.ReactNode })
         goNext,
         goBack,
         goToStep,
+        // Reading a ref in render, deliberately. The direction is only ever
+        // written immediately before a setStepIndex in the same handler, so
+        // the re-render that publishes a new stepIndex is the one that reads
+        // the fresh direction — they cannot go out of step. It is a ref rather
+        // than state precisely so it does NOT trigger a render of its own,
+        // which would animate the wizard twice per navigation.
+        // eslint-disable-next-line react-hooks/refs
         stepDirection: stepDirection.current,
         previewing,
         setPreviewing,

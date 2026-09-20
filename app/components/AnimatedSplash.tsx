@@ -2,6 +2,7 @@
 // dissolved into whatever screen index.tsx routed to.
 
 import { useThemeColors } from '@/app/lib/themeColors';
+import { useAnimatedValue } from '@/app/lib/useAnimatedValue';
 import { useEventListener } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useRef } from 'react';
@@ -27,8 +28,8 @@ const SAFETY_TIMEOUT_MS = 6000;
 export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   const colors = useThemeColors();
 
-  const splashOpacity = useRef(new Animated.Value(1)).current;
-  const washOpacity = useRef(new Animated.Value(0)).current;
+  const splashOpacity = useAnimatedValue(1);
+  const washOpacity = useAnimatedValue(0);
 
   // Three triggers below; the outro must only run once.
   const hasStartedOutro = useRef(false);
@@ -90,7 +91,13 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
   return (
     <Animated.View pointerEvents="none" style={[styles.container, { opacity: splashOpacity }]}>
-      <View style={[StyleSheet.absoluteFillObject, styles.orangeBackground]} />
+      {/* absoluteFill, not absoluteFillObject. RN 0.83 (Expo SDK 57) removed
+          absoluteFillObject from StyleSheet entirely — runtime as well as
+          types — so every use of it here was evaluating to `undefined` and
+          silently dropping the absolute positioning it was there to apply.
+          absoluteFill is now a frozen plain object and a drop-in replacement;
+          it used to be a registered style ID, which is why the two existed. */}
+      <View style={[StyleSheet.absoluteFill, styles.orangeBackground]} />
 
       <VideoView player={player} style={styles.video} contentFit="contain" nativeControls={false} />
 
@@ -98,7 +105,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       <Animated.View
         pointerEvents="none"
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           { backgroundColor: colors.background, opacity: washOpacity },
         ]}
       />
@@ -109,7 +116,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 const styles = StyleSheet.create({
   // Absolute, not flex:1 — it floats above the navigator rather than replacing it.
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 10,
   },
 

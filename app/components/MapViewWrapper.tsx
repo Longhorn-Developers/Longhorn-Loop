@@ -1,11 +1,19 @@
 import { ApiEvent } from '@/app/components/EventCard';
+import { buildMapMarkers, clusterDiameter, type ClusterMarker } from '@/app/lib/mapClusters';
+import { useAnimatedValue } from '@/app/lib/useAnimatedValue';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
 const BURNT_ORANGE = '#BF5700'; // theme-exempt: map marker pin, drawn over Google's tiles
 const SELECTED_ORANGE = '#FF8C00'; // theme-exempt: map marker pin, drawn over Google's tiles
+// theme-exempt for the same reason as the two above: it sits on Google's tiles,
+// not on our surface, so it has to read against the map in both app themes.
+const DIMMED_GREY = '#8A8A8A';
+// The press state of a cluster bubble. Lighter rather than darker so the white
+// count stays legible through the pulse.
+const PRESSED_ORANGE = '#E06A10'; // theme-exempt: drawn over Google's tiles
 
 const UT_REGION = {
   latitude: 30.2849,
@@ -16,55 +24,15 @@ const UT_REGION = {
 
 export type LocatedEvent = ApiEvent & { latitude: number; longitude: number };
 
-const LATITUDE_COS_AT_UT = Math.cos((30.2849 * Math.PI) / 180);
-const OVERLAP_OFFSET_DEGREES = 0.00008; // ~9m radius
-
-function jitterOverlappingCoordinates(
-  events: LocatedEvent[],
-): Map<number, { latitude: number; longitude: number }> {
-  // Coerce and validate BEFORE grouping (LOOP-279). The type says number and
-  // the caller filters on `!= null`, but the value comes off the wire: a string
-  // "30.28" passes that filter and then throws on .toFixed(). A non-finite
-  // value is worse than a throw — it reaches MapKit as a NaN coordinate and
-  // takes the app down natively, where there is no JS frame left to catch it.
-  // An event that fails this gets no pin rather than killing the whole map.
-  const points: { id: number; latitude: number; longitude: number }[] = [];
-  for (const event of events) {
-    const latitude = Number(event.latitude);
-    const longitude = Number(event.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
-    points.push({ id: event.id, latitude, longitude });
-  }
-
-  const groups = new Map<string, typeof points>();
-  for (const point of points) {
-    const key = `${point.latitude.toFixed(6)},${point.longitude.toFixed(6)}`;
-    const group = groups.get(key);
-    if (group) {
-      group.push(point);
-    } else {
-      groups.set(key, [point]);
-    }
-  }
-
-  const result = new Map<number, { latitude: number; longitude: number }>();
-  for (const group of groups.values()) {
-    if (group.length === 1) {
-      const [point] = group;
-      result.set(point.id, { latitude: point.latitude, longitude: point.longitude });
-      continue;
-    }
-    group.forEach((point, index) => {
-      const angle = (2 * Math.PI * index) / group.length;
-      result.set(point.id, {
-        latitude: point.latitude + OVERLAP_OFFSET_DEGREES * Math.cos(angle),
-        longitude:
-          point.longitude + (OVERLAP_OFFSET_DEGREES * Math.sin(angle)) / LATITUDE_COS_AT_UT,
-      });
-    });
-  }
-  return result;
-}
+// The scatter maths, the coordinate grouping and the collapse threshold moved
+// to app/lib/mapClusters.ts. Unchanged below the threshold — same ring, same
+// numbers — and testable there without mounting a map. That file's header
+// explains why a building with forty events now gets one marker.
+//
+// LOOP-279's coordinate validation moved with it. That fix landed on main
+// against the version of this function that lived here; the guard itself is
+// what matters, not where it sits, so it is now the first thing
+// buildMapMarkers does. See the note on `toPoint` in mapClusters.ts.
 
 /**
  * Android's double-tap timeout (ViewConfiguration.getDoubleTapTimeout). Zoom
@@ -82,8 +50,31 @@ export interface MapRegion {
 
 interface MapViewWrapperProps {
   events: LocatedEvent[];
+  /**
+   * Events the current filters EXCLUDED, drawn grey and untappable.
+   *
+   * Filtering a map by deleting pins tells you nothing about what you removed —
+   * the map just looks emptier, and you cannot tell "my filter is narrow" from
+   * "this part of campus is quiet". Greying them keeps the shape of the
+   * excluded set visible, which is what makes the filter legible as a filter
+   * (design: Explore filters, Concept 01).
+   *
+   * No onPress on purpose: a grey pin is context, not a target, and selecting
+   * one would open a mini card for an event that is not in the list behind it.
+   */
+  dimmedEvents?: LocatedEvent[];
   selectedEventId: number | null;
   onPinPress: (eventId: number) => void;
+  /**
+   * A counted bubble was tapped. Carries the whole cluster — its `key` is the
+   * venue key the list sections use, and `events` are the ones the filters
+   * kept, which is what the number on the bubble promised.
+   *
+   * Required for the collapse to be usable: a marker reading 40 that opens
+   * nothing is worse than the ring it replaced, because at least the ring's
+   * pins were individually tappable.
+   */
+  onClusterPress?: (cluster: ClusterMarker<LocatedEvent>) => void;
   onMapPress: () => void;
   /**
    * Where to open the map. Campus on a cold start; last position on a remount.
@@ -100,8 +91,10 @@ interface MapViewWrapperProps {
 
 export default function MapViewWrapper({
   events,
+  dimmedEvents,
   selectedEventId,
   onPinPress,
+  onClusterPress,
   onMapPress,
   getInitialRegion,
   onRegionSettled,
@@ -143,7 +136,16 @@ export default function MapViewWrapper({
     if (suppressTimer.current) clearTimeout(suppressTimer.current);
     suppressTimer.current = setTimeout(() => setZoomSuppressed(false), ZOOM_SUPPRESS_MS);
   }, []);
-  const displayCoordinates = useMemo(() => jitterOverlappingCoordinates(events), [events]);
+  /**
+   * Both sets go in together, for the reason spelled out in mapClusters: a
+   * separate pass per set would de-overlap each one on its own and then drop a
+   * live marker exactly on top of a dead one, which is the overlap the scatter
+   * exists to prevent — with the untappable pin on top.
+   */
+  const { scattered, clusters } = useMemo(
+    () => buildMapMarkers({ visible: events, dimmed: dimmedEvents ?? [] }),
+    [events, dimmedEvents],
+  );
 
   if (Platform.OS === 'web') {
     return (
@@ -186,30 +188,192 @@ export default function MapViewWrapper({
           onMapPress();
         }}
       >
-        {/*
-          The `!` this used to carry on .get() was the dangerous part
-          (LOOP-279): an event with no entry in displayCoordinates handed
-          <Marker> an undefined coordinate, which is an unrecoverable native
-          throw on both platforms. Entries are now missing by design — that is
-          how a bad coordinate is dropped — so the lookup is checked.
-        */}
-        {events.map((event) => {
-          const coordinate = displayCoordinates.get(event.id);
-          if (!coordinate) return null;
-          return (
+        {/* Dimmed first so they paint UNDER the live markers — react-native-maps
+            stacks markers in child order, and an excluded pin drawn on top of a
+            match would hide the one that matters. */}
+        {scattered
+          .filter((marker) => marker.dimmed)
+          .map((marker) => (
             <Marker
-              key={event.id}
-              coordinate={coordinate}
-              pinColor={selectedEventId === event.id ? SELECTED_ORANGE : BURNT_ORANGE}
+              key={`dim-${marker.event.id}`}
+              coordinate={marker.coordinate}
+              pinColor={DIMMED_GREY}
+              tracksViewChanges={false}
+              opacity={0.55}
+            />
+          ))}
+
+        {scattered
+          .filter((marker) => !marker.dimmed)
+          .map((marker) => (
+            <Marker
+              key={marker.event.id}
+              coordinate={marker.coordinate}
+              pinColor={selectedEventId === marker.event.id ? SELECTED_ORANGE : BURNT_ORANGE}
               onPress={() => {
                 pinJustPressed.current = true;
                 suppressZoomBriefly();
-                onPinPress(event.id);
+                onPinPress(marker.event.id);
               }}
             />
-          );
-        })}
+          ))}
+
+        {clusters.map((cluster) => (
+          <ClusterBubble
+            key={cluster.key}
+            cluster={cluster}
+            onPress={() => {
+              pinJustPressed.current = true;
+              suppressZoomBriefly();
+              onClusterPress?.(cluster);
+            }}
+          />
+        ))}
       </MapView>
     </View>
+  );
+}
+
+/**
+ * A collapsed venue: one marker carrying its count.
+ *
+ * A custom child view rather than `pinColor`, because the number is the whole
+ * point — a teardrop cannot say "40".
+ *
+ * ---------------------------------------------------------------------------
+ * THE PRESS ANIMATION AND `tracksViewChanges` ARE ONE PROBLEM, not two.
+ *
+ * A Marker with children is rasterised to a bitmap and pinned to the map. While
+ * `tracksViewChanges` is true it re-rasterises on EVERY map frame, which turns
+ * a pan across a handful of these into a slideshow on Android — so the resting
+ * state has to be `false`.
+ *
+ * But a snapshotted marker does not repaint, which means an animation inside it
+ * is invisible. Both facts are true at once, and the way through is to turn
+ * tracking on only for the length of the pulse: `tracksViewChanges={animating}`.
+ * The map pays the rasterisation cost for 260ms, on one marker, in response to a
+ * deliberate tap.
+ *
+ * That also rules out the native driver. Native-driven transforms never reach
+ * the JS-side view tree the rasteriser reads, so the bitmap would be captured
+ * unchanged — `useNativeDriver: false` is required here, not an oversight.
+ *
+ * Outside the pulse, the snapshot is keyed on everything it draws
+ * (count + dim state), so a filter change still forces a fresh capture.
+ */
+function ClusterBubble({
+  cluster,
+  onPress,
+}: {
+  cluster: ClusterMarker<LocatedEvent>;
+  onPress: () => void;
+}) {
+  // Nothing in this group survived the filters. It stays on the map, greyed, so
+  // the filter reads as a filter rather than as an empty campus — the same rule
+  // the dimmed pins follow.
+  const isEmpty = cluster.count === 0;
+  const label = isEmpty ? cluster.dimmedEvents.length : cluster.count;
+  const size = clusterDiameter(label);
+
+  const pulse = useAnimatedValue(0);
+  const [animating, setAnimating] = useState(false);
+
+  /**
+   * Track for one beat after mount, then stop.
+   *
+   * `tracksViewChanges={false}` from the very first render is the documented
+   * way to get a BLANK marker out of react-native-maps: the bitmap is captured
+   * before the child view has laid out, and nothing ever recaptures it. The
+   * bubble either doesn't appear or appears at the wrong size, and on a map
+   * that is redrawing as you pan it reads as flicker rather than as a missing
+   * view.
+   *
+   * So: capture properly, then go quiet. The cost is one short tracking window
+   * per bubble on mount rather than tracking forever.
+   */
+  const [settling, setSettling] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettling(false), 250);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // A pending animation on an unmounted marker would call setState on a dead
+  // component every time the filters change under a pressed bubble.
+  useEffect(() => () => pulse.stopAnimation(), [pulse]);
+
+  const handlePress = useCallback(() => {
+    setAnimating(true);
+    pulse.setValue(0);
+    Animated.sequence([
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 110,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }),
+      Animated.spring(pulse, {
+        toValue: 0,
+        friction: 5,
+        tension: 140,
+        useNativeDriver: false,
+      }),
+    ]).start(() => setAnimating(false));
+
+    onPress();
+  }, [onPress, pulse]);
+
+  // Down and back, not up: a bubble that grows under the thumb is hidden by it
+  // at exactly the moment the feedback is wanted.
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.86] });
+  const backgroundColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [isEmpty ? DIMMED_GREY : BURNT_ORANGE, isEmpty ? DIMMED_GREY : PRESSED_ORANGE],
+  });
+
+  return (
+    <Marker
+      coordinate={cluster.coordinate}
+      key={`${cluster.key}-${label}-${isEmpty ? 'dim' : 'live'}`}
+      tracksViewChanges={animating || settling}
+      onPress={isEmpty ? undefined : handlePress}
+      opacity={isEmpty ? 0.55 : 1}
+      accessibilityLabel={
+        isEmpty
+          ? `${label} events here, all hidden by your filters`
+          : `${label} events at this location`
+      }
+    >
+      {/* Padded so the scaled-up ring has somewhere to go; without it the
+          bitmap is cropped to the resting size and the pulse looks clipped. */}
+      <View style={{ padding: 4 }}>
+        <Animated.View
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor,
+            // theme-exempt, like the pin colours: this ring separates the
+            // bubble from Google's tiles, not from our surface.
+            borderWidth: 2.5,
+            borderColor: 'rgba(255,255,255,0.82)',
+            transform: [{ scale }],
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontWeight: '700',
+              fontVariant: ['tabular-nums'],
+              // Steps with the bubble so a three-digit count still fits.
+              fontSize: size >= 46 ? 16 : size >= 38 ? 13 : 11.5,
+            }}
+          >
+            {label}
+          </Text>
+        </Animated.View>
+      </View>
+    </Marker>
   );
 }
