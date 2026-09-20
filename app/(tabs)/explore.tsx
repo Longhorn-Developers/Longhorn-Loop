@@ -1,10 +1,13 @@
+import ResultsErrorBoundary from '@/app/components/ErrorBoundary';
 import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
+import ExploreFilterSheet from '@/app/components/explore/ExploreFilterSheet';
 import ExploreToggles, {
   ExploreSelection,
   selectionKey,
 } from '@/app/components/explore/ExploreToggles';
+import ExploreListPanel from '@/app/components/explore/ExploreListPanel';
 import OrgResultRow, { OrgSearchResult } from '@/app/components/explore/OrgResultRow';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
@@ -14,17 +17,55 @@ import { useDebounced } from '@/app/lib/useDebounced';
 import { useSavedEvents } from '@/app/lib/useSavedEvents';
 import { useThemeColors } from '@/app/lib/themeColors';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import { type ClusterMarker } from '@/app/lib/mapClusters';
+import { COLLEGES, collegeForSource, collegeById } from '@/shared/colleges';
+import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
+import {
+  EMPTY_FILTERS,
+  applyFilters,
+  describeFilters,
+  facetCounts,
+  hasActiveFilters,
+  type ExploreFilters,
+  type FilterContext,
+} from '@/shared/exploreFilters';
 import { ORG_SEARCH_MIN_QUERY } from '@/shared/orgRegistration';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { TAXONOMY_BUCKETS } from '@/shared/taxonomy';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type EventsListResponse = { events: ApiEvent[] };
-type BucketResponse = { bucketId: string; label: string; events: ApiEvent[]; total: number };
-type OrgSearchResponse = { query: string; organizations: OrgSearchResult[] };
+type OrgSearchResponse = {
+  query: string;
+  organizations: OrgSearchResult[];
+  /** Opaque cursor for the next page, or null at the end of the directory. */
+  nextCursor: string | null;
+};
+
+/**
+ * Orgs per page.
+ *
+ * The list renders inside the events FlatList's header, which is a plain View
+ * and not virtualised, so an unbounded directory would mount every row at once.
+ * Capped and paged with "Show more" instead. 20 is enough to read as a
+ * directory rather than a teaser, and under the endpoint's own
+ * ORG_SEARCH_MAX_LIMIT of 25.
+ */
+const ORG_PAGE_SIZE = 20;
 type ViewMode = 'list' | 'map';
 
 const IS_WEB = Platform.OS === 'web';
@@ -53,7 +94,66 @@ function matchesEvent(event: ApiEvent, needle: string): boolean {
     ...(event.categories ?? []).map((c) => c?.name),
   ];
 
-  return haystack.some((field) => field != null && field.toLowerCase().includes(needle));
+  // typeof, not `!= null` (LOOP-279). The types say every entry is a string,
+  // but these come straight off the wire: `tags` and `categories` are joined
+  // server-side from event_tags / event_categories, so a row with an unexpected
+  // shape puts a non-string in here and `.toLowerCase()` throws mid-keystroke —
+  // an unhandled throw in render, which in a release build is a hard crash and
+  // not a red box. Worth noting `.some()` short-circuits: a needle that matches
+  // the title never reaches the tags, so a bad tag only bites on queries that
+  // miss everything above it. That is exactly the shape of a crash report that
+  // names one specific search term.
+  return haystack.some(
+    (field) => typeof field === 'string' && field.toLowerCase().includes(needle),
+  );
+}
+
+/**
+ * Route-level backstop (LOOP-279). Expo Router renders this instead of the
+ * screen when anything under `/explore` throws during render.
+ *
+ * The in-screen <ResultsErrorBoundary> below is the one that should normally
+ * fire: it swaps only the results and leaves the search field alive, so the
+ * user can type their way out. This exists because a boundary cannot catch a
+ * throw in its own parent's render, and ExploreScreen does real work before it
+ * mounts anything (the search filter, the located-events narrowing). Without
+ * this, that class of throw escapes to the native handler, which in a release
+ * build is a hard crash with no trace — `app/lib/monitoring.ts` is still a
+ * documented no-op, so there would be nothing to symbolicate afterwards.
+ *
+ * `retry` remounts the route, which resets the query to empty.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const colors = useThemeColors();
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
+      >
+        <Text style={{ fontSize: 17, fontWeight: '600', color: colors.ink, textAlign: 'center' }}>
+          Explore ran into a problem
+        </Text>
+        <Text
+          style={{ fontSize: 14, color: colors.inkMuted, textAlign: 'center', marginTop: 8 }}
+          // Shown, not hidden: TestFlight feedback is the only crash channel
+          // this app has while monitoring is stubbed, and a tester who can read
+          // the message can paste it into a report.
+          selectable
+        >
+          {error?.message ?? 'Unknown error'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => void retry()}
+          accessibilityRole="button"
+          accessibilityLabel="Reload Explore"
+          hitSlop={8}
+          style={{ marginTop: 20 }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.accent }}>Reload</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 }
 
 /** The "Explore" title, and the list/map toggle measured against it. */
@@ -70,6 +170,9 @@ const TOGGLE_ICON_SIZE = 22;
 /** Takes each 32x42 button to 44x50 — past the 44pt floor, same control height. */
 const TOGGLE_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 };
 
+/** The 44pt tap-target floor, met with height rather than hitSlop. */
+const SEARCH_BAR_HEIGHT = 44;
+
 export default function ExploreScreen() {
   const colors = useThemeColors();
   const router = useRouter();
@@ -83,75 +186,233 @@ export default function ExploreScreen() {
   const [selection, setSelection] = useState<ExploreSelection>({ kind: 'trending' });
   const [query, setQuery] = useState('');
 
-  const listRef = useRef<FlatList<ApiEvent>>(null);
+  // --- Filters ("College Lens") -------------------------------------------
+  const [filters, setFilters] = useState<ExploreFilters>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  /**
+   * `now` is state rather than a fresh `new Date()` per render.
+   *
+   * It is a dependency of every memo below, so a value that changed on every
+   * render would defeat all of them and re-filter ~100 events continuously.
+   * Refreshed when the sheet opens, which is the only moment a stale "Today"
+   * boundary could actually mislead anyone — a session left open across
+   * midnight re-reads the clock the next time the user goes to filter.
+   */
+  const [now, setNow] = useState(() => new Date());
+
+  const openFilters = useCallback(() => {
+    setNow(new Date());
+    setFiltersOpen(true);
+  }, []);
 
   const debouncedQuery = useDebounced(query.trim(), SEARCH_DEBOUNCE_MS);
   const needle = debouncedQuery.toLowerCase();
   const isSearching = debouncedQuery.length >= ORG_SEARCH_MIN_QUERY;
 
-  const bucketId = selection.kind === 'bucket' ? selection.id : null;
   const activeSelectionKey = selectionKey(selection);
 
+  /**
+   * One request, one page, every filter applied over it in memory.
+   *
+   * This used to branch to GET /feed/bucket/:id when an interest pill was
+   * active. Interests are now one of four filter groups, and the others
+   * (college, time, perks) have no endpoint at all — so a server round trip
+   * could satisfy at most a quarter of the sheet and the rest would still be
+   * filtered locally. Splitting the work across two places would also break the
+   * live counts, which are the design's whole thesis: a chip can only promise
+   * "47" if the 47 is computed from the same set the list is drawn from.
+   *
+   * The honest limit: this is exact for the ~100 events a feed page returns and
+   * wrong the moment the corpus outgrows one page — the same caveat
+   * `matchesEvent` above already carries. When GET /feed/explore learns these
+   * as query parameters, shared/exploreFilters.ts is the predicate to hand it,
+   * and `facetCounts` is what the response then has to include.
+   */
   const eventsQuery = useQuery({
-    queryKey: bucketId ? feedKeys.bucket(bucketId) : feedKeys.explore({ limit: '100' }),
-    queryFn: () =>
-      bucketId
-        ? api
-            .get<BucketResponse>(`/feed/bucket/${bucketId}?limit=100`, { token })
-            .then((r) => ({ events: r.events }))
-        : api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
+    queryKey: feedKeys.explore({ limit: '100' }),
+    queryFn: () => api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
     staleTime: 30_000,
   });
 
-  // Orgs come from the one org list endpoint that exists (GET /orgs/search).
-  // It refuses queries shorter than ORG_SEARCH_MIN_QUERY and has no browse-all
-  // mode, which is why the Orgs toggle shows a prompt rather than a directory
-  // until that endpoint grows one (LOOP-264).
-  const orgsQuery = useQuery({
-    queryKey: orgKeys.search(debouncedQuery),
-    queryFn: () =>
-      api.get<OrgSearchResponse>(`/orgs/search?q=${encodeURIComponent(debouncedQuery)}`, { token }),
-    enabled: !!token && isSearching,
+  /**
+   * The org directory, alphabetical, a page at a time.
+   *
+   * GET /orgs/search grew a browse-all mode in LOOP-264 and this screen never
+   * caught up — it was still only calling the endpoint with a query, which is
+   * why the Orgs tab showed "Search to find an organization" instead of the
+   * directory it could have shown all along.
+   *
+   * An OMITTED query means "the whole directory" server-side; a query that is
+   * non-empty but shorter than ORG_SEARCH_MIN_QUERY still returns nothing, so
+   * the list doesn't thrash while someone types the first letter.
+   *
+   * `sort=az` both ways. Searching also gets exact and prefix matches lifted to
+   * the top by the server, so alphabetical is the tiebreak rather than the
+   * whole ordering.
+   */
+  const orgsQuery = useInfiniteQuery({
+    queryKey: orgKeys.directory(debouncedQuery),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ sort: 'az', limit: String(ORG_PAGE_SIZE) });
+      if (isSearching) params.set('q', debouncedQuery);
+      if (pageParam) params.set('cursor', pageParam);
+      return api.get<OrgSearchResponse>(`/orgs/search?${params.toString()}`, { token });
+    },
+    // undefined, not null: undefined is what tells TanStack there is no next
+    // page, and null would be read as a real cursor value.
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    // Runs for the Orgs tab even with nothing typed — that is the directory —
+    // and for a search from any tab, because org results show there too.
+    enabled: !!token && (selection.kind === 'orgs' || isSearching),
     staleTime: 30_000,
   });
 
   const allEvents = useMemo(() => eventsQuery.data?.events ?? [], [eventsQuery.data]);
 
-  const visibleEvents = useMemo(
+  /**
+   * THE PIPELINE, in the order the user thinks about it:
+   *
+   *   allEvents  --search-->  searchedEvents  --filters-->  visibleEvents
+   *
+   * Search first, filters second, and the facet counts are computed over
+   * `searchedEvents`. That ordering is the whole reason the counts can be
+   * trusted: with a query typed, a chip that says 12 has to mean "12 of the
+   * things matching your search", not 12 of the whole page — otherwise it
+   * promises 12 and the list shows 3.
+   */
+  const searchedEvents = useMemo(
     () => (isSearching ? allEvents.filter((e) => matchesEvent(e, needle)) : allEvents),
     [allEvents, isSearching, needle],
   );
 
-  const orgResults = orgsQuery.data?.organizations ?? [];
+  /**
+   * Everything the filter module needs that lives outside it: how to read a
+   * college off an event, what tags belong to which bucket, and what time it
+   * is. Assembled here so shared/exploreFilters.ts stays free of both the
+   * taxonomy import and the clock.
+   */
+  const filterContext: FilterContext = useMemo(
+    () => ({
+      collegeOf: collegeForSource,
+      bucketTags: Object.fromEntries(TAXONOMY_BUCKETS.map((b) => [b.id, b.tags])),
+      now,
+    }),
+    [now],
+  );
+
+  const visibleEvents = useMemo(
+    () => applyFilters(searchedEvents, filters, filterContext),
+    [searchedEvents, filters, filterContext],
+  );
+
+  const counts = useMemo(
+    () =>
+      facetCounts(searchedEvents, filters, filterContext, {
+        collegeIds: COLLEGES.map((c) => c.id),
+        bucketIds: TAXONOMY_BUCKETS.map((b) => b.id),
+        perkNames: [...EVENT_BENEFIT_OPTIONS],
+      }),
+    [searchedEvents, filters, filterContext],
+  );
+
+  /** "47 events · Cockrell · this week" — the line above the results. */
+  const resultSummary = useMemo(() => {
+    const parts = describeFilters(filters, (id) => collegeById(id)?.short);
+    const noun = visibleEvents.length === 1 ? 'event' : 'events';
+    return [`${visibleEvents.length} ${noun}`, ...parts].join(' · ');
+  }, [filters, visibleEvents.length]);
+
+  const orgResults = useMemo(
+    () => orgsQuery.data?.pages.flatMap((page) => page.organizations) ?? [],
+    [orgsQuery.data],
+  );
 
   /**
-   * Snap back to the top whenever the result set changes.
+   * Identity of the grid. Changing it remounts the list.
    *
-   * Not cosmetic — this is the crash fix. VirtualizedList keeps a render window
-   * of cell frames keyed by index. Editing the query rewrites `data` underneath
-   * that window, and if the list is still scrolled to an offset that only
-   * existed for the LONGER previous list, it asks for a frame at an index the
-   * new data no longer has and throws ("Tried to get frame for out of range
-   * index"). Typing, deleting and retyping quickly is the reliable way to hit
-   * it, because each edit shrinks and regrows `data` before the list settles.
+   * This is the crash fix (LOOP-279), and it replaces an earlier scroll-to-top
+   * effect that only mostly worked. The bug: VirtualizedList keeps a render
+   * window of cell frames keyed by index. Editing the query rewrites `data`
+   * underneath that window, and if the list is still scrolled to an offset that
+   * only existed for the LONGER previous list, it asks for a frame at an index
+   * the new data no longer has and throws ("Tried to get frame for out of range
+   * index"). An unhandled throw in render is a red box in dev and a hard crash
+   * in a release build, which is what a tester reports as "broke when I typed".
    *
-   * scrollToOffset (not scrollToIndex) is deliberate: it is safe on an empty
-   * list, where scrollToIndex would throw on its own.
+   * Why the old fix was not enough: `listRef.current.scrollToOffset(...)` from
+   * a useEffect runs AFTER commit, and the native scroll it asks for lands
+   * later still. The list has already reconciled the shrunken `data` against
+   * the old offset by then, so the throw beats the correction. Racing it with
+   * useLayoutEffect just narrows the window instead of closing it.
+   *
+   * THE FILTERS BELONG IN THIS KEY for exactly the same reason the query does.
+   * Applying one shrinks `data` under the same render window — narrowing 100
+   * events to 3 while scrolled to row 40 is the identical out-of-range read.
+   * Spelled out field by field rather than via a count, because swapping one
+   * college for another leaves the count unchanged while replacing every row.
+   *
+   * Remounting closes it: a new list starts at offset 0 with no cached frames,
+   * so there is no stale window left to read. The cost is rebuilding ~100 cells
+   * at each debounce boundary — cheap, and the content is changing wholesale at
+   * that moment anyway. Note this keys off `needle` (the DEBOUNCED query), not
+   * `query`, so it is once per typing pause, not once per keystroke.
    */
-  useEffect(() => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [needle, isSearching, activeSelectionKey]);
+  const filterKey = [
+    filters.collegeId ?? '',
+    filters.interests.join('+'),
+    filters.when,
+    filters.perks.join('+'),
+  ].join('|');
+  const gridKey = `explore-grid-${activeSelectionKey}-${isSearching ? needle : ''}-${filterKey}`;
 
   // Type-narrowed subset: only events with non-null coordinates go on the map.
-  // Driven by visibleEvents so the pins honour the search too.
+  // Driven by visibleEvents so the pins honour the search and the filters too.
   const locatedEvents: LocatedEvent[] = useMemo(
     () => visibleEvents.filter((e): e is LocatedEvent => e.latitude != null && e.longitude != null),
     [visibleEvents],
   );
 
-  // Toggle: tapping the active pin dismisses the card; tapping a new pin selects it.
+  /**
+   * What the filters excluded, for the map to draw grey.
+   *
+   * Excluded by FILTERS only, not by search: a pin dropped because it doesn't
+   * match what you typed isn't a thing you narrowed away, it's a thing you
+   * didn't ask about, and greying every event on campus during a search would
+   * bury the handful of matches under 200 grey pins.
+   */
+  const dimmedEvents: LocatedEvent[] = useMemo(() => {
+    const visible = new Set(visibleEvents.map((e) => e.id));
+    return searchedEvents.filter(
+      (e): e is LocatedEvent => e.latitude != null && e.longitude != null && !visible.has(e.id),
+    );
+  }, [searchedEvents, visibleEvents]);
+
+  /**
+   * The tapped cluster's events, or null when no cluster is open.
+   *
+   * The events rather than a coordinate: the map already worked out which
+   * events belong to that bubble, and re-deriving it here would put a second
+   * copy of the grouping rule on this screen.
+   */
+  const [clusterEvents, setClusterEvents] = useState<ApiEvent[] | null>(null);
+
+  /**
+   * ONE MARKER, ONE ANSWER. A single pin gets the mini card it always had; a
+   * counted bubble gets the list panel. They are mutually exclusive because
+   * both anchor to the bottom of the map and would otherwise overlap — and
+   * because a pin is one event and a bubble is a building, which are two
+   * different questions deserving two different answers.
+   */
   const handlePinPress = useCallback((eventId: number) => {
+    setClusterEvents(null);
     setSelectedEventId((prev) => (prev === eventId ? null : eventId));
+  }, []);
+
+  const handleClusterPress = useCallback((cluster: ClusterMarker<LocatedEvent>) => {
+    setSelectedEventId(null);
+    setClusterEvents(cluster.events);
   }, []);
 
   const handleViewDetails = useCallback(
@@ -172,9 +433,55 @@ export default function ExploreScreen() {
    * A ref, not state -- nothing should re-render because the camera moved.
    */
   const lastRegion = useRef<MapRegion | null>(null);
+
+  /**
+   * A ref, not state — nothing should re-render because the camera moved.
+   *
+   * This briefly WAS state, when the list panel was scoped to the viewport and
+   * genuinely needed to know. That cost a full re-render of this screen, the
+   * map and the list on every settled pan, and it was the jitter people
+   * reported. The panel is scoped to a tapped cluster now, so nothing on screen
+   * depends on the camera and the ref is enough again.
+   */
   const handleRegionSettled = useCallback((region: MapRegion) => {
     lastRegion.current = region;
   }, []);
+
+  /**
+   * Handed to the map as a GETTER rather than as `initialRegion={lastRegion.current}`.
+   *
+   * Two reasons, and they point the same way. The lint one: reading `.current`
+   * in the render body is `react-hooks/refs` ("Cannot access refs during
+   * render") and fails CI. The real one: an uncontrolled MapView reads its
+   * initial region exactly once, at mount, so passing it as a rendered value
+   * was always misleading — the map re-reads nothing on later renders. A getter
+   * the map calls from a useState initializer makes the mount-only read
+   * explicit instead of suppressing the warning about it.
+   */
+  const getLastRegion = useCallback(() => lastRegion.current ?? undefined, []);
+
+  /**
+   * Drop focus on the search field.
+   *
+   * Both calls are needed. `Keyboard.dismiss()` is what actually retracts the
+   * keyboard on iOS and Android, but it is a no-op on web, where the caret and
+   * the focus ring would otherwise stay put; `blur()` handles that and also
+   * guarantees onBlur fires, which is what clears the field's orange border.
+   */
+  const searchRef = useRef<TextInput>(null);
+  const dismissSearch = useCallback(() => {
+    searchRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
+
+  /** Stable identity: an inline arrow re-renders every Marker (see MapViewWrapper). */
+  const handleMapPress = useCallback(() => {
+    setSelectedEventId(null);
+    // Bare map also closes the venue panel — one tap should not leave one of
+    // the two marker answers open behind a dismissed other.
+    setClusterEvents(null);
+    dismissSearch();
+  }, [dismissSearch]);
 
   const handleSelect = useCallback((next: ExploreSelection) => {
     setSelection(next);
@@ -308,22 +615,44 @@ export default function ExploreScreen() {
       </View>
 
       {/* Search (LOOP-175) */}
+      {/*
+        SEARCH_BAR_HEIGHT overrides the 33px form-field default. That default is
+        the smallest tap target on this screen and the one the user is aimed at
+        first — the same hit-target complaint LOOP-283 raises about the section
+        arrows. 44 is the platform floor, and unlike the arrows it can be met
+        with real height rather than hitSlop, because a search bar is supposed
+        to look like a big soft target. The glyph and text scale with it or the
+        control reads as an empty box with something small floating in it.
+
+        Height only here, not in the shared component: TextInputField backs
+        every form in the app and raising all of them is a design decision.
+      */}
       <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
         <TextInputField
+          ref={searchRef}
           value={query}
           onChangeText={setQuery}
           placeholder="Search events and orgs..."
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
+          // Dismisses on the keyboard's own Search key, so the field is not the
+          // one place on the screen with no way out.
+          onSubmitEditing={dismissSearch}
           clearable
           borderRadius={999}
-          leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
+          height={SEARCH_BAR_HEIGHT}
+          leftIcon={<LhlSearchIcon size={18} color={colors.inkSecondary} />}
         />
       </View>
 
-      {/* Feed selector (LOOP-177) */}
-      <ExploreToggles selection={selection} onSelect={handleSelect} />
+      {/* Feed selector (LOOP-177) + the Filters entry point */}
+      <ExploreToggles
+        selection={selection}
+        onSelect={handleSelect}
+        filters={filters}
+        onOpenFilters={openFilters}
+      />
 
       <View
         style={{
@@ -331,9 +660,37 @@ export default function ExploreScreen() {
           backgroundColor: colors.divider,
           marginHorizontal: 20,
           marginTop: 14,
-          marginBottom: 16,
+          marginBottom: showEventSection && hasActiveFilters(filters) ? 10 : 16,
         }}
       />
+
+      {/* The active filters, stated in words, after the sheet has closed.
+          Without this the only evidence that a filter is on is a shorter list,
+          which reads as "the app has nothing" rather than "you asked for this"
+          — the single most common way a filtered view gets mistaken for a bug. */}
+      {showEventSection && hasActiveFilters(filters) ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            paddingHorizontal: 20,
+            marginBottom: 14,
+          }}
+        >
+          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.inkSecondary }}>
+            {resultSummary}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setFilters(EMPTY_FILTERS)}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all filters"
+            hitSlop={10}
+          >
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.accent }}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </>
   );
 
@@ -352,18 +709,63 @@ export default function ExploreScreen() {
         Organizations
       </Text>
 
-      {!isSearching ? (
-        <Text style={{ color: colors.inkMuted, paddingVertical: 12 }}>
-          Search to find an organization.
-        </Text>
-      ) : orgsQuery.isPending ? (
+      {orgsQuery.isPending ? (
         <ActivityIndicator color={colors.accent} style={{ paddingVertical: 12 }} />
       ) : orgResults.length === 0 ? (
         <Text style={{ color: colors.inkMuted, paddingVertical: 12 }}>
-          No organizations match “{debouncedQuery}”.
+          {isSearching ? `No organizations match “${debouncedQuery}”.` : 'No organizations yet.'}
         </Text>
       ) : (
-        orgResults.map((org) => <OrgResultRow key={org.id} org={org} />)
+        <>
+          {orgResults.map((org) => (
+            <OrgResultRow key={org.id} org={org} />
+          ))}
+
+          {/* Paged rather than infinite-scrolling on purpose: this list lives
+              in a non-virtualised header, and an auto-loading list there would
+              keep mounting rows until the directory ran out. A button makes
+              the cost the user's choice and keeps the page bounded. */}
+          {orgsQuery.hasNextPage ? (
+            <TouchableOpacity
+              onPress={() => orgsQuery.fetchNextPage()}
+              disabled={orgsQuery.isFetchingNextPage}
+              accessibilityRole="button"
+              accessibilityLabel="Show more organizations"
+              accessibilityState={{ disabled: orgsQuery.isFetchingNextPage }}
+              style={{
+                marginTop: 10,
+                minHeight: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              {orgsQuery.isFetchingNextPage ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.accent }}>
+                  Show more
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            /* The end of the directory, said out loud. Without it a list that
+               simply stops looks like one that failed to load the rest. */
+            <Text
+              style={{
+                marginTop: 10,
+                textAlign: 'center',
+                fontSize: 11.5,
+                color: colors.inkMuted,
+              }}
+            >
+              {orgResults.length} {orgResults.length === 1 ? 'organization' : 'organizations'}
+              {isSearching ? '' : ' · that’s all of them'}
+            </Text>
+          )}
+        </>
       )}
     </View>
   ) : null;
@@ -392,8 +794,7 @@ export default function ExploreScreen() {
     if (showList) {
       return (
         <FlatList
-          ref={listRef}
-          key={`explore-grid-${selectionKey(selection)}`}
+          key={gridKey}
           data={showEventSection ? visibleEvents : []}
           extraData={savedIds}
           keyExtractor={keyExtractor}
@@ -401,7 +802,12 @@ export default function ExploreScreen() {
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
           showsVerticalScrollIndicator={false}
+          // persistTaps "handled": a tap on dead space in the list dismisses
+          // the keyboard, but a tap on a card still opens the card instead of
+          // being eaten as a dismiss. dismissMode "on-drag": starting a scroll
+          // counts as leaving the field, which is what a scroll means.
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           // Android detaches clipped subviews by default. Combined with a data
           // array that changes on every keystroke, that is the other reliable
           // way to end up reading a detached cell. Cheap to disable here: the
@@ -410,9 +816,32 @@ export default function ExploreScreen() {
           ListHeaderComponent={orgSection}
           ListEmptyComponent={
             showEventSection ? (
-              <Text style={{ color: colors.inkMuted, textAlign: 'center', marginTop: 40 }}>
-                {isSearching ? `No events match “${debouncedQuery}”.` : 'No events found.'}
-              </Text>
+              <View style={{ marginTop: 40, alignItems: 'center', paddingHorizontal: 24 }}>
+                <Text style={{ color: colors.inkMuted, textAlign: 'center' }}>
+                  {isSearching
+                    ? `No events match “${debouncedQuery}”.`
+                    : hasActiveFilters(filters)
+                      ? 'No events match these filters.'
+                      : 'No events found.'}
+                </Text>
+                {/* An empty list caused by a filter gets the way out, right
+                    here. You can only reach this state from a search or from
+                    filters that were non-empty when they were applied and have
+                    since gone stale, so the recovery has to be one tap. */}
+                {hasActiveFilters(filters) ? (
+                  <TouchableOpacity
+                    onPress={() => setFilters(EMPTY_FILTERS)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear all filters"
+                    style={{ marginTop: 12 }}
+                    hitSlop={10}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.accent }}>
+                      Clear filters
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             ) : null
           }
           renderItem={renderItem}
@@ -424,14 +853,16 @@ export default function ExploreScreen() {
       <View style={{ flex: 1 }}>
         <MapViewWrapper
           events={locatedEvents}
+          dimmedEvents={dimmedEvents}
           selectedEventId={selectedEventId}
           onPinPress={handlePinPress}
-          onMapPress={() => setSelectedEventId(null)}
-          initialRegion={lastRegion.current ?? undefined}
+          onClusterPress={handleClusterPress}
+          onMapPress={handleMapPress}
+          getInitialRegion={getLastRegion}
           onRegionSettled={handleRegionSettled}
         />
 
-        {/* Mini preview card anchored to bottom, rendered above the map */}
+        {/* One pin: the mini card, unchanged. */}
         {selectedEvent != null && (
           <View
             style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
@@ -446,14 +877,80 @@ export default function ExploreScreen() {
             />
           </View>
         )}
+
+        {/* One building: the list panel, opened by its bubble and showing only
+            that bubble's events. */}
+        <ExploreListPanel
+          visible={clusterEvents !== null}
+          events={clusterEvents ?? []}
+          onClose={() => setClusterEvents(null)}
+          onSelectEvent={handleViewDetails}
+        />
       </View>
     );
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['left', 'right']}>
-      {pinnedHeader}
-      {body()}
+      {/*
+        Tap anywhere off the search field to leave it.
+
+        Four handlers cover the screen between them, and each has to live where
+        it does. This Pressable takes the header — the title row, the padding
+        around the search bar, the gaps — which is everything up here that owns
+        no touch handler of its own. Below it, the list dismisses via
+        keyboardShouldPersistTaps / keyboardDismissMode and the map via
+        onMapPress, because a ScrollView claims the responder for touches inside
+        it and a native map swallows its own; neither would ever bubble a tap up
+        to a wrapper.
+
+        Which is also why this wraps ONLY the header and not the whole screen.
+        A Pressable around body() would sit over the MapView, and Pressable
+        answers onStartShouldSetResponder with true — on the default view of
+        this screen that risks eating the first touch of a pan. Nothing is lost
+        by staying up here: the region below the header is always either the
+        list or the map, and both already handle it.
+
+        accessible={false} keeps this out of the screen reader's element list.
+        It is a fallback gesture, not a control.
+      */}
+      <Pressable onPress={dismissSearch} accessible={false} android_disableSound>
+        {/*
+          The header stays OUTSIDE the boundary on purpose (LOOP-279). If
+          results throw, the search field has to survive — the fallback's "try
+          again" is useless if the only way out of a bad query is to kill the
+          app. Resetting on `needle` means editing the query clears the fallback
+          on its own.
+        */}
+        {pinnedHeader}
+      </Pressable>
+      <ResultsErrorBoundary
+        label="explore.results"
+        resetKeys={[needle, activeSelectionKey, showList, filterKey]}
+        message="Could not show these results. Try a different search."
+      >
+        {body()}
+      </ResultsErrorBoundary>
+
+      {/* OUTSIDE the boundary, for the same reason the header is: the sheet is
+          how you change what the results are. If a bad filter combination is
+          what threw, the control that lets you undo it has to survive the
+          fallback — and the fallback's reset keys include the filters, so
+          changing one clears it.
+
+          Filters apply live: the list and pins behind the sheet change as you
+          tap. The footer button carries the count and dismisses; it is not a
+          commit step, so there is no draft state to desync from what you can
+          already see. */}
+      <ExploreFilterSheet
+        visible={filtersOpen}
+        filters={filters}
+        counts={counts}
+        totalEvents={searchedEvents.length}
+        unit={showList ? 'events' : 'pins'}
+        onChange={setFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -137,10 +137,7 @@ export default function WhosPosting() {
           <RequiredMark />
         </Text>
 
-        <FieldError
-          show={attempted && !canContinue}
-          message="Choose who is posting this event."
-        />
+        <FieldError show={attempted && !canContinue} message="Choose who is posting this event." />
 
         {isLoading && (
           <View style={styles.loading}>

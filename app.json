@@ -64,8 +64,7 @@
           "locationWhenInUsePermission": "Longhorn Loop uses your location to show how far events are and to give directions."
         }
       ],
-      "expo-image",
-      "expo-status-bar"
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,

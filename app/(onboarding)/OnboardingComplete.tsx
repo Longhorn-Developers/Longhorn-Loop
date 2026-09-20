@@ -4,8 +4,9 @@ import { appendImageFile } from '@/app/lib/imageForm';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { captureError } from '@/app/lib/monitoring';
+import { useAnimatedValue } from '@/app/lib/useAnimatedValue';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   SafeAreaView,
@@ -50,12 +51,12 @@ export default function OnboardingComplete() {
    */
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  const checkScale = useRef(new Animated.Value(0)).current;
-  const checkOpacity = useRef(new Animated.Value(0)).current;
-  const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslate = useRef(new Animated.Value(24)).current;
-  const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const buttonTranslate = useRef(new Animated.Value(24)).current;
+  const checkScale = useAnimatedValue(0);
+  const checkOpacity = useAnimatedValue(0);
+  const textOpacity = useAnimatedValue(0);
+  const textTranslate = useAnimatedValue(24);
+  const buttonOpacity = useAnimatedValue(0);
+  const buttonTranslate = useAnimatedValue(24);
 
   useEffect(() => {
     Animated.sequence([

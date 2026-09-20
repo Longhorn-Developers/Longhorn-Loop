@@ -51,9 +51,7 @@ export function FieldError({ show, message }: { show: boolean; message: string }
       style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 }}
     >
       <Text style={{ color: colors.destructive, fontSize: 11, lineHeight: 14 }}>!</Text>
-      <Text
-        style={{ color: colors.destructive, fontSize: 11, lineHeight: 14, flexShrink: 1 }}
-      >
+      <Text style={{ color: colors.destructive, fontSize: 11, lineHeight: 14, flexShrink: 1 }}>
         {message}
       </Text>
     </View>

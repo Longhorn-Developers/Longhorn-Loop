@@ -134,7 +134,10 @@ export default function SettingsDrawer({ open, onOpenChange, children }: Setting
 
           <Animated.View
             style={[
-              StyleSheet.absoluteFillObject,
+              // absoluteFill: RN 0.83 (SDK 57) deleted absoluteFillObject at
+              // runtime, so this was resolving to undefined and the scrim was
+              // relying on the parent's layout instead of filling it.
+              StyleSheet.absoluteFill,
               // theme-exempt: a scrim is black over both themes.
               { backgroundColor: '#000' },
               scrimStyle,

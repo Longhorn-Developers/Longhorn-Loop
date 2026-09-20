@@ -22,6 +22,33 @@
 // Permissions are mirrored from the server, never invented here: the API
 // returns `can_manage`, and every management control is gated on it. The
 // server re-checks each mutation, so hiding a button is presentation only.
+//
+// ---------------------------------------------------------------------------
+// FIGMA PARITY PASS. Four things the frame has that the first build didn't:
+//
+// 1. The megaphone, top right. It is the ONLY entry point to
+//    app/org/[id]/notifications.tsx — that screen was registered in
+//    app/_layout.tsx and reachable by nothing, which is why the four org
+//    notification toggles had never been seen outside a deep link. The frame
+//    set is captioned "…and analytics overall, option for notifications" and
+//    the notification-settings frame sits directly beside these, so this is
+//    the destination it means. It is a megaphone rather than the bell that
+//    PublicProfileTopBar uses for the same-shaped affordance: the bell there
+//    goes to /settings/followed-orgs ("what orgs send ME"), and this goes to
+//    what THIS ORG sends. Different destination, different glyph.
+//
+// 2. A real avatar with a pencil badge. `profile_picture` was already on the
+//    header response and was being thrown away in favour of a grey circle.
+//    The badge is admin-only and opens the same EditOrgProfileModal the
+//    description's Edit Profile pill does — one editor, two entry points.
+//
+// 3. Icons on the stat tiles and the tab bar. eye.svg and bookmark.svg
+//    already existed; the people / bar-chart / calendar glyphs are new, in
+//    assets/icons/LhlOrgIcons.tsx.
+//
+// 4. Member rows read "Junior · Aerospace Engineering", not an email. The
+//    fields are new on GET /orgs/:orgId/members; the email is still the
+//    fallback for a member who has neither on file.
 
 import EngagementChart, {
   buildWeeklySeries,
@@ -31,19 +58,48 @@ import EditOrgProfileModal from '@/app/components/org/EditOrgProfileModal';
 import OrgEventsTab from '@/app/components/org/OrgEventsTab';
 import InviteEditorModal from '@/app/components/modals/InviteEditorModal';
 import ProfileModal, { ModalAction } from '@/app/components/modals/ProfileModal';
+import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
+import {
+  BarChartIcon,
+  CalendarListIcon,
+  InvitePlusIcon,
+  PeopleIcon,
+  SwapRoleIcon,
+  type OrgIconProps,
+} from '@/assets/icons/LhlOrgIcons';
+import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
+import BookmarkIcon from '@/assets/images/bookmark.svg';
+import EyeIcon from '@/assets/images/eye.svg';
+import MegaphoneIcon from '@/assets/images/megaphone.svg';
+import PencilIcon from '@/assets/images/pencil.svg';
+import TrashIcon from '@/assets/images/trash.svg';
+import VerifiedIcon from '@/assets/images/verified.svg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 const TABS = ['events', 'members', 'analytics'] as const;
 type Tab = (typeof TABS)[number];
+
+/**
+ * Tab bar contents, in the frame's order.
+ *
+ * The icon is a component reference rather than an element so each tab can be
+ * painted in its own state's colour — an active tab's glyph is white on burnt
+ * orange, an inactive one is secondary grey.
+ */
+const TAB_META: Record<Tab, { label: string; Icon: React.ComponentType<OrgIconProps> }> = {
+  events: { label: 'Events', Icon: CalendarListIcon },
+  members: { label: 'Members', Icon: PeopleIcon },
+  analytics: { label: 'Analytics', Icon: BarChartIcon },
+};
 
 function isTab(value: string | undefined): value is Tab {
   return !!value && (TABS as readonly string[]).includes(value);
@@ -69,6 +125,9 @@ interface Member {
   first_name: string;
   last_name: string;
   email: string;
+  /** Both nullable: a member who skipped those onboarding steps has neither. */
+  year_classification: string | null;
+  major: string | null;
   role: 'admin' | 'editor';
 }
 
@@ -91,10 +150,18 @@ interface AnalyticsResponse {
   }[];
 }
 
-function StatTile({ label, value }: { label: string; value: number }) {
+/**
+ * One of the three engagement tiles under the header.
+ *
+ * The frame stacks a glyph over the number over the label, and the glyph is
+ * what makes three near-identical numbers scannable — Views/Going/Saved all
+ * read as "a count" without it.
+ */
+function StatTile({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
     <View className="flex-1 items-center rounded-[10px] border border-lhlMutedBorder bg-lhlSurface py-[10px]">
-      <Text className="font-['Roboto-Flex'] text-[18px] font-semibold text-lhlInk">
+      <View className="h-[16px] items-center justify-center">{icon}</View>
+      <Text className="font-['Roboto-Flex'] mt-[4px] text-[18px] font-semibold text-lhlInk">
         {value.toLocaleString()}
       </Text>
       <Text className="font-['Roboto-Flex'] mt-[2px] text-[11px] text-lhlSecondaryTextGrey">
@@ -102,6 +169,77 @@ function StatTile({ label, value }: { label: string; value: number }) {
       </Text>
     </View>
   );
+}
+
+/**
+ * The org's picture, or its initial on a tinted disc.
+ *
+ * `profile_picture` comes off the header response and is null for most orgs —
+ * `organizations` rows created by the HornsLink directory scrape carry a name
+ * and little else — so the fallback is the common case, not the edge one.
+ */
+function OrgAvatar({
+  name,
+  uri,
+  size,
+}: {
+  name: string | undefined;
+  uri: string | null | undefined;
+  size: number;
+}) {
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="cover"
+      />
+    );
+  }
+  return (
+    <View
+      className="items-center justify-center rounded-full bg-lhlSurfaceGrey"
+      style={{ width: size, height: size }}
+    >
+      <Text
+        className="font-['Roboto-Flex'] font-semibold text-lhlAccent"
+        style={{ fontSize: Math.round(size * 0.4) }}
+      >
+        {(name ?? '?').trim().charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Initials disc for a member row, matching the frame's TJ / AR / JC circles.
+ *
+ * Members deliberately do NOT show their Bevo avatar or profile photo here.
+ * The endpoint returns `avatar`, but the frame draws initials, and a console
+ * whose Team list is a column of near-identical cartoon longhorns is harder to
+ * read at a glance than one of two-letter monograms.
+ */
+function MemberInitials({ first, last }: { first: string; last: string }) {
+  const initials = `${first.trim().charAt(0)}${last.trim().charAt(0)}`.toUpperCase();
+  return (
+    <View className="h-[36px] w-[36px] items-center justify-center rounded-full bg-lhlSurfaceGrey">
+      <Text className="font-['Roboto-Flex'] text-[13px] font-semibold text-lhlAccent">
+        {initials || '?'}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * "Junior · Aerospace Engineering", degrading gracefully.
+ *
+ * Four cases, and the email fallback is the one that matters: it is what this
+ * row showed before the two academic fields existed, and an admin looking at a
+ * member who filled in neither still needs something to identify them by.
+ */
+function memberSubtitle(member: Member): string {
+  const parts = [member.year_classification, member.major].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : member.email;
 }
 
 function RoleBadge({ role }: { role: 'admin' | 'editor' }) {
@@ -136,6 +274,7 @@ export default function OrgConsoleScreen() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [eventFilter, setEventFilter] = useState<'all' | number>('all');
+  const [analyticsSearch, setAnalyticsSearch] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -204,6 +343,27 @@ export default function OrgConsoleScreen() {
     [analytics.data?.weekly],
   );
 
+  /**
+   * The Analytics tab's event picker and performance cards, narrowed by the
+   * local search box.
+   *
+   * Substring match rather than the fuzzy scorer in app/lib/localSearch: these
+   * are the org's own event titles, which the person searching wrote, so they
+   * are typing a prefix they remember rather than guessing at a name.
+   *
+   * The currently selected event is NOT force-kept in the list. Typing a query
+   * that excludes it hides its pill while `eventFilter` still points at it, so
+   * the chart above keeps showing the event whose pill just scrolled out of
+   * view — which is the same thing that happens when the strip scrolls, and
+   * clearing the search brings the pill straight back.
+   */
+  const visibleAnalyticsEvents = useMemo(() => {
+    const rows = analytics.data?.events ?? [];
+    const needle = analyticsSearch.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((event) => event.title.toLowerCase().includes(needle));
+  }, [analytics.data?.events, analyticsSearch]);
+
   if (!token) {
     return (
       <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
@@ -263,9 +423,22 @@ export default function OrgConsoleScreen() {
         >
           <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>
-        <Text className="font-['Roboto-Flex'] ml-[12px] text-[18px] font-semibold text-lhlInk">
-          Manage Organization
+        <Text className="font-['Roboto-Flex'] ml-[12px] flex-1 text-[18px] font-semibold text-lhlInk">
+          Organization Management
         </Text>
+
+        {/* See note 1 in the file header: this is the only route into the org
+            notification settings. Shown to editors too — the screen renders
+            read-only for them rather than 403ing, so hiding it would be
+            hiding information they are allowed to see. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Organization notification settings"
+          hitSlop={10}
+          onPress={() => router.push(`/org/${orgId}/notifications`)}
+        >
+          <MegaphoneIcon width={22} height={22} color={colors.ink} />
+        </Pressable>
       </View>
 
       {header.isLoading ? (
@@ -279,19 +452,45 @@ export default function OrgConsoleScreen() {
         >
           {/* --- Console header --- */}
           <View className="flex-row items-center">
-            <View className="h-[60px] w-[60px] rounded-full bg-lhlPlaceholderGrey" />
+            <View>
+              <OrgAvatar name={org?.name} uri={org?.profile_picture} size={60} />
+
+              {/* Note 2 in the file header. Admin-only, and the same modal as
+                  the description's pill below — an editor sees the avatar
+                  without the badge, and PATCH /orgs/:orgId re-checks the role
+                  either way. */}
+              {header.data?.role === 'admin' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit organization picture and description"
+                  hitSlop={8}
+                  onPress={() => setEditingProfile(true)}
+                  className="absolute bottom-0 right-0 h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-lhlBackgroundColor bg-lhlBurntOrange"
+                >
+                  <PencilIcon width={11} height={11} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
+            </View>
+
             <View className="ml-[12px] flex-1 bg-lhlBackgroundColor">
               <View className="flex-row items-center gap-[6px]">
                 <Text
                   numberOfLines={1}
-                  className="font-['Roboto-Flex'] text-[17px] font-semibold text-lhlInk"
+                  className="font-['Roboto-Flex'] shrink text-[17px] font-semibold text-lhlInk"
                 >
                   {org?.name}
                 </Text>
+                {/* The shared verified mark (assets/images/verified.svg), the
+                    same one the public org profile draws. The bare "✓" this
+                    replaced was a text glyph whose size and baseline shifted
+                    per platform. */}
                 {org?.verified ? (
-                  <Text className="text-[13px] text-lhlAccent" accessibilityLabel="Verified">
-                    ✓
-                  </Text>
+                  <VerifiedIcon
+                    width={14}
+                    height={14}
+                    color={colors.info}
+                    accessibilityLabel="Verified"
+                  />
                 ) : null}
               </View>
               <View className="mt-[4px] flex-row items-center gap-[8px]">
@@ -336,33 +535,47 @@ export default function OrgConsoleScreen() {
           </View>
 
           <View className="mt-[14px] flex-row gap-[8px]">
-            <StatTile label="Views" value={stats?.views ?? 0} />
-            <StatTile label="Going" value={stats?.going ?? 0} />
-            <StatTile label="Saved" value={stats?.saved ?? 0} />
+            <StatTile
+              label="Views"
+              value={stats?.views ?? 0}
+              icon={<EyeIcon width={16} height={16} color={colors.inkSecondary} />}
+            />
+            <StatTile
+              label="Going"
+              value={stats?.going ?? 0}
+              icon={<PeopleIcon size={16} color={colors.inkSecondary} />}
+            />
+            <StatTile
+              label="Saved"
+              value={stats?.saved ?? 0}
+              icon={<BookmarkIcon width={11} height={15} color={colors.inkSecondary} />}
+            />
           </View>
 
           {/* --- Tabs --- */}
           <View className="mt-[18px] flex-row gap-[8px]">
             {TABS.map((key) => {
               const isActive = tab === key;
+              const { label, Icon } = TAB_META[key];
               return (
                 <Pressable
                   key={key}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: isActive }}
                   onPress={() => setTab(key)}
-                  className={`flex-1 items-center rounded-full border py-[8px] ${
+                  className={`flex-1 flex-row items-center justify-center gap-[5px] rounded-full border py-[8px] ${
                     isActive
                       ? 'border-lhlBurntOrange bg-lhlBurntOrange'
                       : 'border-lhlMutedBorder bg-lhlSurface'
                   }`}
                 >
+                  <Icon size={13} color={isActive ? '#FFFFFF' : colors.inkSecondary} />
                   <Text
-                    className={`font-['Roboto-Flex'] text-[12px] font-semibold capitalize ${
+                    className={`font-['Roboto-Flex'] text-[12px] font-semibold ${
                       isActive ? 'text-white' : 'text-lhlSecondaryTextGrey'
                     }`}
                   >
-                    {key}
+                    {label}
                   </Text>
                 </Pressable>
               );
@@ -388,9 +601,11 @@ export default function OrgConsoleScreen() {
                 {canManage ? (
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel="Invite an editor"
                     onPress={() => setShowInvite(true)}
-                    className="rounded-full bg-lhlBurntOrange px-[14px] py-[6px]"
+                    className="flex-row items-center gap-[5px] rounded-full bg-lhlBurntOrange px-[14px] py-[6px]"
                   >
+                    <InvitePlusIcon size={13} />
                     <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">
                       Invite
                     </Text>
@@ -407,7 +622,7 @@ export default function OrgConsoleScreen() {
                       key={m.id}
                       className="mb-[10px] flex-row items-center rounded-[10px] border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[10px]"
                     >
-                      <View className="h-[36px] w-[36px] rounded-full bg-lhlPlaceholderGrey" />
+                      <MemberInitials first={m.first_name} last={m.last_name} />
                       <View className="ml-[10px] flex-1 bg-lhlBackgroundColor">
                         <Text
                           numberOfLines={1}
@@ -417,9 +632,9 @@ export default function OrgConsoleScreen() {
                         </Text>
                         <Text
                           numberOfLines={1}
-                          className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey"
+                          className="font-['Roboto-Flex'] mt-[2px] text-[11px] text-lhlSecondaryTextGrey"
                         >
-                          {m.email}
+                          {memberSubtitle(m)}
                         </Text>
                       </View>
 
@@ -443,10 +658,9 @@ export default function OrgConsoleScreen() {
                                 role: m.role === 'admin' ? 'editor' : 'admin',
                               });
                             }}
+                            hitSlop={8}
                           >
-                            <Text className="font-['Roboto-Flex'] text-[11px] font-semibold text-lhlAccent">
-                              Swap
-                            </Text>
+                            <SwapRoleIcon size={16} color={colors.accent} />
                           </Pressable>
                         ) : null}
 
@@ -461,8 +675,14 @@ export default function OrgConsoleScreen() {
                               setActionError(null);
                               removeMember.mutate(m.id);
                             }}
+                            hitSlop={8}
                           >
-                            <Text className="text-[14px] text-lhlDestructiveRed">🗑</Text>
+                            {/* assets/images/trash.svg, the glyph
+                                ManageEventSheet already uses for destructive
+                                row actions. The 🗑 emoji this replaced
+                                rendered as a different picture on every
+                                platform and ignored the theme colour. */}
+                            <TrashIcon width={16} height={16} color={colors.destructive} />
                           </Pressable>
                         ) : null}
                       </View>
@@ -509,6 +729,34 @@ export default function OrgConsoleScreen() {
                 Event Performance
               </Text>
 
+              {/* The frame draws the Events tab's whole control row here —
+                  search, the General/Academic/Social chips, and a Date sort.
+                  Only the search is built, and deliberately:
+                  GET /orgs/:orgId/analytics takes one parameter, `event_id`.
+                  Chips and a sort would need `filter` and `sort` on that route
+                  the way orgs.worker.ts already implements them for
+                  /:orgId/events, which is server work and a separate ticket —
+                  and three controls where two do nothing is worse than one
+                  that works.
+
+                  The search is worth having on its own merits: the pill strip
+                  below is the event picker, and an org with a semester of
+                  events turns it into a scroll no thumb wants. Filtering is
+                  local because the pills are already in hand — the response
+                  carries every event, so narrowing them costs no request. */}
+              <View className="mt-[10px]">
+                <TextInputField
+                  value={analyticsSearch}
+                  onChangeText={setAnalyticsSearch}
+                  placeholder="Search events..."
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  borderRadius={8}
+                  clearable
+                  leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
+                />
+              </View>
+
               {/* Event filter */}
               <ScrollView
                 horizontal
@@ -532,7 +780,7 @@ export default function OrgConsoleScreen() {
                     All events
                   </Text>
                 </Pressable>
-                {analytics.data?.events.map((e) => (
+                {visibleAnalyticsEvents.map((e) => (
                   <Pressable
                     key={e.id}
                     onPress={() => setEventFilter(e.id)}
@@ -563,12 +811,14 @@ export default function OrgConsoleScreen() {
                   </View>
 
                   <View className="mt-[16px]">
-                    {analytics.data?.events.length === 0 ? (
+                    {visibleAnalyticsEvents.length === 0 ? (
                       <Text className="font-['Roboto-Flex'] mt-[10px] text-center text-[12px] text-lhlSecondaryTextGrey">
-                        No events to report on yet.
+                        {analyticsSearch.trim()
+                          ? 'No events match that search.'
+                          : 'No events to report on yet.'}
                       </Text>
                     ) : (
-                      analytics.data?.events.map((e) => (
+                      visibleAnalyticsEvents.map((e) => (
                         <View
                           key={e.id}
                           className="mb-[10px] rounded-[10px] border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[10px]"

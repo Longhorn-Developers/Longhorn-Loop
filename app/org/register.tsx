@@ -400,7 +400,10 @@ export default function OrgRegisterScreen() {
   if (step === 'success') {
     return (
       <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
-        <View className="flex-1 items-center justify-center px-[36px] bg-lhlBackgroundColor">
+        {/* Copy at the top, Exit at the bottom — the frame's layout, and the
+            same footer position the Send Email / Verify steps use, so the
+            primary button doesn't jump up the screen on the last step. */}
+        <View className="flex-1 items-center px-[36px] pt-[60px]">
           <View className="h-[72px] w-[72px] items-center justify-center rounded-full bg-lhlSurfaceGrey">
             <Text className="text-[30px] text-lhlAccent">✓</Text>
           </View>
@@ -413,14 +416,16 @@ export default function OrgRegisterScreen() {
             {orgName} is verified and you’re now an admin. You can post events and manage the
             organization from your profile.
           </Text>
+        </View>
 
+        <View className="px-[20px] pb-[16px] pt-[10px]">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Exit"
             // Dismisses the whole registration flow rather than stepping back
             // into the code screen, which is already spent.
             onPress={() => router.replace('/settings')}
-            className="mt-[28px] h-[50px] w-full items-center justify-center rounded-[10px] bg-lhlBurntOrange"
+            className="h-[50px] items-center justify-center rounded-[10px] bg-lhlBurntOrange"
           >
             <Text className="font-['Roboto-Flex'] text-[16px] font-semibold text-white">Exit</Text>
           </Pressable>
@@ -580,7 +585,16 @@ export default function OrgRegisterScreen() {
               </View>
 
               {/* --- President's email (LOOP-185's step, now on this screen) --- */}
-              <Text className="font-roboto-semibold mt-[18px] text-[16px] text-lhlInk">
+              {/* The label reddens along with the field on an error, which is
+                  what the frame's error state draws. Colour is not carrying
+                  the message on its own — the field border moves too and the
+                  reason is spelled out underneath — so this is emphasis, not
+                  the only signal. */}
+              <Text
+                className={`font-roboto-semibold mt-[18px] text-[16px] ${
+                  error ? 'text-lhlDestructiveRed' : 'text-lhlInk'
+                }`}
+              >
                 Enter the &quot;@my.utexas.edu&quot; email for the primary contact listed on
                 HornsLink
               </Text>
@@ -662,7 +676,7 @@ export default function OrgRegisterScreen() {
           ) : (
             <>
               <Text className="font-['Roboto-Flex'] mt-[10px] text-[15px] font-semibold text-lhlInk">
-                Enter the 4-digit code
+                Enter the 4 digit verification code below
               </Text>
               <Text className="font-['Roboto-Flex'] mt-[6px] text-[12px] leading-[18px] text-lhlSecondaryTextGrey">
                 Sent to {email.trim()}.
@@ -685,14 +699,27 @@ export default function OrgRegisterScreen() {
               ) : null}
             </>
           )}
+        </ScrollView>
 
+        {/* --- Footer CTA ---
+            Pinned to the bottom of the screen, outside the ScrollView, which
+            is where all seven frames draw it. It used to sit inline after the
+            last field, and on the code step — four boxes and two lines of copy
+            — that left Verify floating in the middle of a mostly empty screen
+            with dead space under it.
+
+            Outside the scroll area it also stays put while the form scrolls,
+            so the primary action never scrolls out of reach on a small screen
+            with the keyboard up. It is inside the KeyboardAvoidingView, so it
+            rides above the keyboard rather than behind it. */}
+        <View className="px-[20px] pb-[16px] pt-[10px]">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isFormStep ? 'Send Email' : 'Verify'}
             accessibilityState={{ disabled: !canSubmit || isSubmitting }}
             disabled={!canSubmit || isSubmitting}
             onPress={isFormStep ? sendEmail : verifyCode}
-            className={`mt-[26px] h-[50px] items-center justify-center rounded-[10px] border ${
+            className={`h-[50px] items-center justify-center rounded-[10px] border ${
               canSubmit
                 ? 'border-lhlBurntOrange bg-lhlBurntOrange'
                 : 'border-lhlMutedBorder bg-lhlSurface opacity-60'
@@ -729,7 +756,7 @@ export default function OrgRegisterScreen() {
               </Text>
             </Pressable>
           ) : null}
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

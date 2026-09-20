@@ -25,6 +25,7 @@ import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { settings as settingsKeys } from '@/app/lib/queryKeys';
 import { useAppTheme } from '@/app/context/ThemeContext';
+import type { ThemePreference } from '@/app/lib/themePreference';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,7 +37,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 type ToggleKey =
-  | 'dark_mode'
   | 'event_reminders'
   | 'new_events'
   | 'weekly_digest'
@@ -63,6 +63,12 @@ function leadLabel(minutes: number): string {
 
 type Row =
   | { kind: 'toggle'; key: ToggleKey; label: string; hint?: string }
+  /**
+   * Appearance. Its own kind rather than a toggle because it has three states,
+   * and its own storage rather than a settings key because it lives on the
+   * device — see app/lib/themePreference.ts.
+   */
+  | { kind: 'theme'; label: string; hint?: string }
   | { kind: 'lead'; label: string }
   /**
    * A read-only fact about the account. Not a link, and deliberately not
@@ -73,10 +79,34 @@ type Row =
   | { kind: 'link'; label: string; onPressKey: string }
   | { kind: 'danger'; label: string; onPressKey: string };
 
+/**
+ * System first, because it is the default and the one most people should stay
+ * on. The accessibility labels spell out what each does — "System" alone tells
+ * a screen-reader user nothing about appearance.
+ */
+const THEME_OPTIONS: {
+  value: ThemePreference;
+  label: string;
+  accessibilityLabel: string;
+}[] = [
+  { value: 'system', label: 'System', accessibilityLabel: 'Match my phone’s appearance setting' },
+  { value: 'light', label: 'Light', accessibilityLabel: 'Always use the light theme' },
+  { value: 'dark', label: 'Dark', accessibilityLabel: 'Always use the dark theme' },
+];
+
 const SECTIONS: { title: string; rows: Row[] }[] = [
   {
     title: 'Preferences',
-    rows: [{ kind: 'toggle', key: 'dark_mode', label: 'Dark Mode', hint: 'Use the dark theme' }],
+    rows: [
+      {
+        // The hint carries the words "light" and "dark" on purpose: this row
+        // is searchable by its label and hint, and someone looking for the old
+        // "Dark Mode" switch types "dark", not "appearance".
+        kind: 'theme',
+        label: 'Appearance',
+        hint: 'Light, dark, or match your phone’s Display setting',
+      },
+    ],
   },
   {
     title: 'Notifications',
@@ -127,7 +157,7 @@ export default function SettingsPreferencesScreen() {
   const { data: onboarding, reset } = useOnboarding();
   const token = onboarding.token || null;
   const queryClient = useQueryClient();
-  const { setDarkMode } = useAppTheme();
+  const { preference, setPreference } = useAppTheme();
 
   const [search, setSearch] = useState('');
   const [manuallyOpen, setManuallyOpen] = useState<Record<string, boolean>>({
@@ -149,10 +179,8 @@ export default function SettingsPreferencesScreen() {
       api.patch<SettingsResponse>('/settings', { token, body: patch }),
     // The PATCH returns the full merged settings, so seed the cache directly
     // rather than invalidating — avoids a round trip and a toggle flicker.
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       queryClient.setQueryData(settingsKeys.mine(), data);
-      // Dark mode is the one setting with an immediate global effect.
-      if (typeof variables.dark_mode === 'boolean') setDarkMode(variables.dark_mode);
     },
     onError: (err) => {
       const body = err instanceof ApiError ? (err.body as Record<string, unknown> | null) : null;
@@ -338,6 +366,60 @@ export default function SettingsPreferencesScreen() {
                               trackColor={{ false: colors.border, true: colors.brand }}
                               thumbColor={colors.surface}
                             />
+                          </View>
+                        );
+                      }
+
+                      if (row.kind === 'theme') {
+                        return (
+                          <View
+                            key="theme"
+                            className={`px-[14px] py-[12px] ${
+                              index > 0 ? 'border-t border-lhlSurfaceGrey' : ''
+                            }`}
+                          >
+                            <Text className="font-['Roboto-Flex'] text-[13px] text-lhlInk">
+                              {row.label}
+                            </Text>
+                            {row.hint ? (
+                              <Text className="font-['Roboto-Flex'] mt-[1px] text-[11px] text-lhlSecondaryTextGrey">
+                                {row.hint}
+                              </Text>
+                            ) : null}
+
+                            {/* Applies on tap with nothing to save: the choice
+                                is stored on the device, so there is no request
+                                to fail and no pending state to disable. */}
+                            <View
+                              accessibilityRole="radiogroup"
+                              className="mt-[10px] flex-row rounded-[10px] bg-lhlSegmentTrack p-[3px]"
+                            >
+                              {THEME_OPTIONS.map((option) => {
+                                const isActive = preference === option.value;
+                                return (
+                                  <Pressable
+                                    key={option.value}
+                                    onPress={() => setPreference(option.value)}
+                                    accessibilityRole="radio"
+                                    accessibilityState={{ selected: isActive }}
+                                    accessibilityLabel={option.accessibilityLabel}
+                                    className={`flex-1 items-center rounded-[8px] py-[8px] ${
+                                      isActive ? 'bg-lhlSurface' : ''
+                                    }`}
+                                  >
+                                    <Text
+                                      className={`font-['Roboto-Flex'] text-[12.5px] ${
+                                        isActive
+                                          ? 'font-semibold text-lhlInk'
+                                          : 'text-lhlSecondaryTextGrey'
+                                      }`}
+                                    >
+                                      {option.label}
+                                    </Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
                           </View>
                         );
                       }

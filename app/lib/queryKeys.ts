@@ -82,6 +82,17 @@ export const org = {
   // engagement totals a non-member must never be handed, and sharing a key
   // would let one screen's cache satisfy the other's query.
   publicProfile: (id: number | string) => [...org.all, 'public', String(id)] as const,
+  /**
+   * Explore's paged org directory.
+   *
+   * Deliberately NOT `search()`, even though it calls the same endpoint.
+   * org/register.tsx holds `search()` with a plain useQuery, so its cache entry
+   * is one response object; this one is a useInfiniteQuery, whose entry is
+   * `{ pages, pageParams }`. Sharing the key would let each screen read the
+   * other's shape — a crash on whichever mounted second, and a confusing one,
+   * because the URL and the payload would both look right.
+   */
+  directory: (query: string) => [...org.all, 'directory', query] as const,
   publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
   // "Find your organization" on the registration form (LOOP-141). The

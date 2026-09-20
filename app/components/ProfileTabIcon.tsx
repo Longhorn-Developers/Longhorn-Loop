@@ -26,7 +26,11 @@
 // exact baseline the other three sit on -- no font guessing, no drift if the
 // artwork is ever redrawn.
 
-import { AvatarDisplay, hasAvatar, type AvatarFields } from '@/app/components/profile/AvatarDisplay';
+import {
+  AvatarDisplay,
+  hasAvatar,
+  type AvatarFields,
+} from '@/app/components/profile/AvatarDisplay';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
 import { user as userKeys } from '@/app/lib/queryKeys';

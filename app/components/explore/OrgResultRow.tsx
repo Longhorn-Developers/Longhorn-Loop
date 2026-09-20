@@ -26,12 +26,21 @@ export default function OrgResultRow({ org }: Props) {
   const colors = useThemeColors();
   const router = useRouter();
 
-  const initials = org.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase();
+  // `org.name` is typed non-null and the column is NOT NULL, but this row
+  // renders whatever GET /orgs/search returns for a query the user is still
+  // typing — one scraped row with a missing name would throw on .split() and
+  // take the whole Explore screen down mid-keystroke (LOOP-279). The filter
+  // also drops empty segments, which is what a leading space produced before:
+  // `''[0]` is undefined and the initials came out short or blank.
+  const name = typeof org.name === 'string' ? org.name : '';
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase() || '?';
 
   const subtitle = org.bio?.trim() || org.category || null;
 

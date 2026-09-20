@@ -4,10 +4,17 @@ import { Text, View } from 'react-native';
 
 export type LocatedEvent = ApiEvent & { latitude: number; longitude: number };
 
+// Metro picks this file on web by extension; tsc resolves the native one, so
+// this interface is documentation rather than the type the caller is checked
+// against — note that it is already missing initialRegion / onRegionSettled and
+// nothing complained. Kept roughly in step anyway, so a reader comparing the
+// two files isn't misled about what the web build ignores.
 interface MapViewWrapperProps {
   events: LocatedEvent[];
+  dimmedEvents?: LocatedEvent[];
   selectedEventId: number | null;
   onPinPress: (eventId: number) => void;
+  onClusterPress?: (cluster: { key: string; events: LocatedEvent[] }) => void;
   onMapPress: () => void;
 }
 

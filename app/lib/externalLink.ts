@@ -127,10 +127,19 @@ export function useExternalLinkHandoff(options?: {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Held in refs so `request`/`flush` stay stable across renders and a
   // re-render between the tap and the dismissal can't strand a stale handler.
+  //
+  // Writing them in render rather than in an effect is the point, not an
+  // oversight: the app can return from the external browser before React has
+  // flushed effects, and an effect-assigned ref would still be holding the
+  // handler from the render BEFORE the tap. That is the stale-handler bug this
+  // whole shape exists to prevent. The latest-ref pattern is what
+  // useEffectEvent will replace once it ships in a stable React for RN.
+  /* eslint-disable react-hooks/refs -- latest-ref pattern; see above */
   const onReturn = useRef(options?.onReturn);
   onReturn.current = options?.onReturn;
   const onFailure = useRef(options?.onFailure);
   onFailure.current = options?.onFailure;
+  /* eslint-enable react-hooks/refs */
 
   const clearTimer = () => {
     if (timer.current) {

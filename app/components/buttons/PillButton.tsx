@@ -1,7 +1,8 @@
 import LhlPillCross from '@/assets/icons/LhlPillCross';
 import LhlPillPlus from '@/assets/icons/LhlPillPlus';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useEffect, useRef } from 'react';
+import { useAnimatedValue } from '@/app/lib/useAnimatedValue';
+import React, { useEffect } from 'react';
 import { Animated, Easing, Pressable, Text } from 'react-native';
 
 interface PillButtonProps {
@@ -28,7 +29,7 @@ export default function PillButton({
   iconSize = 8,
 }: PillButtonProps) {
   const colors = useThemeColors();
-  const rotationAnim = useRef(new Animated.Value(0)).current;
+  const rotationAnim = useAnimatedValue(0);
 
   useEffect(() => {
     Animated.timing(rotationAnim, {

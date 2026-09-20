@@ -5,7 +5,8 @@ import CelebrationIcon from '@/assets/images/celebration.svg';
 import XCloseIcon from '@/assets/images/x-close.svg';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useEffect, useMemo, useRef } from 'react';
+import { useAnimatedValue } from '@/app/lib/useAnimatedValue';
+import React, { useEffect, useMemo } from 'react';
 import { Animated, Easing, Pressable, Text, View } from 'react-native';
 
 interface RsvpSuccessToastProps {
@@ -19,8 +20,8 @@ const AUTO_DISMISS_MS = 3000;
 export default function RsvpSuccessToast({ visible, eventTitle, onClose }: RsvpSuccessToastProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
+  const opacity = useAnimatedValue(0);
+  const translateY = useAnimatedValue(20);
 
   useEffect(() => {
     if (!visible) return;

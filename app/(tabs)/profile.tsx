@@ -314,66 +314,66 @@ export default function ProfileScreen() {
       first and hands it on when it turns out not to be a drag.
     */
     <SettingsDrawer open={menuOpen} onOpenChange={setMenuOpen}>
-    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
-      {profileQuery.isLoading ? (
-        <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
-          <ActivityIndicator color={colors.brand} />
-        </View>
-      ) : (
-        <ScrollView
-          className="flex-1 bg-lhlBackgroundColor"
-          contentContainerStyle={{ paddingBottom: 40 }}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={pullRefreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.brand}
-              colors={[colors.brand]}
-            />
-          }
-        >
-          {/* --- Hamburger: opens the settings drawer --- */}
-          <View className="absolute right-[20px] top-[6px] z-20 items-end">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Menu"
-              accessibilityState={{ expanded: menuOpen }}
-              // Opens the drawer. It also pulls in from the right edge, but a
-              // gesture nobody has discovered yet still needs a control.
-              onPress={() => setMenuOpen(true)}
-              hitSlop={10}
-              className="h-[28px] w-[28px] items-center justify-center"
-            >
-              {/* Three bars, drawn rather than an emoji glyph so it renders
-                  identically on both platforms. */}
-              {[0, 1, 2].map((i) => (
-                <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
-              ))}
-            </Pressable>
+      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+        {profileQuery.isLoading ? (
+          <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
+            <ActivityIndicator color={colors.brand} />
           </View>
-
-          {/* --- Header --- */}
-          <View className="items-center px-[20px]">
-            <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
-              {profile ? <AvatarDisplay user={profile} size={92} /> : null}
+        ) : (
+          <ScrollView
+            className="flex-1 bg-lhlBackgroundColor"
+            contentContainerStyle={{ paddingBottom: 40 }}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={pullRefreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.brand}
+                colors={[colors.brand]}
+              />
+            }
+          >
+            {/* --- Hamburger: opens the settings drawer --- */}
+            <View className="absolute right-[20px] top-[6px] z-20 items-end">
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Menu"
+                accessibilityState={{ expanded: menuOpen }}
+                // Opens the drawer. It also pulls in from the right edge, but a
+                // gesture nobody has discovered yet still needs a control.
+                onPress={() => setMenuOpen(true)}
+                hitSlop={10}
+                className="h-[28px] w-[28px] items-center justify-center"
+              >
+                {/* Three bars, drawn rather than an emoji glyph so it renders
+                  identically on both platforms. */}
+                {[0, 1, 2].map((i) => (
+                  <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
+                ))}
+              </Pressable>
             </View>
 
-            <Text
-              numberOfLines={1}
-              className="font-['Roboto-Flex'] mt-[10px] text-[20px] font-bold text-lhlInk"
-            >
-              {fullName || 'Your profile'}
-            </Text>
+            {/* --- Header --- */}
+            <View className="items-center px-[20px]">
+              <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
+                {profile ? <AvatarDisplay user={profile} size={92} /> : null}
+              </View>
 
-            <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
-              <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
-              followers ·{' '}
-              <Text className="font-semibold text-lhlInk">{profile?.following_count ?? 0}</Text>{' '}
-              following
-            </Text>
+              <Text
+                numberOfLines={1}
+                className="font-['Roboto-Flex'] mt-[10px] text-[20px] font-bold text-lhlInk"
+              >
+                {fullName || 'Your profile'}
+              </Text>
 
-            {/*
+              <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
+                <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
+                followers ·{' '}
+                <Text className="font-semibold text-lhlInk">{profile?.following_count ?? 0}</Text>{' '}
+                following
+              </Text>
+
+              {/*
               Edit Profile + linked socials, one row, all 30pt tall.
 
               Everything here was a size or two under the Figma and drawn with
@@ -391,101 +391,101 @@ export default function ProfileScreen() {
               separating and the edge only softens the join; lhlMutedBorder is
               a control outline and was two steps too dark for that job.
             */}
-            <View className="mt-[10px] flex-row items-center gap-[8px]">
-              <OutlinedButton
-                accessibilityLabel="Edit profile"
-                onPress={() => router.push('/profile/edit')}
-                borderRadius={8}
-                width={100}
-                gap={5}
-              >
-                <Text className="font-['Roboto-Flex'] text-[12px] font-medium leading-[14px] text-lhlInk">
-                  Edit Profile
-                </Text>
-                {/* Was the text glyph "✎", which is a font character: it did
+              <View className="mt-[10px] flex-row items-center gap-[8px]">
+                <OutlinedButton
+                  accessibilityLabel="Edit profile"
+                  onPress={() => router.push('/profile/edit')}
+                  borderRadius={8}
+                  width={100}
+                  gap={5}
+                >
+                  <Text className="font-['Roboto-Flex'] text-[12px] font-medium leading-[14px] text-lhlInk">
+                    Edit Profile
+                  </Text>
+                  {/* Was the text glyph "✎", which is a font character: it did
                     not follow the ink colour, sat off the text baseline, and
                     rendered differently per platform. */}
-                <PencilIcon width={12} height={12} color={colors.ink} />
-              </OutlinedButton>
+                  <PencilIcon width={12} height={12} color={colors.ink} />
+                </OutlinedButton>
 
-              {profile?.socials?.map((social) => {
-                const meta = getSocialPlatformUI(social.platform);
-                if (!meta) return null;
-                const Icon = meta.icon;
-                return (
-                  <OutlinedButton
-                    key={social.platform}
-                    accessibilityRole="link"
-                    accessibilityLabel={`Open ${meta.label}`}
-                    // Routed through the Open Link warning (LOOP-182).
-                    onPress={() => openLink.request(social.url)}
-                    borderRadius={4}
-                  >
-                    <Icon size={20} color={colors.ink} />
-                  </OutlinedButton>
-                );
-              })}
+                {profile?.socials?.map((social) => {
+                  const meta = getSocialPlatformUI(social.platform);
+                  if (!meta) return null;
+                  const Icon = meta.icon;
+                  return (
+                    <OutlinedButton
+                      key={social.platform}
+                      accessibilityRole="link"
+                      accessibilityLabel={`Open ${meta.label}`}
+                      // Routed through the Open Link warning (LOOP-182).
+                      onPress={() => openLink.request(social.url)}
+                      borderRadius={4}
+                    >
+                      <Icon size={20} color={colors.ink} />
+                    </OutlinedButton>
+                  );
+                })}
+              </View>
+
+              <ProfileBio bio={profile?.bio} editable />
             </View>
 
-            <ProfileBio bio={profile?.bio} editable />
-          </View>
-
-          {/* --- Metadata ---
+            {/* --- Metadata ---
               One muted icon+value row per category, the pattern X and LinkedIn
               use under a bio. Replaces a "Details and Interests" heading over a
               row of grey chips: the icon carries the category so no label is
               needed, and it scales to however many values exist. Left-aligned
               because multi-item rows centre badly. */}
-          <View className="mt-[14px] px-[20px]">
-            <ProfileMetaRow
-              icon={<GraduationCapIcon />}
-              label="Academic"
-              values={[profile?.year_classification, ...(profile?.majors ?? [])]}
-            />
-            <ProfileMetaRow
-              icon={<GlobeIcon />}
-              label="Background"
-              values={profile?.unique_classification ?? []}
-            />
-          </View>
-
-          {/* --- Interests --- */}
-          <View className="mt-[18px] px-[20px]">
-            <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-              Interests
-            </Text>
-
-            <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
-              {(profile?.tags ?? []).map((tag) => (
-                <View
-                  key={tag}
-                  className="rounded-full border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[5px]"
-                >
-                  <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
-                </View>
-              ))}
-              {/* "+" goes to Edit Profile rather than opening an inline picker,
-                  so interests have exactly one place they're edited. */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add interests"
-                onPress={() => router.push('/profile/edit')}
-                className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
-              >
-                <Text className="font-['Roboto-Flex'] text-[13px] leading-[15px] text-lhlSecondaryTextGrey">
-                  +
-                </Text>
-              </Pressable>
+            <View className="mt-[14px] px-[20px]">
+              <ProfileMetaRow
+                icon={<GraduationCapIcon />}
+                label="Academic"
+                values={[profile?.year_classification, ...(profile?.majors ?? [])]}
+              />
+              <ProfileMetaRow
+                icon={<GlobeIcon />}
+                label="Background"
+                values={profile?.unique_classification ?? []}
+              />
             </View>
-          </View>
 
-          {/* --- My Events --- */}
-          <View className="mt-[22px] px-[20px]">
-            <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-              My Events
-            </Text>
+            {/* --- Interests --- */}
+            <View className="mt-[18px] px-[20px]">
+              <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
+                Interests
+              </Text>
 
-            {/*
+              <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
+                {(profile?.tags ?? []).map((tag) => (
+                  <View
+                    key={tag}
+                    className="rounded-full border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[5px]"
+                  >
+                    <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
+                  </View>
+                ))}
+                {/* "+" goes to Edit Profile rather than opening an inline picker,
+                  so interests have exactly one place they're edited. */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add interests"
+                  onPress={() => router.push('/profile/edit')}
+                  className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
+                >
+                  <Text className="font-['Roboto-Flex'] text-[13px] leading-[15px] text-lhlSecondaryTextGrey">
+                    +
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* --- My Events --- */}
+            <View className="mt-[22px] px-[20px]">
+              <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
+                My Events
+              </Text>
+
+              {/*
               Segmented control, Figma "Frame 482".
 
               One track with three segments inside it, not three separate
@@ -503,206 +503,206 @@ export default function ProfileScreen() {
               Figma. The fill is doing the work of showing which one is on, and
               dimming the other two as well would say it twice.
             */}
-            <View className="mt-[10px] flex-row items-center gap-[4px] rounded-[16px] bg-lhlSegmentTrack p-[4px]">
-              {TABS.map((t) => {
-                const isActive = t.key === tab;
-                const count = counts?.[t.key];
-                return (
-                  <Pressable
-                    key={t.key}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: isActive }}
-                    onPress={() => setTab(t.key)}
-                    className={`flex-1 flex-row items-center justify-center gap-[6px] rounded-[16px] px-[16px] py-[4px] ${
-                      isActive ? 'bg-lhlBackgroundColor' : ''
-                    }`}
-                  >
-                    <t.Icon width={t.iconSize} height={t.iconSize} color={colors.ink} />
-                    <Text className="font-['Roboto-Flex'] text-[12px] leading-[14px] text-lhlInk">
-                      {t.label}
-                      {count !== undefined ? ` (${count})` : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Search */}
-            <View className="mt-[10px]">
-              <TextInputField
-                value={searchInput}
-                onChangeText={setSearchInput}
-                placeholder="Search events..."
-                autoCapitalize="none"
-                autoCorrect={false}
-                borderRadius={8}
-                clearable
-                leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
-              />
-            </View>
-
-            {/* Category chips + date sort */}
-            <View className="mt-[10px] flex-row items-center justify-between">
-              <View className="flex-row gap-[6px]">
-                {PROFILE_EVENT_FILTERS.map((key) => {
-                  const isActive = key === filter;
+              <View className="mt-[10px] flex-row items-center gap-[4px] rounded-[16px] bg-lhlSegmentTrack p-[4px]">
+                {TABS.map((t) => {
+                  const isActive = t.key === tab;
+                  const count = counts?.[t.key];
                   return (
                     <Pressable
-                      key={key}
-                      accessibilityRole="button"
+                      key={t.key}
+                      accessibilityRole="tab"
                       accessibilityState={{ selected: isActive }}
-                      onPress={() => setFilter(key)}
-                      className={`rounded-full px-[12px] py-[5px] ${
-                        isActive
-                          ? 'bg-lhlBurntOrange'
-                          : 'border border-lhlMutedBorder bg-lhlSurface'
+                      onPress={() => setTab(t.key)}
+                      className={`flex-1 flex-row items-center justify-center gap-[6px] rounded-[16px] px-[16px] py-[4px] ${
+                        isActive ? 'bg-lhlBackgroundColor' : ''
                       }`}
                     >
-                      <Text
-                        className={`font-['Roboto-Flex'] text-[11px] font-medium ${
-                          isActive ? 'text-white' : 'text-lhlSecondaryTextGrey'
-                        }`}
-                      >
-                        {PROFILE_EVENT_FILTER_LABELS[key]}
+                      <t.Icon width={t.iconSize} height={t.iconSize} color={colors.ink} />
+                      <Text className="font-['Roboto-Flex'] text-[12px] leading-[14px] text-lhlInk">
+                        {t.label}
+                        {count !== undefined ? ` (${count})` : ''}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={sortRecent ? 'Sort by date' : 'Sort by recently added'}
-                onPress={() => setSortRecent((v) => !v)}
-                className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[10px] py-[5px]"
-              >
-                <Text className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey">
-                  {sortRecent ? 'Recent' : 'Date'}
-                </Text>
-              </Pressable>
-            </View>
+              {/* Search */}
+              <View className="mt-[10px]">
+                <TextInputField
+                  value={searchInput}
+                  onChangeText={setSearchInput}
+                  placeholder="Search events..."
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  borderRadius={8}
+                  clearable
+                  leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
+                />
+              </View>
 
-            {/* Grid */}
-            {eventsQuery.isLoading ? (
-              <ActivityIndicator className="mt-[24px]" color={colors.brand} />
-            ) : (
-              <View className="mt-[14px] flex-row flex-wrap justify-between">
-                {(eventsQuery.data?.events ?? []).length === 0 ? (
-                  <View className="w-full items-center py-[30px]">
-                    <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
-                      {search.trim() || filter !== 'all'
-                        ? 'No events match that search.'
-                        : activeTab.empty}
-                    </Text>
-                    {!search.trim() && filter === 'all' && tab !== 'posted' ? (
+              {/* Category chips + date sort */}
+              <View className="mt-[10px] flex-row items-center justify-between">
+                <View className="flex-row gap-[6px]">
+                  {PROFILE_EVENT_FILTERS.map((key) => {
+                    const isActive = key === filter;
+                    return (
                       <Pressable
+                        key={key}
                         accessibilityRole="button"
-                        onPress={() => router.push('/(tabs)/home')}
-                        className="mt-[14px] rounded-full bg-lhlBurntOrange px-[20px] py-[8px]"
+                        accessibilityState={{ selected: isActive }}
+                        onPress={() => setFilter(key)}
+                        className={`rounded-full px-[12px] py-[5px] ${
+                          isActive
+                            ? 'bg-lhlBurntOrange'
+                            : 'border border-lhlMutedBorder bg-lhlSurface'
+                        }`}
                       >
-                        <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">
-                          Explore Events
+                        <Text
+                          className={`font-['Roboto-Flex'] text-[11px] font-medium ${
+                            isActive ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                          }`}
+                        >
+                          {PROFILE_EVENT_FILTER_LABELS[key]}
                         </Text>
                       </Pressable>
-                    ) : null}
-                  </View>
-                ) : (
-                  eventsQuery.data?.events.map((event) => (
-                    <ProfileEventCard
-                      key={event.id}
-                      event={event}
-                      onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
-                      managing={managed?.id === event.id}
-                      onManage={
-                        tab === 'posted'
-                          ? () => {
-                              setManaged(event);
-                              setSheetOpen(true);
-                            }
-                          : undefined
-                      }
-                    />
-                  ))
-                )}
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      )}
+                    );
+                  })}
+                </View>
 
-      <OpenLinkModal {...openLink.modalProps} />
-      {/*
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={sortRecent ? 'Sort by date' : 'Sort by recently added'}
+                  onPress={() => setSortRecent((v) => !v)}
+                  className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[10px] py-[5px]"
+                >
+                  <Text className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey">
+                    {sortRecent ? 'Recent' : 'Date'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Grid */}
+              {eventsQuery.isLoading ? (
+                <ActivityIndicator className="mt-[24px]" color={colors.brand} />
+              ) : (
+                <View className="mt-[14px] flex-row flex-wrap justify-between">
+                  {(eventsQuery.data?.events ?? []).length === 0 ? (
+                    <View className="w-full items-center py-[30px]">
+                      <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
+                        {search.trim() || filter !== 'all'
+                          ? 'No events match that search.'
+                          : activeTab.empty}
+                      </Text>
+                      {!search.trim() && filter === 'all' && tab !== 'posted' ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push('/(tabs)/home')}
+                          className="mt-[14px] rounded-full bg-lhlBurntOrange px-[20px] py-[8px]"
+                        >
+                          <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">
+                            Explore Events
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : (
+                    eventsQuery.data?.events.map((event) => (
+                      <ProfileEventCard
+                        key={event.id}
+                        event={event}
+                        onToggleSave={(eventId) => toggleSave(eventId, !!event.is_saved)}
+                        managing={managed?.id === event.id}
+                        onManage={
+                          tab === 'posted'
+                            ? () => {
+                                setManaged(event);
+                                setSheetOpen(true);
+                              }
+                            : undefined
+                        }
+                      />
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        <OpenLinkModal {...openLink.modalProps} />
+        {/*
         Rohan's edit overlay, reached from the sheet's "Edit Event
         Details" row rather than from a second pencil on the card. Two entry
         points to the same editor is one too many, and the sheet is where a
         host already is when they want to change something.
       */}
-      <EditEventOverlay
-        visible={editingEvent !== null}
-        event={editingEvent}
-        orgId={editingEvent?.host_organization_id}
-        token={token}
-        onClose={() => setEditingEvent(null)}
-      />
+        <EditEventOverlay
+          visible={editingEvent !== null}
+          event={editingEvent}
+          orgId={editingEvent?.host_organization_id}
+          token={token}
+          onClose={() => setEditingEvent(null)}
+        />
 
-      <ManageEventSheet
-        visible={sheetOpen}
-        event={managed}
-        onClose={closeAll}
-        onViewEventPage={() => {
-          const id = managed?.id;
-          closeAll();
-          if (id) router.push(`/event/${id}`);
-        }}
-        onEditDetails={() => {
-          const event = managed;
-          closeAll();
-          // ApiEvent is a superset of EventEditSource, so the row the sheet was
-          // opened for is already everything the overlay needs — no refetch.
-          if (event) setEditingEvent(event);
-        }}
-        onPostAnnouncement={() => {
-          setSheetOpen(false);
-          setAnnouncing(true);
-        }}
-        onDeleteEvent={() => {
-          setSheetOpen(false);
-          setConfirmingDelete(true);
-        }}
-      />
+        <ManageEventSheet
+          visible={sheetOpen}
+          event={managed}
+          onClose={closeAll}
+          onViewEventPage={() => {
+            const id = managed?.id;
+            closeAll();
+            if (id) router.push(`/event/${id}`);
+          }}
+          onEditDetails={() => {
+            const event = managed;
+            closeAll();
+            // ApiEvent is a superset of EventEditSource, so the row the sheet was
+            // opened for is already everything the overlay needs — no refetch.
+            if (event) setEditingEvent(event);
+          }}
+          onPostAnnouncement={() => {
+            setSheetOpen(false);
+            setAnnouncing(true);
+          }}
+          onDeleteEvent={() => {
+            setSheetOpen(false);
+            setConfirmingDelete(true);
+          }}
+        />
 
-      <ConfirmModal
-        visible={confirmingDelete}
-        title={`Delete \u201C${managed?.title ?? ''}\u201D?`}
-        emphasis={`You\u2019re about to delete your event \u201C${managed?.title ?? ''}\u201D`}
-        body={
-          'This permanently removes the event from Longhorn Loop. Anyone who saved or ' +
-          "RSVP'd will no longer see it, and users will be notified. This can't be undone."
-        }
-        secondaryLabel="Keep Event"
-        primaryLabel="Delete Event"
-        primaryDestructive
-        emphasisFirst
-        onSecondary={() => {
-          // Back to the sheet, not out to the grid: backing out of a
-          // confirmation should undo the confirmation, not the whole errand.
-          setConfirmingDelete(false);
-          setSheetOpen(true);
-        }}
-        onPrimary={() => deleteEvent.mutate()}
-      />
+        <ConfirmModal
+          visible={confirmingDelete}
+          title={`Delete \u201C${managed?.title ?? ''}\u201D?`}
+          emphasis={`You\u2019re about to delete your event \u201C${managed?.title ?? ''}\u201D`}
+          body={
+            'This permanently removes the event from Longhorn Loop. Anyone who saved or ' +
+            "RSVP'd will no longer see it, and users will be notified. This can't be undone."
+          }
+          secondaryLabel="Keep Event"
+          primaryLabel="Delete Event"
+          primaryDestructive
+          emphasisFirst
+          onSecondary={() => {
+            // Back to the sheet, not out to the grid: backing out of a
+            // confirmation should undo the confirmation, not the whole errand.
+            setConfirmingDelete(false);
+            setSheetOpen(true);
+          }}
+          onPrimary={() => deleteEvent.mutate()}
+        />
 
-      <PostAnnouncementModal
-        visible={announcing}
-        eventTitle={managed?.title ?? ''}
-        submitting={postAnnouncement.isPending}
-        onCancel={() => {
-          setAnnouncing(false);
-          setSheetOpen(true);
-        }}
-        onPost={(body, notify) => postAnnouncement.mutate({ body, notify })}
-      />
-    </SafeAreaView>
+        <PostAnnouncementModal
+          visible={announcing}
+          eventTitle={managed?.title ?? ''}
+          submitting={postAnnouncement.isPending}
+          onCancel={() => {
+            setAnnouncing(false);
+            setSheetOpen(true);
+          }}
+          onPost={(body, notify) => postAnnouncement.mutate({ body, notify })}
+        />
+      </SafeAreaView>
     </SettingsDrawer>
   );
 }
