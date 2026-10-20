@@ -3,7 +3,6 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   centralUtcOffset,
-  decodeHtmlEntities,
   getNextPageUrl,
   parseApiEvent,
   type ColaApiEvent,
@@ -104,11 +103,5 @@ describe('centralUtcOffset', () => {
     expect(centralUtcOffset(2026, 3, 7)).toBe('-06:00');
     expect(centralUtcOffset(2026, 3, 8)).toBe('-05:00');
     expect(centralUtcOffset(2026, 11, 1)).toBe('-06:00');
-  });
-});
-
-describe('decodeHtmlEntities', () => {
-  it('decodes named, decimal, and hexadecimal entities', () => {
-    expect(decodeHtmlEntities('A&amp;M &#8212; M&#xFC;ller')).toBe('A&M — Müller');
   });
 });

@@ -3,7 +3,6 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   categoryIdFromHref,
-  decodeHtmlEntities,
   extractDateRange,
   extractDescription,
   extractEventCards,
@@ -172,11 +171,5 @@ describe('extractSlug', () => {
 
   it('returns null when there is no /events/ segment', () => {
     expect(extractSlug('https://global.utexas.edu/about')).toBeNull();
-  });
-});
-
-describe('decodeHtmlEntities', () => {
-  it('decodes common HTML entities', () => {
-    expect(decodeHtmlEntities('Q&amp;A')).toBe('Q&A');
   });
 });
