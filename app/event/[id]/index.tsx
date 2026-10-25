@@ -1,4 +1,5 @@
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
+import EventRouteCard from '@/app/components/event/EventRouteCard';
 import ExpandableText from '@/app/components/ExpandableText';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
@@ -7,10 +8,12 @@ import ExpandableText from '@/app/components/ExpandableText';
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import CalendarIcon from '@/assets/images/calendar.svg';
+import ChevronIcon from '@/assets/images/dropdown-arrow.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
 import MapIcon from '@/assets/images/map.svg';
 import ShareIcon from '@/assets/images/share.svg';
+import VerifiedIcon from '@/assets/images/verified.svg';
 import { ApiEvent } from '@/app/components/EventCard';
 import EventLocationMapModal from '@/app/components/modals/EventLocationMapModal';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
@@ -18,13 +21,17 @@ import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay
 import RsvpSuccessToast from '@/app/components/rsvp/RsvpSuccessToast';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api, ApiError } from '@/app/lib/api';
-import { toExternalHttpUrl, useExternalLinkHandoff } from '@/app/lib/externalLink';
+import { googleCalendarUrl } from '@/app/lib/addToCalendar';
+import { formatTimeRange, formatWeekdayDate } from '@/app/lib/eventDateTime';
+import { openExternalUrl, toExternalHttpUrl, useExternalLinkHandoff } from '@/app/lib/externalLink';
 import { events as eventsKeys, saved as savedKeys } from '@/app/lib/queryKeys';
 import { addRsvp, removeRsvp } from '@/app/lib/rsvpStore';
 import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { useEventLocation } from '@/app/lib/useEventLocation';
+import { useOrgFollow } from '@/app/lib/useOrgFollow';
 import type { AvatarConfig } from '@/shared/avatar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,92 +64,76 @@ function posterAspectRatio(kind: string | null): number {
   }
 }
 
-function formatShortDate(isoString: string): string {
-  const date = new Date(isoString);
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  const month = months[date.getMonth()];
-  const day = date.getDate();
-  const suffix = (n: number) => {
-    if (n >= 11 && n <= 13) return 'th';
-    switch (n % 10) {
-      case 1:
-        return 'st';
-      case 2:
-        return 'nd';
-      case 3:
-        return 'rd';
-      default:
-        return 'th';
-    }
-  };
-  return `${month} ${day}${suffix(day)}`;
-}
-
-/**
- * Format the start datetime as a short time label like "12:30 PM".
- */
-function formatShortTime(isoString: string): string {
-  const date = new Date(isoString);
-  let hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
-  return minutes === 0
-    ? `${hours}:00 ${ampm}`
-    : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-}
-
-function MetaRow({ event, token }: { event: ApiEvent; token: string | null }) {
+function InfoCard({
+  event,
+  token,
+  walkMinutes,
+  onAddToCalendar,
+}: {
+  event: ApiEvent;
+  token: string | null;
+  walkMinutes: number | null;
+  onAddToCalendar: () => void;
+}) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [mapOpen, setMapOpen] = useState(false);
 
   return (
-    <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    <View style={styles.card}>
+      <View style={styles.infoRow}>
         <View style={styles.metaIconBadge}>
-          {/*
-            theme-exempt: the badge underneath is colors.brand in both themes, so
-            the glyph on top is white in both. calendar.svg paints from
-            currentColor, so without this it inherited inkSecondary and read as a
-            dark grey icon on burnt orange. map.svg next to it has fill="white"
-            baked in, which is why only the calendar looked wrong.
-          */}
-          <CalendarIcon width={16} height={16} color="#FFFFFF" />
+          <CalendarIcon width={16} height={16} color={colors.ink} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.metaPrimary}>{formatShortDate(event.start_datetime)}</Text>
-          <Text style={styles.metaSecondary}>{formatShortTime(event.start_datetime)}</Text>
+          <Text style={styles.metaPrimary}>{formatWeekdayDate(event.start_datetime)}</Text>
+          <Text style={styles.metaSecondary}>
+            {formatTimeRange(event.start_datetime, event.end_datetime)}
+          </Text>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add to Google Calendar"
+          onPress={onAddToCalendar}
+          style={styles.softPill}
+        >
+          <Text style={styles.softPillText}>Add to GCal</Text>
+        </Pressable>
       </View>
 
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <TouchableOpacity
-          style={styles.metaIconBadge}
-          onPress={() => setMapOpen(true)}
-          accessibilityLabel="Show location on map"
-        >
-          <MapIcon width={16} height={16} />
-        </TouchableOpacity>
+      <View style={styles.cardDivider} />
+
+      {/* The whole row opens the map, not just the badge: with a chevron on the
+          right it reads as one tappable row. */}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Show location on map"
+        onPress={() => setMapOpen(true)}
+        style={styles.infoRow}
+      >
+        <View style={styles.metaIconBadge}>
+          <MapIcon width={16} height={16} color={colors.ink} />
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.metaPrimary} numberOfLines={2}>
             {event.location_full || event.location_short || 'Location TBD'}
           </Text>
+          {/* UT Austin's app and a campus-only event set: the city is constant.
+              The walk time appears once the viewer's position is known (see
+              useEventLocation); until then the line is just the city. */}
+          <Text style={styles.metaSecondary}>
+            {walkMinutes != null ? `Austin TX · ${walkMinutes} min walk` : 'Austin TX'}
+          </Text>
         </View>
-      </View>
+        {/* No dedicated right-chevron asset; the dropdown arrow turned a quarter
+            turn, the same one-asset-flipped approach ExpandableText takes. */}
+        <ChevronIcon
+          width={16}
+          height={16}
+          color={colors.ink}
+          style={{ transform: [{ rotate: '-90deg' }] }}
+        />
+      </TouchableOpacity>
 
       <EventLocationMapModal
         visible={mapOpen}
@@ -322,6 +313,26 @@ export default function EventDetailScreen() {
     return list.some((e) => String(e.id) === String(id));
   }, [savedQuery.data, id]);
 
+  // Follow the host org from the header row. Called up here with the other
+  // hooks, before the loading / error early returns, so the id is read off the
+  // possibly-undefined event; the button is only rendered for a real org id.
+  // Writing the server's answer into the cached detail row keeps the button
+  // right when the user leaves and comes back inside the 30s staleTime, the
+  // same reason patchCachedRsvpState exists for RSVPs.
+  const follow = useOrgFollow(Number(event?.host_organization_id), token, {
+    onSuccess: ({ following }) => {
+      queryClient.setQueryData<ApiEvent>(eventsKeys.detail(String(id)), (old) =>
+        old ? { ...old, is_following_org: following } : old,
+      );
+    },
+    onError: () => setShareNotice('Couldn’t update follow. Try again.'),
+  });
+
+  // Venue coordinate + the viewer's walk time, shared by the info card's
+  // subtitle and the route card. autoLocate only reads an already-granted
+  // permission, so opening an event never raises the OS prompt.
+  const location = useEventLocation(event, token, { autoLocate: true });
+
   // Optimistic toggle save.
   const toggleSave = useMutation({
     mutationFn: async (wasSaved: boolean) => {
@@ -414,6 +425,18 @@ export default function EventDetailScreen() {
     onReturn: () => setShowDidYouRsvpModal(true),
     onFailure: () => setShareNotice('Couldn’t open the RSVP link'),
   });
+
+  // Opens a prefilled Google Calendar event. Not routed through
+  // externalLink.request(): that hand-off exists to wait out a modal that is
+  // still dismissing, and this button is not in one. A failed open surfaces on
+  // the same pill the other actions use.
+  const handleAddToCalendar = async () => {
+    if (!event) return;
+    const url = googleCalendarUrl(event);
+    if (!url || !(await openExternalUrl(url))) {
+      setShareNotice('Couldn’t open Google Calendar');
+    }
+  };
 
   // Top-level entry point for the RSVP button. Branches on current state
   // and whether the event has a usable rsvp_url.
@@ -542,9 +565,23 @@ export default function EventDetailScreen() {
   // actually open -- an icon promising a hand-off that cannot happen is worse
   // than no icon.
   const hasRsvpLink = !!externalRsvpUrl;
-  // Chips are our own benefits + classifier-assigned taxonomy tags — not the
-  // raw scraped categories (which surfaced generic labels like "Social").
-  const chips = [...(event.benefits ?? []), ...(event.tags ?? [])];
+  // The header line above the title reads from event_categories, per the
+  // redesign. This used to be benefits + classifier tags because raw scraped
+  // categories surfaced generic labels like "Social"; the design wants
+  // categories, so those generic labels can show up on scraped events. Capped
+  // at 3 so the line stays on one row at phone width, de-duped
+  // case-insensitively because scrapers sometimes emit the same label twice.
+  const categoryLabels = (() => {
+    const seen = new Set<string>();
+    const labels: string[] = [];
+    for (const category of event.categories ?? []) {
+      const name = category.name?.trim();
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      labels.push(name);
+    }
+    return labels.slice(0, 3);
+  })();
 
   // Scraped events carry a host NAME but no host ID -- they are never linked to
   // an `organizations` row. Pushing `/org/${undefined}/profile` produced the
@@ -556,6 +593,10 @@ export default function EventDetailScreen() {
   // There is no page to send them to, so the host stops being a link.
   const hostOrgId = Number(event.host_organization_id);
   const canOpenHostOrg = Number.isInteger(hostOrgId) && hostOrgId > 0;
+  // Following needs the same real org row, and the endpoint is auth-gated, so
+  // signed-out viewers get the row without the button rather than one that 401s.
+  const isFollowingHost = event.is_following_org ?? false;
+  const canFollowHost = canOpenHostOrg && !!token;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -619,72 +660,98 @@ export default function EventDetailScreen() {
         </SafeAreaView>
 
         <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+          {categoryLabels.length > 0 ? (
+            <Text style={styles.categoryLine} numberOfLines={1}>
+              {categoryLabels.join(' · ').toUpperCase()}
+            </Text>
+          ) : null}
+
           <Text style={styles.title}>{event.title}</Text>
 
-          <MetaRow event={event} token={token} />
+          {/* Host row: avatar + name (+ verified check) open the org's PUBLIC
+              profile (LOOP-180), never the management console — most people
+              tapping this are not members, and the console 403s them. Follow
+              sits beside it as its own control. */}
+          {event.host_organization_name ? (
+            <View style={styles.hostRow}>
+              <TouchableOpacity
+                accessibilityRole={canOpenHostOrg ? 'button' : 'text'}
+                accessibilityLabel={
+                  canOpenHostOrg
+                    ? `View ${event.host_organization_name}`
+                    : event.host_organization_name
+                }
+                disabled={!canOpenHostOrg}
+                // No press feedback when there is nowhere to go -- a row that
+                // dims on touch and then does nothing reads as a broken link.
+                activeOpacity={canOpenHostOrg ? 0.2 : 1}
+                onPress={() => router.push(`/org/${hostOrgId}/profile`)}
+                style={styles.hostLink}
+              >
+                {event.org_profile_picture ? (
+                  <Image source={{ uri: event.org_profile_picture }} style={styles.hostAvatar} />
+                ) : (
+                  <View style={[styles.hostAvatar, styles.hostAvatarFallback]}>
+                    {/* theme-exempt: initial sits on the brand-coloured fill */}
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                      {event.host_organization_name[0]?.toUpperCase() ?? '?'}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.hostName} numberOfLines={1}>
+                  {event.host_organization_name}
+                </Text>
+                {event.org_verified ? (
+                  <VerifiedIcon width={16} height={16} style={{ flexShrink: 0 }} />
+                ) : null}
+              </TouchableOpacity>
+
+              {canFollowHost ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isFollowingHost
+                      ? `Unfollow ${event.host_organization_name}`
+                      : `Follow ${event.host_organization_name}`
+                  }
+                  accessibilityState={{ selected: isFollowingHost, disabled: follow.isPending }}
+                  disabled={follow.isPending}
+                  onPress={() => follow.mutate(!isFollowingHost)}
+                  // Soft brand pill while unfollowed, outline once followed: the
+                  // same inversion FollowControl uses for a completed toggle.
+                  style={[
+                    styles.followPill,
+                    isFollowingHost ? styles.followPillActive : null,
+                    follow.isPending ? { opacity: 0.6 } : null,
+                  ]}
+                >
+                  <Text
+                    style={[styles.followPillText, isFollowingHost ? { color: colors.ink } : null]}
+                  >
+                    {isFollowingHost ? 'Following' : 'Follow'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          <InfoCard
+            event={event}
+            token={token}
+            walkMinutes={location.walkMinutes}
+            onAddToCalendar={handleAddToCalendar}
+          />
 
           {event.description ? (
-            <View style={{ marginBottom: 18 }}>
+            <View style={[styles.card, styles.aboutCard]}>
               <Text style={styles.sectionHeader}>About This Event</Text>
-              <ExpandableText style={styles.bodyText}>{event.description}</ExpandableText>
+              <ExpandableText style={styles.bodyText} collapsedLines={3} moreLabel="Read More">
+                {event.description}
+              </ExpandableText>
             </View>
           ) : null}
 
-          {chips.length > 0 ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
-              {chips.map((label, i) => (
-                <View key={`chip-${i}-${label}`} style={styles.chip}>
-                  <Text style={styles.chipText}>{label}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={{ marginBottom: 18 }}>
-            <Text style={styles.sectionHeader}>Hosted by</Text>
-            {/* Opens the org's PUBLIC profile (LOOP-180), never the management
-                console — most people tapping this are not members, and the
-                console 403s them. */}
-            <TouchableOpacity
-              accessibilityRole={canOpenHostOrg ? 'button' : 'text'}
-              accessibilityLabel={
-                canOpenHostOrg
-                  ? `View ${event.host_organization_name}`
-                  : (event.host_organization_name ?? 'Host organization')
-              }
-              disabled={!canOpenHostOrg}
-              // No press feedback when there is nowhere to go -- a row that
-              // dims on touch and then does nothing reads as a broken link.
-              activeOpacity={canOpenHostOrg ? 0.2 : 1}
-              onPress={() => router.push(`/org/${hostOrgId}/profile`)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-            >
-              {event.org_profile_picture ? (
-                <Image
-                  source={{ uri: event.org_profile_picture }}
-                  style={{ width: 32, height: 32, borderRadius: 16 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: colors.brand,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                    {event.host_organization_name?.[0] ?? '?'}
-                  </Text>
-                </View>
-              )}
-              <Text style={{ fontSize: 14, color: colors.ink, flex: 1 }} numberOfLines={1}>
-                {event.host_organization_name}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <EventRouteCard event={event} location={location} />
 
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
@@ -844,13 +911,103 @@ const makeStyles = (c: ThemeColors) => ({
     fontSize: 22,
     fontWeight: '700' as const,
     color: c.ink,
+    marginBottom: 12,
+  },
+  hostRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 12,
+    marginBottom: 20,
+  },
+  hostLink: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  hostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  hostAvatarFallback: {
+    backgroundColor: c.brand,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  hostName: {
+    fontFamily: 'RobotoFlex_600SemiBold',
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: c.ink,
+    flexShrink: 1,
+  },
+  followPill: {
+    minWidth: 84,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.brandSoft,
+    backgroundColor: c.brandSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+  },
+  followPillActive: {
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+  followPillText: {
+    fontFamily: 'RobotoFlex_600SemiBold',
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: c.brand,
+  },
+  // Shared by the date/location card and the About card. surfaceMuted sits a
+  // shade off the sheet's surface, with a soft shadow, as in the design.
+  card: {
+    backgroundColor: c.surfaceMuted,
+    borderRadius: 12,
     marginBottom: 16,
+    shadowColor: '#000', // theme-exempt: a shadow is black in both themes
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  aboutCard: {
+    padding: 16,
+  },
+  infoRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: c.borderSoft,
+    marginHorizontal: 12,
+  },
+  softPill: {
+    borderRadius: 8,
+    backgroundColor: c.brandSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  softPillText: {
+    fontFamily: 'RobotoFlex_600SemiBold',
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: c.brand,
   },
   metaIconBadge: {
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: c.brand,
+    backgroundColor: c.segmentTrack,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -878,16 +1035,13 @@ const makeStyles = (c: ThemeColors) => ({
     color: c.ink,
     lineHeight: 21,
   },
-  chip: {
-    backgroundColor: c.surfaceMuted,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  chipText: {
-    fontSize: 13,
-    color: c.ink,
-    fontWeight: '500' as const,
+  categoryLine: {
+    fontFamily: 'RobotoFlex_600SemiBold',
+    fontSize: 12,
+    fontWeight: '600' as const,
+    letterSpacing: 0.5,
+    color: c.brand,
+    marginBottom: 8,
   },
   actionBarWrapper: {
     position: 'absolute' as const,

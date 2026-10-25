@@ -193,7 +193,9 @@ export default function EventPreview() {
 
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={styles.metaIconBadge}>
-                <MapIcon width={16} height={16} />
+                {/* theme-exempt: map.svg now paints from currentColor; this badge is
+                    brand-filled in both themes, so the glyph stays white. */}
+                <MapIcon width={16} height={16} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.metaPrimary} numberOfLines={2}>

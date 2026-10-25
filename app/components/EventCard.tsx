@@ -33,6 +33,9 @@ export interface ApiEvent {
   rsvp_count: number;
   view_count: number;
   org_profile_picture: string | null;
+  // Detail endpoint only (GET /events/:id); list and feed rows omit them.
+  org_verified?: boolean;
+  is_following_org?: boolean;
   categories: { id: string; name: string }[];
   // Classifier-assigned taxonomy tags (Phase 2). Rendered as chips.
   tags: string[];
