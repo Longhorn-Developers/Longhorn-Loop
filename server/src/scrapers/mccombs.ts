@@ -18,7 +18,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { decodeHtmlEntities, inferVenueType } from './helpers';
 
 const SITEMAP_INDEX_URL = 'https://calendar.mccombs.utexas.edu/sitemap.livewhale.xml';
 export const SOURCE = 'mccombs';
@@ -52,16 +52,6 @@ interface ScraperResult {
 }
 
 // Helpers, exported for unit tests
-
-export function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
 
 export function cleanDescription(description: string | null | undefined): string | null {
   if (!description) return null;
