@@ -10,55 +10,80 @@
 // shown is an estimate, and Directions hands off to Maps for the real route.
 
 import type { ApiEvent } from '@/app/components/EventCard';
+import { RowButton } from '@/app/components/event/InfoRow';
 import EventLocationMap from '@/app/components/modals/EventLocationMap';
 import { useThemeColors, type ThemeColors } from '@/app/lib/themeColors';
-import { formatMiles, type useEventLocation } from '@/app/lib/useEventLocation';
+import { formatMiles, type EventLocation } from '@/app/lib/useEventLocation';
 import DirectionsIcon from '@/assets/images/directions.svg';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface EventRouteCardProps {
   event: ApiEvent;
-  location: ReturnType<typeof useEventLocation>;
+  location: EventLocation;
 }
 
 export default function EventRouteCard({ event, location }: EventRouteCardProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { coord, resolving, user, locating, meters, walkMinutes, requestUserLocation, openInMaps } =
-    location;
+  const {
+    coord,
+    resolving,
+    user,
+    locating,
+    meters,
+    walkMinutes,
+    requestUserLocation,
+    openInMaps,
+    hasLocation,
+  } = location;
 
-  // No place to draw. The info card above still shows the address text, and a
-  // card that apologises for a missing map is worse than no card.
-  if (!resolving && !coord) return null;
+  // Nothing to show: an online event (its "location" is a meeting link), or an
+  // event with no address at all — the info card already says "Location TBD".
+  if (!hasLocation) return null;
+
+  // There IS an address but it couldn't be put on a map. Most scraped events
+  // carry no coordinates (LOOP-275), and the address can still fail to resolve,
+  // so this is a common state, not an error. Rather than a card that
+  // disappears — or an empty grey frame — it collapses to the footer alone:
+  // the venue, a plain statement that there is no map, and Directions, which
+  // still works because Maps takes the address text when there is no
+  // coordinate (see openInMaps).
+  const unplaced = !resolving && !coord;
 
   const venueName = event.location_short || event.location_full || event.title;
 
   return (
     <View style={styles.card}>
-      <View style={styles.mapFrame}>
-        {coord ? (
-          <EventLocationMap
-            event={coord}
-            label={venueName}
-            user={user}
-            showRoute={user != null}
-            variant="inline"
-            walkMinutes={walkMinutes}
-          />
-        ) : (
-          <View style={styles.mapLoading}>
-            <ActivityIndicator color={colors.brand} />
-          </View>
-        )}
-      </View>
+      {unplaced ? null : (
+        <View style={styles.mapFrame}>
+          {coord ? (
+            <EventLocationMap
+              event={coord}
+              label={venueName}
+              user={user}
+              showRoute={user != null}
+              variant="inline"
+              walkMinutes={walkMinutes}
+            />
+          ) : (
+            <View style={styles.mapLoading}>
+              <ActivityIndicator color={colors.brand} />
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.footer}>
         <View style={{ flex: 1 }}>
           <Text style={styles.venue} numberOfLines={1}>
             {venueName}
           </Text>
-          {walkMinutes != null && meters != null ? (
+          {unplaced ? (
+            <Text style={[styles.detail, { color: colors.inkMuted }]}>
+              Map unavailable for this location
+            </Text>
+          ) : walkMinutes != null && meters != null ? (
             <Text style={styles.detail}>
               {walkMinutes} min walk · {formatMiles(meters)}
             </Text>
@@ -80,16 +105,12 @@ export default function EventRouteCard({ event, location }: EventRouteCardProps)
           )}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
+        <RowButton
+          label="Directions"
           accessibilityLabel="Get walking directions"
-          disabled={!coord}
+          icon={<DirectionsIcon width={16} height={16} color={colors.brand} />}
           onPress={() => openInMaps('directions')}
-          style={[styles.directions, !coord ? { opacity: 0.5 } : null]}
-        >
-          <DirectionsIcon width={16} height={16} color={colors.brand} />
-          <Text style={styles.directionsText}>Directions</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -136,20 +157,5 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 14,
       color: c.ink,
       marginTop: 2,
-    },
-    directions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      borderRadius: 8,
-      backgroundColor: c.brandSoft,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-    directionsText: {
-      fontFamily: 'RobotoFlex_600SemiBold',
-      fontSize: 13,
-      fontWeight: '600',
-      color: c.brand,
     },
   });

@@ -11,10 +11,11 @@ import type { ApiEvent } from '@/app/components/EventCard';
 import type { Coord } from '@/app/components/modals/EventLocationMap';
 import { api } from '@/app/lib/api';
 import { searchPlace } from '@/app/lib/localSearch';
+import { isOnlineVenue } from '@/shared/venueType';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 // Average walking speed (~5 km/h) for the straight-line ETA. Real turn-by-turn
 // distance would need a Directions API; this is the honest estimate we can give
@@ -40,6 +41,9 @@ export function formatMiles(meters: number): string {
   const miles = Math.max(0.1, Math.round((meters / METERS_PER_MILE) * 10) / 10);
   return `${miles.toFixed(1)} mi`;
 }
+
+/** What `useEventLocation` returns, for components that are handed it. */
+export type EventLocation = ReturnType<typeof useEventLocation>;
 
 interface Options {
   /**
@@ -71,10 +75,15 @@ export function useEventLocation(
   const eventId = event?.id;
   const latitude = event?.latitude;
   const longitude = event?.longitude;
-  const addressString = event ? event.location_full || event.location_short || null : null;
+  // An online event's "location" is a meeting link. Geocoding it would burn a
+  // place search on a URL, and the viewer's position is irrelevant — so none of
+  // this runs, and there is no location to report.
+  const online = event ? isOnlineVenue(event.venue_type) : false;
+  const addressString =
+    event && !online ? event.location_full || event.location_short || null : null;
 
   useEffect(() => {
-    if (!enabled || eventId === undefined) return;
+    if (!enabled || eventId === undefined || online) return;
     let cancelled = false;
 
     const resolve = async () => {
@@ -133,7 +142,7 @@ export function useEventLocation(
     return () => {
       cancelled = true;
     };
-  }, [enabled, eventId, latitude, longitude, addressString, token]);
+  }, [enabled, online, eventId, latitude, longitude, addressString, token]);
 
   // Reset per-open transient state when the consumer is switched off (the modal
   // closing), so the next open doesn't flash the previous position.
@@ -145,7 +154,7 @@ export function useEventLocation(
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled || !autoLocate) return;
+    if (!enabled || !autoLocate || online) return;
     let cancelled = false;
     (async () => {
       try {
@@ -164,15 +173,44 @@ export function useEventLocation(
     return () => {
       cancelled = true;
     };
-  }, [enabled, autoLocate]);
+  }, [enabled, autoLocate, online]);
 
+  // Tapped "Show walking time" / "Tap to see current distance".
+  //
+  // The OS only shows its location prompt while it can: iOS shows it once per
+  // install, and Android stops after a second refusal or "Don't ask again". Once
+  // a user has said no, requestForegroundPermissionsAsync resolves "denied"
+  // without showing anything, which left the control looking dead — and an app
+  // cannot force the prompt back. What it CAN do is notice the permission is
+  // blocked and send them to the one place that can change it: this app's page
+  // in Settings. So: ask while asking works, otherwise explain and offer Settings.
   const requestUserLocation = useCallback(async () => {
     if (locating) return;
     setLocating(true);
     try {
+      let permission = await Location.getForegroundPermissionsAsync();
+
+      // Blocked BEFORE this tap. Judged up front so that someone who has just
+      // tapped "Don't Allow" in the prompt we raised is not met with a second
+      // dialog telling them to go to Settings.
+      if (permission.status !== 'granted' && !permission.canAskAgain) {
+        Alert.alert(
+          'Location is off',
+          'Turn on location for Longhorn Loop in Settings to see your walking time to this event.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+        return;
+      }
+
       // Requesting permission is what surfaces the OS location prompt.
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (permission.status !== 'granted') {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+      if (permission.status !== 'granted') return;
+
       const pos = await Location.getCurrentPositionAsync({});
       setUser({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
     } catch {
@@ -213,14 +251,17 @@ export function useEventLocation(
   );
 
   return {
-    coord,
-    resolving,
+    coord: online ? null : coord,
+    // `resolving` starts true and an online event never resolves anything, so
+    // without this it would report "still looking" forever.
+    resolving: resolving && !online,
     user,
     locating,
     meters,
     walkMinutes,
     requestUserLocation,
     openInMaps,
-    hasLocation: coord != null || addressString != null,
+    hasLocation: !online && (coord != null || addressString != null),
+    online,
   };
 }

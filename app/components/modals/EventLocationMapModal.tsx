@@ -1,7 +1,7 @@
 import type { ApiEvent } from '@/app/components/EventCard';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import { useEventLocation } from '@/app/lib/useEventLocation';
+import type { EventLocation } from '@/app/lib/useEventLocation';
 import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -18,24 +18,25 @@ interface EventLocationMapModalProps {
   visible: boolean;
   onClose: () => void;
   event: ApiEvent;
-  // Auth token, so a coordinate resolved from the location label can be
-  // written back to the server for this event (backfill). Optional: without it
-  // the map still shows, the coordinate just isn't persisted.
-  token?: string | null;
+  // The screen's location state (venue coordinate, the viewer's position, the
+  // walk estimate), NOT a copy of it. The modal used to run its own
+  // useEventLocation, so granting location from the modal's distance pill
+  // updated only the modal: the route card and the info card behind it stayed on
+  // "Show walking time" until the screen was reopened. Sharing one instance
+  // means allowing it in either place updates both, and the coordinate is
+  // geocoded and backfilled once instead of once per consumer.
+  location: EventLocation;
 }
 
 export default function EventLocationMapModal({
   visible,
   onClose,
   event,
-  token,
+  location,
 }: EventLocationMapModalProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  // Resolution, the viewer's position and the walk estimate live in
-  // useEventLocation, shared with the inline route card on the event page.
-  // `enabled` keeps the old behaviour of only geocoding once the modal opens.
   const {
     coord,
     resolving,
@@ -45,7 +46,7 @@ export default function EventLocationMapModal({
     requestUserLocation,
     openInMaps,
     hasLocation,
-  } = useEventLocation(event, token, { enabled: visible });
+  } = location;
 
   const locationName = event.location_short || event.location_full || null;
 

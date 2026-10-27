@@ -1,5 +1,7 @@
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import EventRouteCard from '@/app/components/event/EventRouteCard';
+import FlyerFullscreenModal from '@/app/components/event/FlyerFullscreenModal';
+import InfoRow, { RowAvatar, RowBadge, RowButton } from '@/app/components/event/InfoRow';
 import ExpandableText from '@/app/components/ExpandableText';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
@@ -7,8 +9,9 @@ import ExpandableText from '@/app/components/ExpandableText';
 
 import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
+import CalendarAddIcon from '@/assets/images/calendar-add.svg';
 import CalendarIcon from '@/assets/images/calendar.svg';
-import ChevronIcon from '@/assets/images/dropdown-arrow.svg';
+import ExpandIcon from '@/assets/images/expand.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
 import MapIcon from '@/assets/images/map.svg';
@@ -30,11 +33,10 @@ import { shareEvent } from '@/app/lib/shareEvent';
 import { recordView } from '@/app/lib/signals';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import { useEventLocation } from '@/app/lib/useEventLocation';
+import { useEventLocation, type EventLocation } from '@/app/lib/useEventLocation';
 import { useOrgFollow } from '@/app/lib/useOrgFollow';
 import type { AvatarConfig } from '@/shared/avatar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -42,7 +44,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -51,6 +52,20 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 // Container aspect ratio for the poster. Defaults to portrait since most
 // flyers are vertical.
+// Width of the flyer in the hero, by shape. The redesign shows a portrait flyer
+// at under half the screen; a square or landscape one is wider so all three end
+// up a similar height instead of the landscape one shrinking to a postage stamp.
+function posterWidth(kind: string | null): `${number}%` {
+  switch (kind) {
+    case 'horizontal':
+      return '80%';
+    case 'square':
+      return '60%';
+    default:
+      return '46%';
+  }
+}
+
 function posterAspectRatio(kind: string | null): number {
   switch (kind) {
     case 'horizontal':
@@ -66,81 +81,73 @@ function posterAspectRatio(kind: string | null): number {
 
 function InfoCard({
   event,
-  token,
-  walkMinutes,
+  location,
   onAddToCalendar,
 }: {
   event: ApiEvent;
-  token: string | null;
-  walkMinutes: number | null;
+  location: EventLocation;
   onAddToCalendar: () => void;
 }) {
+  const walkMinutes = location.walkMinutes;
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [mapOpen, setMapOpen] = useState(false);
 
   return (
     <View style={styles.card}>
-      <View style={styles.infoRow}>
-        <View style={styles.metaIconBadge}>
-          <CalendarIcon width={16} height={16} color={colors.ink} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.metaPrimary}>{formatWeekdayDate(event.start_datetime)}</Text>
-          <Text style={styles.metaSecondary}>
-            {formatTimeRange(event.start_datetime, event.end_datetime)}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add to Google Calendar"
-          onPress={onAddToCalendar}
-          style={styles.softPill}
-        >
-          <Text style={styles.softPillText}>Add to GCal</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.cardDivider} />
-
-      {/* The whole row opens the map, not just the badge: with a chevron on the
-          right it reads as one tappable row. */}
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel="Show location on map"
-        onPress={() => setMapOpen(true)}
-        style={styles.infoRow}
-      >
-        <View style={styles.metaIconBadge}>
-          <MapIcon width={16} height={16} color={colors.ink} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.metaPrimary} numberOfLines={2}>
-            {event.location_full || event.location_short || 'Location TBD'}
-          </Text>
-          {/* UT Austin's app and a campus-only event set: the city is constant.
-              The walk time appears once the viewer's position is known (see
-              useEventLocation); until then the line is just the city. */}
-          <Text style={styles.metaSecondary}>
-            {walkMinutes != null ? `Austin TX · ${walkMinutes} min walk` : 'Austin TX'}
-          </Text>
-        </View>
-        {/* No dedicated right-chevron asset; the dropdown arrow turned a quarter
-            turn, the same one-asset-flipped approach ExpandableText takes. */}
-        <ChevronIcon
-          width={16}
-          height={16}
-          color={colors.ink}
-          style={{ transform: [{ rotate: '-90deg' }] }}
-        />
-      </TouchableOpacity>
-
-      <EventLocationMapModal
-        visible={mapOpen}
-        onClose={() => setMapOpen(false)}
-        event={event}
-        token={token}
+      <InfoRow
+        inset
+        leading={
+          <RowBadge>
+            <CalendarIcon width={16} height={16} color={colors.ink} />
+          </RowBadge>
+        }
+        title={formatWeekdayDate(event.start_datetime)}
+        subtitle={formatTimeRange(event.start_datetime, event.end_datetime)}
+        trailing={
+          <RowButton
+            label="Add to GCal"
+            accessibilityLabel="Add to Google Calendar"
+            icon={<CalendarAddIcon width={16} height={16} color={colors.brand} />}
+            iconPosition="end"
+            onPress={onAddToCalendar}
+          />
+        }
       />
+
+      {/* An online event has no place: its "location" is a meeting link, so
+          there is no address row, no divider above it and no map behind it. */}
+      {location.online ? null : (
+        <>
+          <View style={styles.cardDivider} />
+
+          {/* The whole row opens the map, not just the badge: with a chevron on the
+          right it reads as one tappable row. The subtitle is the city, which is
+          constant for a campus-only event set; the walk time joins it once the
+          viewer's position is known (see useEventLocation). */}
+          <InfoRow
+            inset
+            chevron
+            leading={
+              <RowBadge>
+                <MapIcon width={16} height={16} color={colors.ink} />
+              </RowBadge>
+            }
+            title={event.location_full || event.location_short || 'Location TBD'}
+            titleLines={2}
+            subtitle={walkMinutes != null ? `Austin TX · ${walkMinutes} min walk` : 'Austin TX'}
+            accessibilityLabel="Show location on map"
+            onPress={() => setMapOpen(true)}
+          />
+
+          <EventLocationMapModal
+            visible={mapOpen}
+            onClose={() => setMapOpen(false)}
+            event={event}
+            location={location}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -254,12 +261,15 @@ function AttendeesRow({
           width: 36,
           height: 36,
           borderRadius: 8,
-          backgroundColor: colors.brand,
+          // Soft fill + brand glyph, as in the redesign (was a solid brand
+          // button). share.svg now paints from currentColor so the glyph can
+          // follow the theme; it was only ever used here, on a brand fill.
+          backgroundColor: colors.brandSoft,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <ShareIcon width={16} height={18} />
+        <ShareIcon width={16} height={18} color={colors.brand} />
       </TouchableOpacity>
     </View>
   );
@@ -283,6 +293,7 @@ export default function EventDetailScreen() {
   const [showDidYouRsvpModal, setShowDidYouRsvpModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [flyerOpen, setFlyerOpen] = useState(false);
   // A write is in flight. The RSVP button used to give no sign of this at all,
   // which on a slow connection was indistinguishable from the tap having been
   // ignored -- half of what "the app freezes when you try to RSVP" (LOOP-278)
@@ -604,62 +615,64 @@ export default function EventDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {/* Soft two-layer gradient behind the poster. */}
-        <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
-          <View style={{ position: 'relative' }}>
-            <LinearGradient
-              // theme-exempt: warm under-layer, only ever seen through the 15% window
-              // in the layer above; it reads as a soft haze in either theme.
-              colors={['rgba(146,141,135,1)', 'rgba(248,239,229,1)']}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <LinearGradient
-              // The opaque ends are the page background; the middle stop is a
-              // translucent grey that works over either theme.
-              colors={[colors.background, 'rgba(146,141,135,0.15)', colors.background]}
-              locations={[0, 0.5144, 1]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
+        {/* Flat hero, as in the redesign (was a two-layer gradient). segmentTrack is
+            the warm grey the design shows behind the flyer in either theme. */}
+        <SafeAreaView edges={['top']} style={{ backgroundColor: colors.segmentTrack }}>
+          <View
+            style={{
+              paddingTop: 8,
+              paddingBottom: 40,
+              paddingHorizontal: 24,
+              alignItems: 'center',
+            }}
+          >
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <ArrowLeftIcon width={24} height={24} color={colors.ink} />
+            </TouchableOpacity>
+
+            {/* Only offered when there is a real image: the placeholder has
+                nothing more to show at full size. */}
+            {event.image_url ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="View flyer fullscreen"
+                onPress={() => setFlyerOpen(true)}
+                style={styles.expandButton}
+              >
+                <ExpandIcon width={20} height={20} color={colors.brand} />
+              </TouchableOpacity>
+            ) : null}
 
             <View
-              style={{
-                paddingTop: 8,
-                paddingBottom: 24,
-                paddingHorizontal: 24,
-                alignItems: 'center',
-              }}
+              style={[
+                styles.poster,
+                {
+                  aspectRatio: posterAspectRatio(event.image_aspect_ratio),
+                  width: posterWidth(event.image_aspect_ratio),
+                },
+              ]}
             >
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <ArrowLeftIcon width={20} height={20} color={colors.ink} />
-              </TouchableOpacity>
-
-              <View
-                style={[
-                  styles.poster,
-                  { aspectRatio: posterAspectRatio(event.image_aspect_ratio) },
-                ]}
-              >
-                {event.image_url ? (
-                  <Image
-                    source={{ uri: event.image_url }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  // Was a grey box reading "No image", which told the user
-                  // nothing and looked like a failed load.
-                  <EventFlyerPlaceholder seed={event?.id} />
-                )}
-              </View>
+              {event.image_url ? (
+                <Image
+                  source={{ uri: event.image_url }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="contain"
+                />
+              ) : (
+                // Was a grey box reading "No image", which told the user
+                // nothing and looked like a failed load.
+                <EventFlyerPlaceholder seed={event?.id} />
+              )}
             </View>
           </View>
         </SafeAreaView>
 
-        <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+        <View style={styles.sheet}>
           {categoryLabels.length > 0 ? (
             <Text style={styles.categoryLine} numberOfLines={1}>
               {categoryLabels.join(' · ').toUpperCase()}
@@ -673,79 +686,51 @@ export default function EventDetailScreen() {
               tapping this are not members, and the console 403s them. Follow
               sits beside it as its own control. */}
           {event.host_organization_name ? (
-            <View style={styles.hostRow}>
-              <TouchableOpacity
-                accessibilityRole={canOpenHostOrg ? 'button' : 'text'}
-                accessibilityLabel={
-                  canOpenHostOrg
-                    ? `View ${event.host_organization_name}`
-                    : event.host_organization_name
-                }
-                disabled={!canOpenHostOrg}
-                // No press feedback when there is nowhere to go -- a row that
-                // dims on touch and then does nothing reads as a broken link.
-                activeOpacity={canOpenHostOrg ? 0.2 : 1}
-                onPress={() => router.push(`/org/${hostOrgId}/profile`)}
-                style={styles.hostLink}
-              >
-                {event.org_profile_picture ? (
-                  <Image source={{ uri: event.org_profile_picture }} style={styles.hostAvatar} />
-                ) : (
-                  <View style={[styles.hostAvatar, styles.hostAvatarFallback]}>
-                    {/* theme-exempt: initial sits on the brand-coloured fill */}
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                      {event.host_organization_name[0]?.toUpperCase() ?? '?'}
-                    </Text>
-                  </View>
-                )}
-                <Text style={styles.hostName} numberOfLines={1}>
-                  {event.host_organization_name}
-                </Text>
-                {event.org_verified ? (
+            <InfoRow
+              style={{ marginBottom: 20 }}
+              leading={
+                <RowAvatar uri={event.org_profile_picture} name={event.host_organization_name} />
+              }
+              title={event.host_organization_name}
+              titleAccessory={
+                event.org_verified ? (
                   <VerifiedIcon width={16} height={16} style={{ flexShrink: 0 }} />
-                ) : null}
-              </TouchableOpacity>
-
-              {canFollowHost ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    isFollowingHost
-                      ? `Unfollow ${event.host_organization_name}`
-                      : `Follow ${event.host_organization_name}`
-                  }
-                  accessibilityState={{ selected: isFollowingHost, disabled: follow.isPending }}
-                  disabled={follow.isPending}
-                  onPress={() => follow.mutate(!isFollowingHost)}
-                  // Soft brand pill while unfollowed, outline once followed: the
-                  // same inversion FollowControl uses for a completed toggle.
-                  style={[
-                    styles.followPill,
-                    isFollowingHost ? styles.followPillActive : null,
-                    follow.isPending ? { opacity: 0.6 } : null,
-                  ]}
-                >
-                  <Text
-                    style={[styles.followPillText, isFollowingHost ? { color: colors.ink } : null]}
-                  >
-                    {isFollowingHost ? 'Following' : 'Follow'}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
+                ) : null
+              }
+              // No handler when there is nowhere to go: a row that dims on touch
+              // and then does nothing reads as a broken link.
+              onPress={canOpenHostOrg ? () => router.push(`/org/${hostOrgId}/profile`) : undefined}
+              accessibilityLabel={`View ${event.host_organization_name}`}
+              trailing={
+                canFollowHost ? (
+                  <RowButton
+                    shape="pill"
+                    label={isFollowingHost ? 'Following' : 'Follow'}
+                    accessibilityLabel={
+                      isFollowingHost
+                        ? `Unfollow ${event.host_organization_name}`
+                        : `Follow ${event.host_organization_name}`
+                    }
+                    active={isFollowingHost}
+                    pending={follow.isPending}
+                    onPress={() => follow.mutate(!isFollowingHost)}
+                  />
+                ) : undefined
+              }
+            />
           ) : null}
 
-          <InfoCard
-            event={event}
-            token={token}
-            walkMinutes={location.walkMinutes}
-            onAddToCalendar={handleAddToCalendar}
-          />
+          <InfoCard event={event} location={location} onAddToCalendar={handleAddToCalendar} />
 
           {event.description ? (
             <View style={[styles.card, styles.aboutCard]}>
               <Text style={styles.sectionHeader}>About This Event</Text>
-              <ExpandableText style={styles.bodyText} collapsedLines={3} moreLabel="Read More">
+              <ExpandableText
+                style={styles.bodyText}
+                collapsedLines={3}
+                moreLabel="Read More"
+                inlineToggle
+              >
                 {event.description}
               </ExpandableText>
             </View>
@@ -868,6 +853,14 @@ export default function EventDetailScreen() {
         </View>
       ) : null}
 
+      {event.image_url ? (
+        <FlyerFullscreenModal
+          visible={flyerOpen}
+          uri={event.image_url}
+          onClose={() => setFlyerOpen(false)}
+        />
+      ) : null}
+
       <RsvpSuccessToast
         visible={showToast}
         eventTitle={event.title}
@@ -878,26 +871,45 @@ export default function EventDetailScreen() {
 }
 
 const makeStyles = (c: ThemeColors) => ({
+  // Bare arrow on the hero, no disc behind it, as in the redesign.
   backButton: {
     position: 'absolute' as const,
     top: 12,
     left: 16,
-    backgroundColor: c.surface,
-    borderRadius: 999,
     width: 40,
     height: 40,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
     zIndex: 10,
   },
+  expandButton: {
+    position: 'absolute' as const,
+    top: 12,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: c.brandSoft,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    zIndex: 10,
+  },
+  // The white sheet that rides up over the bottom of the hero.
+  sheet: {
+    backgroundColor: c.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    shadowColor: '#000', // theme-exempt: a shadow is black in both themes
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 6,
+  },
   poster: {
-    // Aspect ratio comes from posterAspectRatio() at render time.
-    width: '70%' as const,
+    // Aspect ratio and width come from posterAspectRatio() / posterWidth() at render time.
     borderRadius: 12,
     overflow: 'hidden' as const,
     shadowColor: '#000',
@@ -912,57 +924,6 @@ const makeStyles = (c: ThemeColors) => ({
     fontWeight: '700' as const,
     color: c.ink,
     marginBottom: 12,
-  },
-  hostRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-    gap: 12,
-    marginBottom: 20,
-  },
-  hostLink: {
-    flex: 1,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 10,
-  },
-  hostAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  hostAvatarFallback: {
-    backgroundColor: c.brand,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  hostName: {
-    fontFamily: 'RobotoFlex_600SemiBold',
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: c.ink,
-    flexShrink: 1,
-  },
-  followPill: {
-    minWidth: 84,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: c.brandSoft,
-    backgroundColor: c.brandSoft,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-  },
-  followPillActive: {
-    borderColor: c.border,
-    backgroundColor: c.surface,
-  },
-  followPillText: {
-    fontFamily: 'RobotoFlex_600SemiBold',
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: c.brand,
   },
   // Shared by the date/location card and the About card. surfaceMuted sits a
   // shade off the sheet's surface, with a soft shadow, as in the design.
@@ -979,50 +940,10 @@ const makeStyles = (c: ThemeColors) => ({
   aboutCard: {
     padding: 16,
   },
-  infoRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
   cardDivider: {
     height: 1,
     backgroundColor: c.borderSoft,
     marginHorizontal: 12,
-  },
-  softPill: {
-    borderRadius: 8,
-    backgroundColor: c.brandSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  softPillText: {
-    fontFamily: 'RobotoFlex_600SemiBold',
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: c.brand,
-  },
-  metaIconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: c.segmentTrack,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  metaPrimary: {
-    fontFamily: 'RobotoFlex_600SemiBold',
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: c.ink,
-  },
-  metaSecondary: {
-    fontFamily: 'RobotoFlex_400Regular',
-    fontSize: 14,
-    fontWeight: '400' as const,
-    color: c.ink,
-    marginTop: 2,
   },
   sectionHeader: {
     fontSize: 16,
