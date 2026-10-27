@@ -227,16 +227,14 @@ const makeStyles = (c: ThemeColors) =>
       gap: 6,
     },
     title: {
-      fontFamily: 'RobotoFlex_600SemiBold',
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
       color: c.ink,
       flexShrink: 1,
     },
     subtitle: {
-      fontFamily: 'RobotoFlex_400Regular',
+      fontFamily: 'Roboto-Flex',
       fontSize: 14,
-      fontWeight: '400',
       color: c.ink,
       marginTop: 2,
     },
@@ -281,9 +279,8 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.surface,
     },
     buttonText: {
-      fontFamily: 'RobotoFlex_600SemiBold',
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 13,
-      fontWeight: '600',
       color: c.brand,
     },
   });

@@ -990,9 +990,8 @@ const makeStyles = (c: ThemeColors) => ({
     lineHeight: 21,
   },
   categoryLine: {
-    fontFamily: 'RobotoFlex_600SemiBold',
+    fontFamily: 'Roboto-Flex-SemiBold',
     fontSize: 12,
-    fontWeight: '600' as const,
     letterSpacing: 0.5,
     color: c.brand,
     marginBottom: 8,
