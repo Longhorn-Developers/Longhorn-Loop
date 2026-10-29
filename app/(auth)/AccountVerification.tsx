@@ -2,15 +2,7 @@ import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  NativeSyntheticEvent,
-  Pressable,
-  Text,
-  TextInput,
-  TextInputKeyPressEventData,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { UT_EMAIL_ERROR } from '@/shared/utEmail';
 import { RESEND_COOLDOWN_MS } from '@/shared/verificationCode';
@@ -61,7 +53,7 @@ export default function AccountVerification() {
   });
   const cooldownUntil = cooldown.until;
   const cooldownSec = Math.max(0, Math.ceil((cooldownUntil - cooldown.now) / 1000));
-  const inputs = useRef<(TextInput | null)[]>([]);
+  const codeInput = useRef<TextInput>(null);
   const hasSentInitialCode = useRef(params.sent === '1');
 
   const allFilled = code.every((digit) => digit !== '');
@@ -132,36 +124,9 @@ export default function AccountVerification() {
     sendInitialCode();
   }, [data.email]);
 
-  const handleChange = (text: string, index: number) => {
-    const cleanText = text.replace(/[^0-9]/g, '');
-
-    if (text.length > 0 && cleanText.length === 0) {
-      return;
-    }
-
-    const newCode = [...code];
-    newCode[index] = text.slice(-1);
-    setCode(newCode);
+  const handleCodeChange = (next: string[]) => {
+    setCode(next);
     setError('');
-
-    if (text && index < 5) {
-      inputs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
-    if (e.nativeEvent.key === 'Backspace') {
-      if (code[index]) {
-        const newCode = [...code];
-        newCode[index] = '';
-        setCode(newCode);
-      } else if (index > 0) {
-        const newCode = [...code];
-        newCode[index - 1] = '';
-        setCode(newCode);
-        inputs.current[index - 1]?.focus();
-      }
-    }
   };
 
   const handleVerify = async () => {
@@ -186,7 +151,7 @@ export default function AccountVerification() {
         if (result.error === 'INVALID_CODE') {
           setError('Incorrect code. Please try again.');
           setCode(['', '', '', '', '', '']);
-          inputs.current[0]?.focus();
+          codeInput.current?.focus();
         } else if (result.error === 'CODE_EXPIRED') {
           setError('Code has expired. Please request a new one.');
         } else if (result.error === 'TOO_MANY_ATTEMPTS') {
@@ -268,7 +233,7 @@ export default function AccountVerification() {
       }
 
       setCode(['', '', '', '', '', '']);
-      inputs.current[0]?.focus();
+      codeInput.current?.focus();
       // A fresh code was just issued, so the server's cooldown restarts now.
       startCooldown(RESEND_COOLDOWN_MS);
     } catch (_err) {
@@ -300,9 +265,8 @@ export default function AccountVerification() {
         <OtpInput
           code={code}
           error={showAlert}
-          inputs={inputs}
-          handleChange={handleChange}
-          handleKeyPress={handleKeyPress}
+          inputRef={codeInput}
+          onChangeCode={handleCodeChange}
         />
       </View>
 

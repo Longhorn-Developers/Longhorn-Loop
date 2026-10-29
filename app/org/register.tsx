@@ -57,13 +57,11 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
-  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
-  TextInputKeyPressEventData,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -192,12 +190,11 @@ export default function OrgRegisterScreen() {
   const [email, setEmail] = useState('');
 
   // --- code step state ----------------------------------------------------
-  // OtpInput is the existing 2FA component (app/(auth)/AccountVerification):
-  // it owns per-digit boxes and expects a char array plus focus refs, so the
-  // digit-advance / backspace handling below mirrors that screen rather than
-  // reimplementing the component with a string API.
+  // OtpInput is the existing 2FA component (app/(auth)/AccountVerification).
+  // It owns digit entry, autofill and backspace (LOOP-280) and hands back the
+  // whole char array, so all this screen keeps is the state.
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
-  const inputs = useRef<(TextInput | null)[]>([]);
+  const codeInput = useRef<TextInput>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -240,32 +237,9 @@ export default function OrgRegisterScreen() {
   const isCodeValid = codeValue.length === CODE_LENGTH && !code.some((d) => d === '');
   const isFormValid = !!selectedOrg && selectedOrg.claimable && !!category && isEmailValid;
 
-  const handleCodeChange = (text: string, index: number) => {
-    const digitsOnly = text.replace(/[^0-9]/g, '');
-    if (text.length > 0 && digitsOnly.length === 0) return;
-
-    const next = [...code];
-    next[index] = text.slice(-1);
+  const handleCodeChange = (next: string[]) => {
     setCode(next);
     setError(null);
-
-    if (text && index < CODE_LENGTH - 1) inputs.current[index + 1]?.focus();
-  };
-
-  const handleCodeKeyPress = (
-    e: NativeSyntheticEvent<TextInputKeyPressEventData>,
-    index: number,
-  ) => {
-    if (e.nativeEvent.key !== 'Backspace') return;
-    const next = [...code];
-    if (code[index]) {
-      next[index] = '';
-      setCode(next);
-    } else if (index > 0) {
-      next[index - 1] = '';
-      setCode(next);
-      inputs.current[index - 1]?.focus();
-    }
   };
 
   const orgName = selectedOrg?.name ?? 'your organization';
@@ -686,9 +660,8 @@ export default function OrgRegisterScreen() {
                 <OtpInput
                   code={code}
                   error={!!error}
-                  inputs={inputs}
-                  handleChange={handleCodeChange}
-                  handleKeyPress={handleCodeKeyPress}
+                  inputRef={codeInput}
+                  onChangeCode={handleCodeChange}
                 />
               </View>
 
