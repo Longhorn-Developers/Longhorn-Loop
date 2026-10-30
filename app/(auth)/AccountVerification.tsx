@@ -76,6 +76,21 @@ export default function AccountVerification() {
     setCooldown({ now, until: now + parseRetryAfterMs(retryAfterMs) });
   };
 
+  // A RESEND_TOO_SOON from the server. Normally it says how long is left and
+  // the countdown is the whole answer. But a Worker deployed before LOOP-302
+  // sends a bare { error } with a longer cooldown than this client assumes, so
+  // without a fallback the tap was silently ignored: no countdown (nothing to
+  // count from), no message, nothing sent. The app and the Worker ship
+  // separately, so this mismatch is real for as long as either side lags.
+  const handleTooSoon = (retryAfterMs: unknown) => {
+    if (parseRetryAfterMs(retryAfterMs) > 0) {
+      startCooldown(retryAfterMs);
+      return;
+    }
+    setError('A code was sent moments ago. Please wait a little before requesting another.');
+    startCooldown(RESEND_COOLDOWN_MS);
+  };
+
   useEffect(() => {
     if (hasSentInitialCode.current || !data.email) {
       setSendingInitialCode(false);
@@ -105,7 +120,7 @@ export default function AccountVerification() {
             // currently do. The LOOP-302 repro (Register → back → Register
             // again) 429s on RegisterPage's own send-code, and is handled
             // there by forwarding the server's retryAfterMs as a param.
-            startCooldown(result.retryAfterMs);
+            handleTooSoon(result.retryAfterMs);
           } else if (result.error === 'INVALID_UT_EMAIL') {
             setError(UT_EMAIL_ERROR);
           } else {
@@ -221,9 +236,10 @@ export default function AccountVerification() {
 
       if (!res.ok) {
         if (result.error === 'RESEND_TOO_SOON') {
-          // No message needed — the button itself now shows the remaining
-          // seconds, which is the answer to the question "wait how long?"
-          startCooldown(result.retryAfterMs);
+          // Usually no message — the button shows the remaining seconds,
+          // which is the answer to "wait how long?". See handleTooSoon for
+          // when the server can't say.
+          handleTooSoon(result.retryAfterMs);
         } else if (result.error === 'INVALID_UT_EMAIL') {
           setError(UT_EMAIL_ERROR);
         } else {
