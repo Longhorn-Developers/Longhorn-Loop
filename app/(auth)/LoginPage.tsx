@@ -127,9 +127,11 @@ export default function LoginPage() {
       </View>
 
       <Pressable className="mt-4" onPress={handleCreateAccount}>
-        <Text className="font-['Roboto-Flex'] text-base text-center">
+        {/* text-lhlInk, not the default: with no colour set RN renders black,
+            which disappeared on the dark-mode background. */}
+        <Text className="text-center font-roboto text-base text-lhlInk">
           {"Don't have an account? "}
-          <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">Sign Up</Text>
+          <Text className="font-roboto-semibold text-lhlAccent">Sign Up</Text>
         </Text>
       </Pressable>
     </FlowLayout>
