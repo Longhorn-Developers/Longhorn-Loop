@@ -57,15 +57,14 @@ export function AvatarDisplay({ user, size }: { user: AvatarFields; size: number
         style={{
           width: size,
           height: size,
-          alignItems: 'center',
           overflow: 'hidden',
           backgroundColor: BEVO_PREVIEW_BG,
         }}
       >
-        {/* BevoAvatar draws a full character (153:206 — taller than wide).
-            Oversizing on height and anchoring to the top crops in on the
-            head/torso instead of squeezing the whole figure into a circle. */}
-        <BevoAvatar config={user.avatar_config} height={size * 1.35} />
+        {/* The head crop (LOOP-287): the whole head, horns and anything worn on it
+            inside the circle the call site clips to — the old oversized,
+            top-anchored full body cut the horns and hats off. */}
+        <BevoAvatar config={user.avatar_config} crop="head" size={size} />
       </View>
     );
   }
