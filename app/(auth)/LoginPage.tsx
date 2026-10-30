@@ -5,6 +5,7 @@ import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { UT_EMAIL_ERROR, isAllowedUTEmail } from '@/shared/utEmail';
+import { RESEND_COOLDOWN_MS } from '@/shared/verificationCode';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -60,8 +61,12 @@ export default function LoginPage() {
         } else if (result.error === 'RESEND_TOO_SOON') {
           // A code from a moment ago is still valid, so this is not a failure
           // worth stopping on — send them to type the one they already have.
+          // retryAfterMs carries the server's remaining wait so Resend is
+          // shown locked with a countdown, not as a button that will 429.
           update({ email });
-          router.push('/AccountVerification?sent=1');
+          router.push(
+            `/AccountVerification?sent=1&retryAfterMs=${Number(result.retryAfterMs) || 0}`,
+          );
           return;
         } else {
           setError('Something went wrong sending your code. Please try again.');
@@ -72,8 +77,9 @@ export default function LoginPage() {
       update({ email });
       // ?sent=1 tells the verification screen a code is already in flight, so
       // it doesn't fire a second /auth/send-code and immediately trip the
-      // 60-second cooldown it just created.
-      router.push('/AccountVerification?sent=1');
+      // cooldown it just created — and retryAfterMs tells it that cooldown is
+      // running, since a successful send has no 429 to read it from.
+      router.push(`/AccountVerification?sent=1&retryAfterMs=${RESEND_COOLDOWN_MS}`);
     } catch {
       setError('Network error. Please check your connection and try again.');
     } finally {
@@ -121,9 +127,11 @@ export default function LoginPage() {
       </View>
 
       <Pressable className="mt-4" onPress={handleCreateAccount}>
-        <Text className="font-['Roboto-Flex'] text-base text-center">
+        {/* text-lhlInk, not the default: with no colour set RN renders black,
+            which disappeared on the dark-mode background. */}
+        <Text className="text-center font-roboto text-base text-lhlInk">
           {"Don't have an account? "}
-          <Text className="font-['Roboto-Flex'] font-semibold text-lhlAccent">Sign Up</Text>
+          <Text className="font-roboto-semibold text-lhlAccent">Sign Up</Text>
         </Text>
       </Pressable>
     </FlowLayout>
