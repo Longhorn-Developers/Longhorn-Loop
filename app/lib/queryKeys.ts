@@ -91,8 +91,13 @@ export const org = {
    * `{ pages, pageParams }`. Sharing the key would let each screen read the
    * other's shape — a crash on whichever mounted second, and a confusing one,
    * because the URL and the payload would both look right.
+   *
+   * Keyed on the whole request string (query, sort, filters — LOOP-293), not
+   * just the query: a keyset cursor is only valid for the sort and filters it
+   * came from, so two of them sharing a cache entry would feed one's cursor to
+   * the other and get INVALID_CURSOR back.
    */
-  directory: (query: string) => [...org.all, 'directory', query] as const,
+  directory: (request: string) => [...org.all, 'directory', request] as const,
   publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
   // "Find your organization" on the registration form (LOOP-141). The

@@ -115,11 +115,11 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
       name,
     ];
     if (sort === 'newest') {
-      const updatedAt: SortKey = { expr: 'updated_at', dir: 'DESC', field: 'updated_at' };
-      return searching ? [updatedAt, ...relevance, id] : [updatedAt, id];
+      const createdAt: SortKey = { expr: 'created_at', dir: 'DESC', field: 'created_at' };
+      return searching ? [createdAt, ...relevance, id] : [createdAt, id];
     }
     if (sort === 'az') {
-      return searching ? [name, relevance[0], relevance[1], id] : [name, id];
+      return searching ? [relevance[0], name, id] : [name, id];
     }
     const trending: SortKey = { expr: 'trending_score', dir: 'DESC', field: 'trending_score' };
     return searching ? [trending, ...relevance, id] : [trending, name, id];
@@ -134,11 +134,14 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
     limit?: number;
   };
 
-  /** Mirrors the GET /orgs/search handler's query-building, guard included. */
+  /**
+   * Mirrors the GET /orgs/search handler's query-building, guard included.
+   * `q: undefined` is an omitted ?q= (browse); any string is a present one.
+   */
   const search = (opts: SearchOpts = {}): any[] => {
     const q = (opts.q ?? '').trim();
-    const searching = q.length > 0 && q.length >= ORG_SEARCH_MIN_QUERY;
-    if (q.length > 0 && q.length < ORG_SEARCH_MIN_QUERY) return [];
+    const searching = q.length >= ORG_SEARCH_MIN_QUERY;
+    if (opts.q !== undefined && !searching) return [];
 
     const sort = opts.sort ?? 'trending';
     const limit = opts.limit ?? ORG_SEARCH_LIMIT;
@@ -182,7 +185,7 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
       .prepare(
         `WITH scored AS (
            SELECT o.id, o.name, o.profile_picture, o.category, o.verified,
-                  o.verification_status, o.updated_at,
+                  o.verification_status, o.created_at,
                   (SELECT COUNT(*) FROM org_members m
                     WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count,
                   (SELECT COUNT(*) FROM org_followers f
@@ -203,7 +206,7 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
     });
   };
 
-  const ids = (q: string, opts: Omit<SearchOpts, 'q'> = {}) =>
+  const ids = (q: string | undefined, opts: Omit<SearchOpts, 'q'> = {}) =>
     search({ q, ...opts }).map((o: any) => o.id);
   const stateOf = (id: number): OrgClaimState =>
     search({ q: String(id === ODD_NAME_ORG ? 'odd' : 'claim') }).find((o: any) => o.id === id)
@@ -281,17 +284,20 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
     db.exec(`INSERT INTO organizations (id, name) VALUES
       (${NEWEST_A}, 'Newest A Org'),
       (${NEWEST_B}, 'Newest B Org')`);
-    db.exec(`UPDATE organizations SET updated_at = '2025-01-01 00:00:00' WHERE id = ${NEWEST_A}`);
-    db.exec(`UPDATE organizations SET updated_at = '2024-01-01 00:00:00' WHERE id = ${NEWEST_B}`);
+    db.exec(`UPDATE organizations SET created_at = '2025-01-01 00:00:00' WHERE id = ${NEWEST_A}`);
+    db.exec(`UPDATE organizations SET created_at = '2024-01-01 00:00:00' WHERE id = ${NEWEST_B}`);
+    // A scrape touching NEWEST_B must not make it "new" (LOOP-293).
+    db.exec(`UPDATE organizations SET updated_at = '2026-01-01 00:00:00' WHERE id = ${NEWEST_B}`);
   });
 
   describe('the empty-query guard', () => {
-    it('treats an empty (or omitted) query as "browse everything" (LOOP-264)', () => {
-      // Pre-LOOP-264 this returned []. The endpoint is now also a browsable
-      // directory, and Default Behavior says "no search" returns the
-      // trending-sorted list, not an empty page.
-      expect(ids('')).not.toEqual([]);
-      expect(ids('   ')).not.toEqual([]);
+    it('treats an OMITTED query as "browse everything" (LOOP-264)', () => {
+      expect(ids(undefined)).not.toEqual([]);
+    });
+
+    it('returns nothing for a present-but-blank query (registration form on first paint)', () => {
+      expect(search({ q: '' })).toEqual([]);
+      expect(search({ q: '   ' })).toEqual([]);
     });
 
     it('returns nothing for a non-empty query below the minimum length', () => {
@@ -401,7 +407,7 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
     const BIG_ENOUGH_LIMIT = 100;
 
     it('trending orders by followers gained in the past 7 days, most first', () => {
-      const found = ids('', { sort: 'trending', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
+      const found = ids(undefined, { sort: 'trending', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
         [TRENDING_HIGH, TRENDING_LOW, TRENDING_OLD_FOLLOWERS].includes(id),
       );
       // TRENDING_OLD_FOLLOWERS' one follower is 10 days old and doesn't count,
@@ -410,15 +416,15 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
       expect(found).toEqual([TRENDING_HIGH, TRENDING_LOW, TRENDING_OLD_FOLLOWERS]);
     });
 
-    it('newest orders by updated_at, most recently updated first', () => {
-      const found = ids('', { sort: 'newest', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
+    it('newest orders by created_at, most recently added first', () => {
+      const found = ids(undefined, { sort: 'newest', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
         [NEWEST_A, NEWEST_B].includes(id),
       );
       expect(found).toEqual([NEWEST_A, NEWEST_B]);
     });
 
     it('az orders alphabetically by name', () => {
-      const found = ids('', { sort: 'az', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
+      const found = ids(undefined, { sort: 'az', limit: BIG_ENOUGH_LIMIT }).filter((id) =>
         [ROWING, ROWING_CLUB, TEXAS_ROWING, LONGHORN_ROWING].includes(id),
       );
       expect(found).toEqual([LONGHORN_ROWING, ROWING, ROWING_CLUB, TEXAS_ROWING]);
@@ -430,6 +436,17 @@ describeOrSkip('org search SQL (LOOP-141, LOOP-264)', () => {
       // TIEBREAK_EXACT doesn't. Trending, the actual sort in effect, must put
       // it first; search tier only matters once trending_score ties.
       expect(ids('kumquat', { sort: 'trending' })[0]).toBe(TIEBREAK_CONTAINS);
+    });
+
+    it('az ranks by match tier first, then alphabetically within a tier (LOOP-293)', () => {
+      // Name-first put "Longhorn Rowing Society" above the org named exactly
+      // "Rowing" -- an exact match buried by the alphabet.
+      expect(ids('rowing', { sort: 'az' })).toEqual([
+        ROWING,
+        ROWING_CLUB,
+        LONGHORN_ROWING,
+        TEXAS_ROWING,
+      ]);
     });
   });
 

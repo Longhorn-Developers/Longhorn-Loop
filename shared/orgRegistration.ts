@@ -56,7 +56,8 @@ export const ORG_SEARCH_MAX_LIMIT = 25;
  * "Orgs" toggle offers them.
  *
  *   trending -- most new org_followers rows in the past 7 days
- *   newest   -- most recently updated organizations first
+ *   newest   -- most recently added organizations first (created_at, not
+ *               updated_at, which every scrape bumps -- see sortKeysFor)
  *   az       -- alphabetical by name
  *
  * 'trending' is the default: it's what a directory should open on when nobody
