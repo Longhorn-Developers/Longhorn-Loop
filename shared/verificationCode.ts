@@ -12,10 +12,14 @@
  * because the server knows when the code was really sent (another device, an
  * earlier visit) and the client does not.
  *
- * Was 60s. Dropped to 30: a minute of dead time with nothing on screen
+ * Was 60s, then 30, now 10: a minute of dead time with nothing on screen
  * explaining it is what made testers tap Resend, hit the cooldown again, and
- * conclude the app was broken. Still long enough to be a real abuse control —
- * the thing that actually fixes the complaint is the visible countdown, not
- * the number.
+ * conclude the app was broken. At 10 the wait is barely noticeable.
+ *
+ * At 10s this is a double-tap guard, not much of an email-abuse control: one
+ * address can be sent ~6 codes a minute. That matters more than usual on a
+ * channel where UT's Proofpoint gateway has already rejected one sending
+ * domain. If sends need capping, add a per-address hourly limit rather than
+ * raising this — a longer wait is exactly what LOOP-302 was about.
  */
-export const RESEND_COOLDOWN_MS = 30 * 1000;
+export const RESEND_COOLDOWN_MS = 10 * 1000;

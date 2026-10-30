@@ -206,8 +206,11 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
     it('reports how long is left as retryAfterMs', async () => {
       workingResend();
       await post('/send-code', { email: EMAIL });
-      // 10s into the cooldown, without waiting 10 real seconds.
-      db.prepare('UPDATE verification_codes SET last_sent_at = last_sent_at - 10000').run();
+      // Partway into the cooldown, without waiting in real time. A fraction
+      // of the cooldown rather than fixed seconds, so changing the constant
+      // can't age the row past it and silently turn the 429 into a 200.
+      const elapsed = Math.floor(RESEND_COOLDOWN_MS / 2);
+      db.prepare('UPDATE verification_codes SET last_sent_at = last_sent_at - ?').run(elapsed);
 
       const res = await post(path, { email: EMAIL });
       expect(res.status).toBe(429);
@@ -215,8 +218,8 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
       expect(body.error).toBe('RESEND_TOO_SOON');
       // A range, not an exact value: Date.now() moves between the UPDATE
       // above and the handler's read.
-      expect(body.retryAfterMs).toBeGreaterThan(RESEND_COOLDOWN_MS - 12_000);
-      expect(body.retryAfterMs).toBeLessThanOrEqual(RESEND_COOLDOWN_MS - 10_000);
+      expect(body.retryAfterMs).toBeGreaterThan(RESEND_COOLDOWN_MS - elapsed - 2_000);
+      expect(body.retryAfterMs).toBeLessThanOrEqual(RESEND_COOLDOWN_MS - elapsed);
     });
 
     it('lets the send through once the cooldown has passed', async () => {
