@@ -196,6 +196,7 @@ describeOrSkip('GET /orgs/search -- pagination and validation (LOOP-264)', () =>
     expect(row.bio).toBe('We row.');
     // 30 days old: outside trending's window, still a follower.
     expect(row.follower_count).toBe(1);
+    expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     expect(body.organizations.find((o: any) => o.id === UNVERIFIED_ORG).follower_count).toBe(0);
   });
 

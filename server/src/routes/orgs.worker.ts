@@ -428,6 +428,11 @@ orgRoutes.get('/search', async (c) => {
         // All-time, for the Explore card's meta line (LOOP-293). Distinct
         // from trending_score, which only counts the past 7 days.
         follower_count: Number(o.follower_count ?? 0),
+        // "Joined <Mon YYYY>" on the Explore card (LOOP-293). This is when
+        // Loop first saw the org, not when it was founded -- for scraped orgs
+        // that's the scrape that found them. Agreed with Matthew as the
+        // honest reading of "joined"; never derived from event dates.
+        created_at: o.created_at,
         verified: Number(o.verified) === 1,
         verification_status: o.verification_status,
         claim_state,

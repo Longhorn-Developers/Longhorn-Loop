@@ -23,6 +23,8 @@ export type OrgSearchResult = {
   verified: boolean;
   bio?: string | null;
   follower_count?: number;
+  /** SQLite `datetime('now')` text, UTC: "2025-10-04 18:22:01". */
+  created_at?: string | null;
 };
 
 type Props = { org: OrgSearchResult };
@@ -48,6 +50,24 @@ export function followerLabel(count: number | undefined): string | null {
   return `${count.toLocaleString('en-US')} ${count === 1 ? 'follower' : 'followers'}`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * "Joined Oct 2025" from organizations.created_at — when Loop first saw the
+ * org, which for scraped orgs is the scrape that found them (agreed with
+ * Matthew for LOOP-293; never derived from event dates).
+ *
+ * Parsed by hand rather than through Date/toLocaleDateString: the column is
+ * UTC text with a space instead of a "T", which Hermes and JSC disagree about,
+ * and only the year and month are needed anyway. Anything unparseable gets no
+ * clause rather than "Joined Invalid Date".
+ */
+export function joinedLabel(createdAt: string | null | undefined): string | null {
+  const match = typeof createdAt === 'string' ? /^(\d{4})-(\d{2})/.exec(createdAt) : null;
+  const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
+  return match && month ? `Joined ${month} ${match[1]}` : null;
+}
+
 export default function OrgResultRow({ org }: Props) {
   const colors = useThemeColors();
   const router = useRouter();
@@ -69,7 +89,11 @@ export default function OrgResultRow({ org }: Props) {
       .toUpperCase() || '?';
 
   const bio = org.bio?.trim() || null;
-  const meta = [followerLabel(org.follower_count), org.category].filter(Boolean) as string[];
+  const meta = [
+    followerLabel(org.follower_count),
+    org.category,
+    joinedLabel(org.created_at),
+  ].filter(Boolean) as string[];
 
   return (
     <TouchableOpacity
@@ -149,9 +173,6 @@ export default function OrgResultRow({ org }: Props) {
           </Text>
         ) : null}
 
-        {/* Joined date deliberately absent: the design's "Joined Oct 2025" has
-            no field behind it (LOOP-293), and it is not derived from the first
-            event's date. */}
         {meta.length > 0 ? (
           <Text
             className="font-roboto-medium"
