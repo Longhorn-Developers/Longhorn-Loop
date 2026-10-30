@@ -1,5 +1,4 @@
 import { useThemeColors } from '@/app/lib/themeColors';
-import { activeFilterCount, type ExploreFilters } from '@/shared/exploreFilters';
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -25,6 +24,8 @@ import Svg, { Path } from 'react-native-svg';
  * different destinations (see the endpoint notes below), not filters.
  *
  *   trending -> GET /feed/explore    one ranked list across all buckets
+ *   newOrgs  -> GET /orgs/search     ?sort=newest -- most recently added
+ *                                    to Loop first (LOOP-293).
  *   orgs     -> GET /orgs/search     the directory, alphabetical and paged.
  *                                    Omitting ?q= asks for all of it
  *                                    (LOOP-264); a query filters it.
@@ -38,9 +39,19 @@ import Svg, { Path } from 'react-native-svg';
  * reachable without scrolling, and carries a count of ACTIVE GROUPS (not
  * selected chips) — "3" means college, interests and time are all narrowing the
  * results, which is the number that explains why you are seeing what you see.
+ *
+ * The button stays on the org destinations too (LOOP-293), but opens the org
+ * sheet and counts ORG filters only — the parent decides which count to pass,
+ * because only it knows which sheet the button opens. An event filter left on
+ * from Trending must not inflate the badge on a list it has no effect on.
  */
 
-export type ExploreSelection = { kind: 'trending' } | { kind: 'orgs' };
+export type ExploreSelection = { kind: 'trending' } | { kind: 'newOrgs' } | { kind: 'orgs' };
+
+/** Both org destinations: list-only, org cards, org filters. */
+export function isOrgSelection(selection: ExploreSelection): boolean {
+  return selection.kind === 'orgs' || selection.kind === 'newOrgs';
+}
 
 export function selectionKey(selection: ExploreSelection): string {
   return selection.kind;
@@ -67,7 +78,8 @@ function SliderGlyph({ color }: { color: string }) {
 type Props = {
   selection: ExploreSelection;
   onSelect: (selection: ExploreSelection) => void;
-  filters: ExploreFilters;
+  /** Active filter groups for whichever sheet the button opens. */
+  activeCount: number;
   onOpenFilters: () => void;
 };
 
@@ -75,13 +87,13 @@ type Entry = { key: string; label: string; selection: ExploreSelection };
 
 const ENTRIES: Entry[] = [
   { key: 'trending', label: 'Trending', selection: { kind: 'trending' } },
+  { key: 'newOrgs', label: 'New Orgs', selection: { kind: 'newOrgs' } },
   { key: 'orgs', label: 'Orgs', selection: { kind: 'orgs' } },
 ];
 
-export default function ExploreToggles({ selection, onSelect, filters, onOpenFilters }: Props) {
+export default function ExploreToggles({ selection, onSelect, activeCount, onOpenFilters }: Props) {
   const colors = useThemeColors();
   const activeKey = selectionKey(selection);
-  const activeCount = activeFilterCount(filters);
 
   return (
     <View>
@@ -96,59 +108,58 @@ export default function ExploreToggles({ selection, onSelect, filters, onOpenFil
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Filters. Hidden on the Orgs destination, which these filters cannot
-            describe — an org has no start time, no perks and no taxonomy
-            bucket, so the sheet would offer four controls that do nothing. */}
-        {selection.kind !== 'orgs' ? (
-          <Pressable
-            onPress={onOpenFilters}
-            accessibilityRole="button"
-            accessibilityLabel={
-              activeCount === 0
-                ? 'Filters'
-                : `Filters, ${activeCount} active filter group${activeCount === 1 ? '' : 's'}`
-            }
+        {/* Filters. On the org destinations this opens the org sheet rather
+            than the event one — an org has no start time, no perks and no
+            taxonomy bucket, so the event sheet would offer four controls that
+            do nothing there (LOOP-293). */}
+        <Pressable
+          onPress={onOpenFilters}
+          accessibilityRole="button"
+          accessibilityLabel={
+            activeCount === 0
+              ? 'Filters'
+              : `Filters, ${activeCount} active filter group${activeCount === 1 ? '' : 's'}`
+          }
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: activeCount > 0 ? colors.brand : colors.border,
+            backgroundColor: activeCount > 0 ? colors.brandSoft : 'transparent',
+          }}
+        >
+          <SliderGlyph color={activeCount > 0 ? colors.accent : colors.inkSecondary} />
+          <Text
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              paddingHorizontal: 12,
-              paddingVertical: 7,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: activeCount > 0 ? colors.brand : colors.border,
-              backgroundColor: activeCount > 0 ? colors.brandSoft : 'transparent',
+              fontSize: 13,
+              fontWeight: '700',
+              color: activeCount > 0 ? colors.accent : colors.inkSecondary,
             }}
           >
-            <SliderGlyph color={activeCount > 0 ? colors.accent : colors.inkSecondary} />
-            <Text
+            Filters
+          </Text>
+          {activeCount > 0 ? (
+            <View
               style={{
-                fontSize: 13,
-                fontWeight: '700',
-                color: activeCount > 0 ? colors.accent : colors.inkSecondary,
+                minWidth: 18,
+                height: 18,
+                paddingHorizontal: 5,
+                borderRadius: 999,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.brand,
               }}
             >
-              Filters
-            </Text>
-            {activeCount > 0 ? (
-              <View
-                style={{
-                  minWidth: 18,
-                  height: 18,
-                  paddingHorizontal: 5,
-                  borderRadius: 999,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: colors.brand,
-                }}
-              >
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>
-                  {activeCount}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        ) : null}
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>
+                {activeCount}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
 
         {ENTRIES.map((entry) => {
           const isActive = entry.key === activeKey;

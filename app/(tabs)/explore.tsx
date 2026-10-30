@@ -3,8 +3,10 @@ import EventCard, { ApiEvent } from '@/app/components/EventCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
 import ExploreFilterSheet from '@/app/components/explore/ExploreFilterSheet';
+import ExploreOrgFilterSheet from '@/app/components/explore/ExploreOrgFilterSheet';
 import ExploreToggles, {
   ExploreSelection,
+  isOrgSelection,
   selectionKey,
 } from '@/app/components/explore/ExploreToggles';
 import ExploreListPanel from '@/app/components/explore/ExploreListPanel';
@@ -12,6 +14,12 @@ import OrgResultRow, { OrgSearchResult } from '@/app/components/explore/OrgResul
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
+import {
+  EMPTY_ORG_FILTERS,
+  activeOrgFilterCount,
+  applyOrgFilterParams,
+  type OrgFilters,
+} from '@/app/lib/orgFilters';
 import { feed as feedKeys, org as orgKeys } from '@/app/lib/queryKeys';
 import { useDebounced } from '@/app/lib/useDebounced';
 import { useSavedEvents } from '@/app/lib/useSavedEvents';
@@ -22,6 +30,7 @@ import { COLLEGES, collegeForSource, collegeById } from '@/shared/colleges';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
 import {
   EMPTY_FILTERS,
+  activeFilterCount,
   applyFilters,
   describeFilters,
   facetCounts,
@@ -29,11 +38,11 @@ import {
   type ExploreFilters,
   type FilterContext,
 } from '@/shared/exploreFilters';
-import { ORG_SEARCH_MIN_QUERY } from '@/shared/orgRegistration';
+import { ORG_SEARCH_MIN_QUERY, type OrgSortOption } from '@/shared/orgRegistration';
 import { TAXONOMY_BUCKETS } from '@/shared/taxonomy';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter, type ErrorBoundaryProps } from 'expo-router';
-import { CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
+import { BuildingsIcon, CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -191,6 +200,13 @@ export default function ExploreScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /**
+   * Org filters (LOOP-293) are their own state, not a field on `filters`:
+   * they go to the server as query params, the event filters never leave the
+   * device, and switching tabs must not carry one set into the other's badge.
+   */
+  const [orgFilters, setOrgFilters] = useState<OrgFilters>(EMPTY_ORG_FILTERS);
+
+  /**
    * `now` is state rather than a fresh `new Date()` per render.
    *
    * It is a dependency of every memo below, so a value that changed on every
@@ -211,6 +227,7 @@ export default function ExploreScreen() {
   const isSearching = debouncedQuery.length >= ORG_SEARCH_MIN_QUERY;
 
   const activeSelectionKey = selectionKey(selection);
+  const orgMode = isOrgSelection(selection);
 
   /**
    * One request, one page, every filter applied over it in memory.
@@ -236,36 +253,47 @@ export default function ExploreScreen() {
   });
 
   /**
-   * The org directory, alphabetical, a page at a time.
+   * The org directory, a page at a time.
    *
-   * GET /orgs/search grew a browse-all mode in LOOP-264 and this screen never
-   * caught up — it was still only calling the endpoint with a query, which is
-   * why the Orgs tab showed "Search to find an organization" instead of the
-   * directory it could have shown all along.
+   * GET /orgs/search grew a browse-all mode in LOOP-264. An OMITTED query
+   * means "the whole directory" server-side; a query that is present but
+   * shorter than ORG_SEARCH_MIN_QUERY returns nothing, so `q` is only ever set
+   * once the user has typed enough to search.
    *
-   * An OMITTED query means "the whole directory" server-side; a query that is
-   * non-empty but shorter than ORG_SEARCH_MIN_QUERY still returns nothing, so
-   * the list doesn't thrash while someone types the first letter.
+   * Sort by destination (LOOP-293):
+   *   New Orgs  -> newest, most recently added to Loop first.
+   *   Orgs, or a search from Trending -> az. While searching, the server ranks
+   *     exact and prefix matches first and alphabetises WITHIN each tier, so
+   *     typing an org's exact name puts it at the top (orgs.worker.ts
+   *     sortKeysFor — it used to be name-first, which buried exact matches).
    *
-   * `sort=az` both ways. Searching also gets exact and prefix matches lifted to
-   * the top by the server, so alphabetical is the tiebreak rather than the
-   * whole ordering.
+   * Org filters apply only on the org destinations. A search from Trending
+   * shows org matches alongside events, and an org filter the user can't see
+   * from there (its sheet is the event one) must not silently narrow them.
    */
+  const orgSort: OrgSortOption = selection.kind === 'newOrgs' ? 'newest' : 'az';
+  const orgRequest = useMemo(() => {
+    const params = new URLSearchParams({ sort: orgSort, limit: String(ORG_PAGE_SIZE) });
+    if (isSearching) params.set('q', debouncedQuery);
+    if (orgMode) applyOrgFilterParams(params, orgFilters);
+    return params.toString();
+  }, [orgSort, isSearching, debouncedQuery, orgMode, orgFilters]);
+
   const orgsQuery = useInfiniteQuery({
-    queryKey: orgKeys.directory(debouncedQuery),
+    queryKey: orgKeys.directory(orgRequest),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ sort: 'az', limit: String(ORG_PAGE_SIZE) });
-      if (isSearching) params.set('q', debouncedQuery);
+      const params = new URLSearchParams(orgRequest);
       if (pageParam) params.set('cursor', pageParam);
       return api.get<OrgSearchResponse>(`/orgs/search?${params.toString()}`, { token });
     },
     // undefined, not null: undefined is what tells TanStack there is no next
     // page, and null would be read as a real cursor value.
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    // Runs for the Orgs tab even with nothing typed — that is the directory —
-    // and for a search from any tab, because org results show there too.
-    enabled: !!token && (selection.kind === 'orgs' || isSearching),
+    // Runs for the org destinations even with nothing typed — that is the
+    // directory — and for a search from any tab, because org results show
+    // there too.
+    enabled: !!token && (orgMode || isSearching),
     staleTime: 30_000,
   });
 
@@ -324,10 +352,25 @@ export default function ExploreScreen() {
     return [`${visibleEvents.length} ${noun}`, ...parts].join(' · ');
   }, [filters, visibleEvents.length]);
 
-  const orgResults = useMemo(
-    () => orgsQuery.data?.pages.flatMap((page) => page.organizations) ?? [],
-    [orgsQuery.data],
-  );
+  /**
+   * Every loaded page, flattened. Keyset pagination already guarantees no
+   * overlap between pages, but the de-dupe by id stays as a backstop: a
+   * duplicate here is a duplicate React key, which drops a row on native and
+   * warns loudly on web — a worse failure than one org silently skipped.
+   */
+  const orgResults = useMemo(() => {
+    const seen = new Set<number>();
+    return (orgsQuery.data?.pages ?? [])
+      .flatMap((page) => page.organizations)
+      .filter((org) => (seen.has(org.id) ? false : (seen.add(org.id), true)));
+  }, [orgsQuery.data]);
+
+  const orgFilterCount = activeOrgFilterCount(orgFilters);
+  const orgFilterKey = [
+    orgFilters.verifiedOnly ? 'v' : '',
+    orgFilters.categories.join('+'),
+    orgFilters.hasUpcomingEvents ? 'u' : '',
+  ].join('|');
 
   /**
    * Identity of the grid. Changing it remounts the list.
@@ -365,7 +408,9 @@ export default function ExploreScreen() {
     filters.when,
     filters.perks.join('+'),
   ].join('|');
-  const gridKey = `explore-grid-${activeSelectionKey}-${isSearching ? needle : ''}-${filterKey}`;
+  const gridKey = `explore-grid-${activeSelectionKey}-${isSearching ? needle : ''}-${
+    orgMode ? orgFilterKey : filterKey
+  }`;
 
   // Type-narrowed subset: only events with non-null coordinates go on the map.
   // Driven by visibleEvents so the pins honour the search and the filters too.
@@ -508,10 +553,12 @@ export default function ExploreScreen() {
   const selectedEvent =
     selectedEventId != null ? (visibleEvents.find((e) => e.id === selectedEventId) ?? null) : null;
 
-  // Orgs is a list-only destination — there is nothing to pin on a map.
-  const showList = viewMode === 'list' || IS_WEB || selection.kind === 'orgs';
-  const showOrgSection = selection.kind === 'orgs' || isSearching;
-  const showEventSection = selection.kind !== 'orgs';
+  // The org destinations are list-only — there is nothing to pin on a map.
+  // They render orgs as the list's own rows (see body()); `orgSection` is only
+  // the org block that rides above the events when searching from Trending.
+  const showList = viewMode === 'list' || IS_WEB || orgMode;
+  const showOrgSection = !orgMode && isSearching;
+  const showEventSection = !orgMode;
 
   /**
    * The pinned header — title, view toggle, search field, feed toggles.
@@ -554,7 +601,7 @@ export default function ExploreScreen() {
             control were the smallest tap targets on the screen and the hardest
             to see. hitSlop takes each button past the 44pt floor without
             making the control any taller than the title. */}
-        {!IS_WEB && selection.kind !== 'orgs' && (
+        {!IS_WEB && !orgMode && (
           <View
             style={{
               flexDirection: 'row',
@@ -650,7 +697,7 @@ export default function ExploreScreen() {
       <ExploreToggles
         selection={selection}
         onSelect={handleSelect}
-        filters={filters}
+        activeCount={orgMode ? orgFilterCount : activeFilterCount(filters)}
         onOpenFilters={openFilters}
       />
 
@@ -694,6 +741,51 @@ export default function ExploreScreen() {
     </>
   );
 
+  /**
+   * Why the org list is empty, said in words, with the one-tap way out
+   * (LOOP-293). A bare blank list after a search reads as "still loading" or
+   * "broken"; the same mistake the event list's filter summary exists to stop.
+   */
+  const orgFiltersApplied = orgMode && orgFilterCount > 0;
+  const orgEmptyState = (
+    <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 }}>
+      <BuildingsIcon size={32} color={colors.inkMuted} />
+      <Text
+        className="font-roboto-semibold"
+        style={{ fontSize: 15, color: colors.ink, textAlign: 'center' }}
+      >
+        {isSearching
+          ? `No organizations match “${debouncedQuery}”`
+          : orgFiltersApplied
+            ? 'No organizations match these filters'
+            : 'No organizations yet'}
+      </Text>
+      {isSearching || orgFiltersApplied ? (
+        <Text
+          className="font-roboto"
+          style={{ fontSize: 13, color: colors.inkMuted, textAlign: 'center' }}
+        >
+          {isSearching
+            ? 'Check the spelling, or try part of the name.'
+            : 'Try turning a filter off.'}
+        </Text>
+      ) : null}
+      {orgFiltersApplied ? (
+        <TouchableOpacity
+          onPress={() => setOrgFilters(EMPTY_ORG_FILTERS)}
+          accessibilityRole="button"
+          accessibilityLabel="Clear organization filters"
+          hitSlop={10}
+          style={{ marginTop: 4 }}
+        >
+          <Text className="font-roboto-bold" style={{ fontSize: 14, color: colors.accent }}>
+            Clear filters
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
   const orgSection = showOrgSection ? (
     <View style={{ paddingBottom: 8 }}>
       <Text
@@ -712,11 +804,9 @@ export default function ExploreScreen() {
       {orgsQuery.isPending ? (
         <ActivityIndicator color={colors.accent} style={{ paddingVertical: 12 }} />
       ) : orgResults.length === 0 ? (
-        <Text style={{ color: colors.inkMuted, paddingVertical: 12 }}>
-          {isSearching ? `No organizations match “${debouncedQuery}”.` : 'No organizations yet.'}
-        </Text>
+        orgEmptyState
       ) : (
-        <>
+        <View style={{ gap: 12 }}>
           {orgResults.map((org) => (
             <OrgResultRow key={org.id} org={org} />
           ))}
@@ -765,12 +855,69 @@ export default function ExploreScreen() {
               {isSearching ? '' : ' · that’s all of them'}
             </Text>
           )}
-        </>
+        </View>
       )}
     </View>
   ) : null;
 
+  /**
+   * The org destinations' list (LOOP-293). The orgs are the FlatList's own
+   * rows here, not a header above an empty event grid, so the list is
+   * virtualised and can page itself in on scroll via onEndReached — the
+   * "Show more" button below the Trending-search org block exists only
+   * because that block lives in a non-virtualised header.
+   *
+   * Not gated on eventsQuery: the org list has nothing to wait for from the
+   * event feed, and an events outage should not blank the directory.
+   */
+  const orgList = () => (
+    <FlatList
+      key={gridKey}
+      data={orgsQuery.isPending ? [] : orgResults}
+      keyExtractor={(org) => String(org.id)}
+      renderItem={({ item }) => <OrgResultRow org={item} />}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, gap: 12 }}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onEndReached={() => {
+        // isFetching, not just isFetchingNextPage: onEndReached can fire again
+        // while the first page is still landing, and a fetchNextPage then
+        // would run without the cursor the first page is about to supply.
+        if (orgsQuery.hasNextPage && !orgsQuery.isFetching) void orgsQuery.fetchNextPage();
+      }}
+      onEndReachedThreshold={0.5}
+      ListEmptyComponent={
+        orgsQuery.isPending ? (
+          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
+        ) : orgsQuery.isError ? (
+          <Text style={{ color: colors.inkMuted, textAlign: 'center', paddingVertical: 24 }}>
+            Could not load organizations. Check your connection.
+          </Text>
+        ) : (
+          orgEmptyState
+        )
+      }
+      ListFooterComponent={
+        orgResults.length === 0 ? null : orgsQuery.isFetchingNextPage ? (
+          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 12 }} />
+        ) : !orgsQuery.hasNextPage ? (
+          // The end of the list, said out loud. Without it a list that simply
+          // stops looks like one that failed to load the rest.
+          <Text
+            style={{ textAlign: 'center', fontSize: 11.5, color: colors.inkMuted, paddingTop: 4 }}
+          >
+            {orgResults.length} {orgResults.length === 1 ? 'organization' : 'organizations'}
+            {isSearching || orgFiltersApplied ? '' : ' · that’s all of them'}
+          </Text>
+        ) : null
+      }
+    />
+  );
+
   const body = () => {
+    if (orgMode) return orgList();
+
     if (eventsQuery.isPending) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -926,7 +1073,7 @@ export default function ExploreScreen() {
       </Pressable>
       <ResultsErrorBoundary
         label="explore.results"
-        resetKeys={[needle, activeSelectionKey, showList, filterKey]}
+        resetKeys={[needle, activeSelectionKey, showList, filterKey, orgFilterKey]}
         message="Could not show these results. Try a different search."
       >
         {body()}
@@ -942,15 +1089,26 @@ export default function ExploreScreen() {
           tap. The footer button carries the count and dismisses; it is not a
           commit step, so there is no draft state to desync from what you can
           already see. */}
-      <ExploreFilterSheet
-        visible={filtersOpen}
-        filters={filters}
-        counts={counts}
-        totalEvents={searchedEvents.length}
-        unit={showList ? 'events' : 'pins'}
-        onChange={setFilters}
-        onClose={() => setFiltersOpen(false)}
-      />
+      {/* One button, two sheets: the org destinations get the org sheet, with
+          no interest or date groups at all (LOOP-293). */}
+      {orgMode ? (
+        <ExploreOrgFilterSheet
+          visible={filtersOpen}
+          filters={orgFilters}
+          onChange={setOrgFilters}
+          onClose={() => setFiltersOpen(false)}
+        />
+      ) : (
+        <ExploreFilterSheet
+          visible={filtersOpen}
+          filters={filters}
+          counts={counts}
+          totalEvents={searchedEvents.length}
+          unit={showList ? 'events' : 'pins'}
+          onChange={setFilters}
+          onClose={() => setFiltersOpen(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
