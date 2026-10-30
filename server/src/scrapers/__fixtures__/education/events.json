@@ -1,0 +1,317 @@
+[
+  {
+    "id": 56137,
+    "slug": "internal-transfer-student-session-5",
+    "link": "https://education.utexas.edu/event/internal-transfer-student-session-5/",
+    "title": {
+      "rendered": "Internal Transfer Student Information Session"
+    },
+    "excerpt": {
+      "rendered": "<p>Join us for an Internal Transfer Student Information Session where we’ll discuss important information regarding our programs, the transfer process and everything you’ll need to know before meeting with your Academic Advisor.</p>\n",
+      "protected": false
+    },
+    "featured_media": 67075,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 250,
+            "taxonomy": "eventtypes",
+            "name": "Internal Transfer Information Session"
+          },
+          {
+            "id": 80,
+            "taxonomy": "eventtypes",
+            "name": "Undergraduate Students"
+          }
+        ],
+        [
+          {
+            "id": 658,
+            "taxonomy": "eventtag",
+            "name": "collegewide"
+          }
+        ]
+      ],
+      "wp:featuredmedia": [
+        {
+          "source_url": "https://education.utexas.edu/wp-content/uploads/2025/04/internal-transfer-featured-scaled.jpg",
+          "mime_type": "image/jpeg",
+          "alt_text": "",
+          "media_details": {
+            "width": 2560,
+            "height": 1707
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 58496,
+    "slug": "prospective-student-information-session-1",
+    "link": "https://education.utexas.edu/event/prospective-student-information-session-1/",
+    "title": {
+      "rendered": "Prospective Student Information Session"
+    },
+    "excerpt": {
+      "rendered": "<p>Join Texas Admissions for an upcoming information session to learn more about our programs, admission requirements, student life and everything in between.</p>\n",
+      "protected": false
+    },
+    "featured_media": 67357,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 254,
+            "taxonomy": "eventtypes",
+            "name": "Prospective Student Information Session"
+          },
+          {
+            "id": 80,
+            "taxonomy": "eventtypes",
+            "name": "Undergraduate Students"
+          }
+        ],
+        [
+          {
+            "id": 663,
+            "taxonomy": "eventtag",
+            "name": "Undergrad"
+          }
+        ]
+      ],
+      "wp:featuredmedia": [
+        {
+          "source_url": "https://education.utexas.edu/wp-content/uploads/2025/08/option-13-scaled.jpg",
+          "mime_type": "image/jpeg",
+          "alt_text": "",
+          "media_details": {
+            "width": 2560,
+            "height": 1707
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 61805,
+    "slug": "counselor-education-program-information-session-4",
+    "link": "https://education.utexas.edu/event/counselor-education-program-information-session-4/",
+    "title": {
+      "rendered": "Counselor Education Master&#8217;s Program Information Session"
+    },
+    "excerpt": {
+      "rendered": "<p>Register to learn more about the college’s Counselor Education program from Director of Clinical Training Arna Erega.</p>\n",
+      "protected": false
+    },
+    "featured_media": 67078,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 368,
+            "taxonomy": "eventtypes",
+            "name": "Educational Psychology"
+          },
+          {
+            "id": 79,
+            "taxonomy": "eventtypes",
+            "name": "Graduate Students"
+          },
+          {
+            "id": 254,
+            "taxonomy": "eventtypes",
+            "name": "Prospective Student Information Session"
+          }
+        ],
+        [
+          {
+            "id": 687,
+            "taxonomy": "eventtag",
+            "name": "Counselor Education"
+          },
+          {
+            "id": 662,
+            "taxonomy": "eventtag",
+            "name": "EDP"
+          },
+          {
+            "id": 71,
+            "taxonomy": "eventtag",
+            "name": "Prospective Graduate Students"
+          }
+        ]
+      ],
+      "wp:featuredmedia": [
+        {
+          "source_url": "https://education.utexas.edu/wp-content/uploads/2025/01/prospective-students-featured.jpg",
+          "mime_type": "image/jpeg",
+          "alt_text": "",
+          "media_details": {
+            "width": 1950,
+            "height": 1300
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 69466,
+    "slug": "lr-general-information-session-6",
+    "link": "https://education.utexas.edu/event/lr-general-information-session-6/",
+    "title": {
+      "rendered": "Longhorns in Residence: General Information Session"
+    },
+    "excerpt": {
+      "rendered": "<p>Learn more about our one-year graduate certificate, teacher certification, and residency programs – Longhorns in Residence.</p>\n",
+      "protected": false
+    },
+    "featured_media": 67078,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 245,
+            "taxonomy": "eventtypes",
+            "name": "Curriculum and Instruction"
+          },
+          {
+            "id": 79,
+            "taxonomy": "eventtypes",
+            "name": "Graduate Students"
+          },
+          {
+            "id": 254,
+            "taxonomy": "eventtypes",
+            "name": "Prospective Student Information Session"
+          }
+        ],
+        [
+          {
+            "id": 669,
+            "taxonomy": "eventtag",
+            "name": "Longhorns in Residence"
+          }
+        ]
+      ],
+      "wp:featuredmedia": [
+        {
+          "source_url": "https://education.utexas.edu/wp-content/uploads/2025/01/prospective-students-featured.jpg",
+          "mime_type": "image/jpeg",
+          "alt_text": "",
+          "media_details": {
+            "width": 1950,
+            "height": 1300
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": 2200,
+    "slug": "teacher-pinning-ceremony",
+    "link": "https://education.utexas.edu/event/teacher-pinning-ceremony/",
+    "title": {
+      "rendered": "Teacher Pinning Ceremony"
+    },
+    "excerpt": {
+      "rendered": "<p>This event is by invitation only.</p>\n",
+      "protected": false
+    },
+    "featured_media": 0,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 471,
+            "taxonomy": "eventtypes",
+            "name": "Faculty"
+          },
+          {
+            "id": 79,
+            "taxonomy": "eventtypes",
+            "name": "Graduate Students"
+          },
+          {
+            "id": 80,
+            "taxonomy": "eventtypes",
+            "name": "Undergraduate Students"
+          }
+        ],
+        [
+          {
+            "id": 48,
+            "taxonomy": "eventtag",
+            "name": "Teacher Pinning"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "id": 61515,
+    "slug": "lr-general-information-session-3",
+    "link": "https://education.utexas.edu/event/lr-general-information-session-3/",
+    "title": {
+      "rendered": "Longhorns in Residence: General Information Session"
+    },
+    "excerpt": {
+      "rendered": "<p>Learn more about our one-year graduate certificate, teacher certification, and residency programs – Longhorns in Residence.</p>\n",
+      "protected": false
+    },
+    "featured_media": 67070,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 245,
+            "taxonomy": "eventtypes",
+            "name": "Curriculum and Instruction"
+          },
+          {
+            "id": 79,
+            "taxonomy": "eventtypes",
+            "name": "Graduate Students"
+          },
+          {
+            "id": 254,
+            "taxonomy": "eventtypes",
+            "name": "Prospective Student Information Session"
+          }
+        ],
+        [
+          {
+            "id": 669,
+            "taxonomy": "eventtag",
+            "name": "Longhorns in Residence"
+          }
+        ]
+      ]
+    }
+  },
+  {
+    "id": 71579,
+    "slug": "coe-faculty-media-training",
+    "link": "https://education.utexas.edu/event/coe-faculty-media-training/",
+    "title": {
+      "rendered": "COE Faculty Media Training"
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "featured_media": 0,
+    "_embedded": {
+      "wp:term": [
+        [
+          {
+            "id": 471,
+            "taxonomy": "eventtypes",
+            "name": "Faculty"
+          }
+        ],
+        []
+      ]
+    }
+  }
+]

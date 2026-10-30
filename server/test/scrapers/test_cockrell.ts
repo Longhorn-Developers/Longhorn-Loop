@@ -1,14 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
-import {
-  buildDatetime,
-  chicagoOffset,
-  decodeHtmlEntities,
-  parseTime12h,
-  parseWpEvent,
-  type WpEvent,
-} from '../../src/scrapers/cockrell';
+import { parseWpEvent, type WpEvent } from '../../src/scrapers/cockrell';
 
 function loadFixture(): WpEvent[] {
   return JSON.parse(
@@ -70,47 +63,5 @@ describe('parseWpEvent', () => {
   it('returns null when the event has no start date', () => {
     const broken = { ...events[2], meta: { ...events[2].meta, cockrell_event_date: '' } };
     expect(parseWpEvent(broken, NOW)).toBeNull();
-  });
-});
-
-describe('buildDatetime', () => {
-  it('returns a bare date string when there is no time', () => {
-    expect(buildDatetime('2026-03-08', '')).toBe('2026-03-08');
-  });
-
-  it('combines a date and 12h time with the Chicago offset', () => {
-    expect(buildDatetime('2026-01-08', '9:00 am')).toBe('2026-01-08T09:00:00-06:00');
-    expect(buildDatetime('2026-07-08', '5:00 pm')).toBe('2026-07-08T17:00:00-05:00');
-  });
-});
-
-describe('parseTime12h', () => {
-  it('converts 12h times to 24h', () => {
-    expect(parseTime12h('9:00 am')).toEqual({ hours: 9, minutes: 0 });
-    expect(parseTime12h('5:00 pm')).toEqual({ hours: 17, minutes: 0 });
-    expect(parseTime12h('12:00 pm')).toEqual({ hours: 12, minutes: 0 });
-    expect(parseTime12h('12:00 am')).toEqual({ hours: 0, minutes: 0 });
-  });
-
-  it('returns null for unparseable input', () => {
-    expect(parseTime12h('')).toBeNull();
-    expect(parseTime12h('noon')).toBeNull();
-  });
-});
-
-describe('chicagoOffset', () => {
-  it('returns CST in winter', () => {
-    expect(chicagoOffset('2026-01-08')).toBe('-06:00');
-  });
-
-  it('returns CDT in summer', () => {
-    expect(chicagoOffset('2026-07-08')).toBe('-05:00');
-  });
-});
-
-describe('decodeHtmlEntities', () => {
-  it('decodes numeric and named entities', () => {
-    expect(decodeHtmlEntities('Data&#8211;Driven')).toBe('Data–Driven');
-    expect(decodeHtmlEntities('Fun &amp; Games')).toBe('Fun & Games');
   });
 });

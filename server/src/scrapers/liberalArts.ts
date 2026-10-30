@@ -26,7 +26,7 @@ import {
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { decodeHtmlEntities, inferVenueType } from './helpers';
 
 const BASE_URL = 'https://liberalarts.utexas.edu';
 // Explicit page parameters make the API return JSON:API pagination metadata.
@@ -96,38 +96,6 @@ const MONTHS: Record<string, number> = {
   Nov: 11,
   Dec: 12,
 };
-
-const HTML_ENTITIES: Record<string, string> = {
-  amp: '&',
-  apos: "'",
-  auml: 'ä',
-  gt: '>',
-  ldquo: '“',
-  lsquo: '‘',
-  lt: '<',
-  mdash: '—',
-  nbsp: ' ',
-  ndash: '–',
-  ntilde: 'ñ',
-  oacute: 'ó',
-  quot: '"',
-  rdquo: '”',
-  rsquo: '’',
-};
-
-// COLA content contains both named entities and numeric Unicode entities.
-// Unknown named entities are preserved instead of silently dropping content.
-export function decodeHtmlEntities(text: string): string {
-  return text.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
-    if (code.startsWith('#x')) {
-      return String.fromCodePoint(parseInt(code.slice(2), 16));
-    }
-    if (code.startsWith('#')) {
-      return String.fromCodePoint(parseInt(code.slice(1), 10));
-    }
-    return HTML_ENTITIES[code.toLowerCase()] ?? entity;
-  });
-}
 
 // Decode entities before stripping tags so encoded markup remains ordinary
 // text. Returning null for empty content matches the shared D1 event schema.
