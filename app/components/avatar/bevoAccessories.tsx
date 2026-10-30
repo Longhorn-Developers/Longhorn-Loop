@@ -26,14 +26,14 @@ interface PatternTile {
 
 export const PATTERN_TILES: Record<Exclude<BevoPattern, 'none'>, PatternTile> = {
   // heart: ~4 hearts across a 200px tile → repeat ~150 gives readable hearts.
-  heart: { src: require('@/assets/images/avatar/patterns/heart.png'), size: 150 },
+  heart: { src: require('@/assets/images/bevo/patterns/heart.png'), size: 150 },
   // scales: ~5 columns across 200px; a slightly larger repeat keeps arcs clear.
-  scales: { src: require('@/assets/images/avatar/patterns/scales.png'), size: 130 },
+  scales: { src: require('@/assets/images/bevo/patterns/scales.png'), size: 130 },
   // stars: ~4 stars across 200px.
-  stars: { src: require('@/assets/images/avatar/patterns/stars.png'), size: 150 },
-  dots: { src: require('@/assets/images/avatar/patterns/dots.png'), size: 120 },
+  stars: { src: require('@/assets/images/bevo/patterns/stars.png'), size: 150 },
+  dots: { src: require('@/assets/images/bevo/patterns/dots.png'), size: 120 },
   // honey: hexagon tile, ~2 cells across 200px at this repeat.
-  honey: { src: require('@/assets/images/avatar/patterns/honey.png'), size: 130 },
+  honey: { src: require('@/assets/images/bevo/patterns/honey.png'), size: 130 },
 };
 
 // Each hat: the source artwork's viewBox and a transform placing it on the
