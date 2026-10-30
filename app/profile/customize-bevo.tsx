@@ -213,7 +213,8 @@ function ColorSwatch({ palette }: { palette: BevoPalette }) {
 
 function HatSwatch({ hat }: { hat: BevoHat }) {
   if (hat === 'none') return <NoneGlyph />;
-  const art = HAT_ART[hat];
+  // Two-piece accessories (the headphones) supply a `tile` that draws both pieces.
+  const art = HAT_ART[hat].tile ?? HAT_ART[hat];
   return (
     <Svg
       width="90%"
