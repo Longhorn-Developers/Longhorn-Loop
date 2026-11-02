@@ -12,12 +12,33 @@
 
 import { BEVO_INK, BEVO_PALETTE_COLORS, type AvatarConfig } from '@/shared/avatar';
 import React, { useId } from 'react';
-import Svg, { ClipPath, Defs, Image, Path, Pattern, Rect } from 'react-native-svg';
-import { HatLayer, PATTERN_TILES } from './bevoAccessories';
+import Svg, { ClipPath, Defs, G, Path } from 'react-native-svg';
+import { HatBackLayer, HatLayer, PATTERN_LAYERS } from './bevoAccessories';
 
 // The mark keeps a 153:206 aspect ratio; pass either dimension and let the
 // other follow.
 const ASPECT = 153 / 206;
+
+// Figma's accessories overflow the top of the 153×206 character box (the top hat
+// by ~19 units, the cap ~9), and SVG clips everything outside its viewBox. So the
+// viewBox reaches HEADROOM units above the body — a little more than the tallest
+// hat — while the layout box keeps the character's own size (see marginTop
+// below), so nothing that sizes a Bevo by `height` changes.
+const HEADROOM = 25;
+const BODY_HEIGHT = 206;
+
+// LOOP-287: the profile-picture crop. A square window centred on the head (not the
+// whole figure), sized so everything worn on the head stays inside the circle a
+// parent clips it to: the horn tips are ~94 units from the centre, the tallest hat
+// ~82, the headphone cups ~75, against a window radius of 100. The old approach
+// drew the full body oversized and top-anchored, which clipped the horns at the
+// circle's corners and cut hats off.
+const HEAD_CROP = { cx: 76.5, cy: 62, radius: 100 };
+
+// Figma's profile pictures (the "Bevo Profile Picture" components) show Bevo facing
+// LEFT, the mirror of the picker, so the head crop mirrors the whole drawing. The
+// mirror is about the canvas centre (x = 76.5), which is also the crop's centre.
+const HEAD_CROP_MIRRORED = true;
 
 // Body fill — the two large silhouette paths.
 const BODY_PATHS = [
@@ -53,31 +74,68 @@ const INK_PATHS = [
   'M79.1051 71.6764C79.1165 73.3878 78.8423 77.8234 82.67 77.8234C86.4978 77.8234 86.4454 73.2796 86.4978 71.6764C86.5528 69.7026 85.9599 65.3384 82.67 65.3384C79.6535 65.3384 79.1051 70.1013 79.1051 71.6764Z',
 ];
 
+// The last two ink layers are the right and left eye (see the comments above).
+const EYE_PATHS = INK_PATHS.slice(5);
+
+// LOOP-272: a thin halo of plain body colour around each eye so a mark from the
+// pattern never touches it. The facial ink is drawn after the pattern, but a dark
+// heart/star/dot sitting against a dark eye reads as one blob and the eye gets
+// lost. The halo is the eye's own outline stroked in the body colour (EYE_HALO
+// wide, half of it outside the eye), so it hugs the eye. A first attempt used
+// big ellipses over the eyes and snout; they left a visible disc cut out of every
+// pattern, which looked worse than the problem.
+const EYE_HALO = 6;
+
 interface BevoAvatarProps {
   /** Which Bevo to draw. Palette recolours body/horns/snout; ink is fixed. */
   config: AvatarConfig;
   height?: number;
   width?: number;
+  /**
+   * 'full' (default) draws the whole character at `height`/`width`. 'head' draws a
+   * square crop of the head, `size` on a side, for a profile picture: put it in a
+   * parent that clips to a circle (see HEAD_CROP above).
+   */
+  crop?: 'full' | 'head';
+  /** Side length of the square head crop. Only used with crop="head". */
+  size?: number;
 }
 
-export default function BevoAvatar({ config, height = 206, width }: BevoAvatarProps) {
+export default function BevoAvatar({
+  config,
+  height = 206,
+  width,
+  crop = 'full',
+  size = 92,
+}: BevoAvatarProps) {
+  const head = crop === 'head';
   const w = width ?? (height ? height * ASPECT : 206 * ASPECT);
   const h = width ? width / ASPECT : height;
   const colors = BEVO_PALETTE_COLORS[config.palette];
 
   const pattern = config.pattern ?? 'none';
-  const patternTile = pattern !== 'none' ? PATTERN_TILES[pattern] : null;
-  const tileSize = patternTile?.size ?? 0;
+  const patternLayer = pattern !== 'none' ? PATTERN_LAYERS[pattern] : null;
 
   // Unique per instance. SVG ids share one namespace across the whole document,
   // so a hardcoded id would make every avatar's `url(#...)` resolve to the first
   // one on the page — which is why every pattern rendered as the first tile.
   const uid = useId().replace(/:/g, '');
   const clipId = `bevo-body-${uid}`;
-  const patternId = `bevo-pattern-${uid}`;
 
   return (
-    <Svg width={w} height={h} viewBox="0 0 153 206">
+    <Svg
+      width={head ? size : w}
+      height={head ? size : h * ((BODY_HEIGHT + HEADROOM) / BODY_HEIGHT)}
+      viewBox={
+        head
+          ? `${HEAD_CROP.cx - HEAD_CROP.radius} ${HEAD_CROP.cy - HEAD_CROP.radius} ${
+              HEAD_CROP.radius * 2
+            } ${HEAD_CROP.radius * 2}`
+          : `0 ${-HEADROOM} 153 ${BODY_HEIGHT + HEADROOM}`
+      }
+      // Full figure: pull the extra headroom out of the layout so the box is w × h.
+      style={head ? undefined : { marginTop: -h * (HEADROOM / BODY_HEIGHT) }}
+    >
       <Defs>
         {/* Clip the pattern to the body silhouette so it never spills onto the
             horns, snout, or background. */}
@@ -86,50 +144,54 @@ export default function BevoAvatar({ config, height = 206, width }: BevoAvatarPr
             <Path key={`clip-${i}`} d={d} />
           ))}
         </ClipPath>
-        {patternTile != null && (
-          <Pattern id={patternId} patternUnits="userSpaceOnUse" width={tileSize} height={tileSize}>
-            <Image
-              href={patternTile.src}
-              x={0}
-              y={0}
-              width={tileSize}
-              height={tileSize}
-              preserveAspectRatio="xMidYMid slice"
-            />
-          </Pattern>
-        )}
       </Defs>
 
-      {/* Draw order matches the design: outline first (sits behind), then the
+      <G
+        transform={
+          head && HEAD_CROP_MIRRORED ? `translate(${HEAD_CROP.cx * 2} 0) scale(-1 1)` : undefined
+        }
+      >
+        {/* Anything worn behind the head (the far headphone cup) goes first, so the
+          head covers it and only the part past the silhouette shows. */}
+        <HatBackLayer hat={config.hat ?? 'none'} />
+
+        {/* Draw order matches the design: outline first (sits behind), then the
           coloured fills on top, then the facial ink. */}
-      <Path d={INK_PATHS[0]} fill={BEVO_INK} />
-      {BODY_PATHS.map((d, i) => (
-        <Path key={`body-${i}`} d={d} fill={colors.body} />
-      ))}
+        <Path d={INK_PATHS[0]} fill={BEVO_INK} />
+        {BODY_PATHS.map((d, i) => (
+          <Path key={`body-${i}`} d={d} fill={colors.body} />
+        ))}
 
-      {/* Pattern overlay — tiled ink marks, painted only inside the body. */}
-      {patternTile != null && (
-        <Rect
-          x={0}
-          y={0}
-          width={153}
-          height={206}
-          fill={`url(#${patternId})`}
-          clipPath={`url(#${clipId})`}
-        />
-      )}
+        {/* Pattern overlay — Figma's layout for the chosen pattern, painted only
+          inside the body. */}
+        {patternLayer != null && <G clipPath={`url(#${clipId})`}>{patternLayer}</G>}
+        {patternLayer != null && (
+          <G clipPath={`url(#${clipId})`}>
+            {EYE_PATHS.map((d, i) => (
+              <Path
+                key={`eye-halo-${i}`}
+                d={d}
+                fill={colors.body}
+                stroke={colors.body}
+                strokeWidth={EYE_HALO}
+                strokeLinejoin="round"
+              />
+            ))}
+          </G>
+        )}
 
-      {HORN_PATHS.map((d, i) => (
-        <Path key={`horn-${i}`} d={d} fill={colors.horns} />
-      ))}
-      <Path d={INK_PATHS[1]} fill={BEVO_INK} />
-      <Path d={SNOUT_PATH} fill={colors.snout} />
-      {INK_PATHS.slice(2).map((d, i) => (
-        <Path key={`ink-${i}`} d={d} fill={BEVO_INK} />
-      ))}
+        {HORN_PATHS.map((d, i) => (
+          <Path key={`horn-${i}`} d={d} fill={colors.horns} />
+        ))}
+        <Path d={INK_PATHS[1]} fill={BEVO_INK} />
+        <Path d={SNOUT_PATH} fill={colors.snout} />
+        {INK_PATHS.slice(2).map((d, i) => (
+          <Path key={`ink-${i}`} d={d} fill={BEVO_INK} />
+        ))}
 
-      {/* Head accessory sits on top of everything. */}
-      <HatLayer hat={config.hat ?? 'none'} />
+        {/* Head accessory sits on top of everything. */}
+        <HatLayer hat={config.hat ?? 'none'} />
+      </G>
     </Svg>
   );
 }
