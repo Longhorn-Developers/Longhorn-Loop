@@ -41,9 +41,9 @@ import {
 import { ORG_SEARCH_MIN_QUERY, type OrgSortOption } from '@/shared/orgRegistration';
 import { TAXONOMY_BUCKETS } from '@/shared/taxonomy';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useRouter, type ErrorBoundaryProps } from 'expo-router';
+import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { BuildingsIcon, CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -193,6 +193,19 @@ export default function ExploreScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>(IS_WEB ? 'list' : 'map');
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [selection, setSelection] = useState<ExploreSelection>({ kind: 'trending' });
+
+  // Deep link from Home's "Orgs For You" → "See all": `?view=orgs` opens the org
+  // directory instead of the events feed. Explore is a tab and stays mounted, so
+  // the initial state above never sees the param on a second visit — it has to
+  // be applied here, then cleared so switching tabs doesn't re-apply it and pin
+  // the user to Orgs.
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  useEffect(() => {
+    if (view === 'orgs') {
+      setSelection({ kind: 'orgs' });
+      router.setParams({ view: undefined });
+    }
+  }, [view, router]);
   const [query, setQuery] = useState('');
 
   // --- Filters ("College Lens") -------------------------------------------

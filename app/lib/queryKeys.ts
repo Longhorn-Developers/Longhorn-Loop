@@ -98,6 +98,9 @@ export const org = {
    * the other and get INVALID_CURSOR back.
    */
   directory: (request: string) => [...org.all, 'directory', request] as const,
+  // Home's "Orgs For You" row. Under org.all so anything that invalidates the
+  // org tree (a follow from a profile, say) refreshes it too.
+  forYou: () => [...org.all, 'for-you'] as const,
   publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
   // "Find your organization" on the registration form (LOOP-141). The
