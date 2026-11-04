@@ -187,41 +187,46 @@ export default function OnboardingComplete() {
         >
           Welcome to Longhorn Loop 🤘
         </Animated.Text>
-
-        <Animated.View
-          style={[
-            styles.buttonWrapper,
-            { opacity: buttonOpacity, transform: [{ translateY: buttonTranslate }] },
-          ]}
-        >
-          {/* Above the CTA on purpose. Below it and most people never see it,
-              which puts us back where we started. */}
-          <View style={styles.notifyRow}>
-            <View style={styles.notifyText}>
-              <Text style={styles.notifyTitle}>Event reminders</Text>
-              <Text style={styles.notifySubtitle}>
-                Get a heads-up before events you save. You can change this any time in Settings.
-              </Text>
-            </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              disabled={submitting}
-              trackColor={{ true: colors.accent }}
-              accessibilityLabel="Event reminders"
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={submitOnboarding}
-            disabled={submitting}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.buttonText}>{buttonLabel}</Text>
-          </TouchableOpacity>
-        </Animated.View>
       </View>
+
+      {/* The CTA belongs at the bottom of the screen, like every other onboarding
+          step (and the Figma "completed onboard" frame). It used to sit inside the
+          centred block, directly under the subtitle, which put it in the middle of
+          the screen. It lives outside `content` so that block can keep centring the
+          message above it. */}
+      <Animated.View
+        style={[
+          styles.footer,
+          { opacity: buttonOpacity, transform: [{ translateY: buttonTranslate }] },
+        ]}
+      >
+        {/* Above the CTA on purpose. Below it and most people never see it,
+            which puts us back where we started. */}
+        <View style={styles.notifyRow}>
+          <View style={styles.notifyText}>
+            <Text style={styles.notifyTitle}>Event reminders</Text>
+            <Text style={styles.notifySubtitle}>
+              Get a heads-up before events you save. You can change this any time in Settings.
+            </Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+            disabled={submitting}
+            trackColor={{ true: colors.accent }}
+            accessibilityLabel="Event reminders"
+          />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, submitting && styles.buttonDisabled]}
+          onPress={submitOnboarding}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.buttonText}>{buttonLabel}</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -266,9 +271,13 @@ const makeStyles = (c: ThemeColors) =>
       color: c.inkSecondary,
       textAlign: 'center',
     },
-    buttonWrapper: {
+    // 20 matches FlowLayout's footer, so this button lines up with the Next button
+    // on the other onboarding screens; the bottom gap is Figma's 42 minus the home
+    // indicator inset that SafeAreaView already provides.
+    footer: {
       width: '100%',
-      marginTop: 16,
+      paddingHorizontal: 20,
+      paddingBottom: 8,
     },
     notifyRow: {
       flexDirection: 'row',
