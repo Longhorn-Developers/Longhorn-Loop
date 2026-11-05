@@ -314,6 +314,46 @@ describe('POST /events/create', () => {
     expect(db.events).toHaveLength(1);
   });
 
+  // LOOP-282: the tester's link only "registered" once they typed https://.
+  it('adds https:// to a scheme-less RSVP link instead of rejecting it', async () => {
+    const db = new FakeD1Database();
+    const token = await signJwt(USER_EMAIL);
+
+    const res = await postCreate(
+      makeEnv(db),
+      {
+        title: 'MHA in Concert',
+        start_datetime: '2026-07-07T19:00:00-05:00',
+        rsvp_url: 'texasperformingarts.evenue.net',
+      },
+      token,
+    );
+
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { event: EventRow };
+    expect(json.event.rsvp_url).toBe('https://texasperformingarts.evenue.net/');
+  });
+
+  it('rejects an RSVP link that is not a web address', async () => {
+    const db = new FakeD1Database();
+    const token = await signJwt(USER_EMAIL);
+
+    const res = await postCreate(
+      makeEnv(db),
+      {
+        title: 'MHA in Concert',
+        start_datetime: '2026-07-07T19:00:00-05:00',
+        rsvp_url: 'mailto:tickets@utexas.edu',
+      },
+      token,
+    );
+
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { fields: Record<string, string> };
+    expect(json.fields.rsvp_url).toBe('Use a web link (https://…)');
+    expect(db.events).toHaveLength(0);
+  });
+
   it('writes hand-picked taxonomy tags to event_tags with source user', async () => {
     const db = new FakeD1Database();
     const token = await signJwt(USER_EMAIL);

@@ -1293,6 +1293,9 @@ orgRoutes.get('/:orgId/events', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
             e.location_short, e.location_full, e.image_url, e.theme,
+            -- The edit overlay prefills from this row (LOOP-282); without it
+            -- the RSVP field opens blank on an event that has a link.
+            e.rsvp_url,
             e.view_count, e.rsvp_count, e.save_count,
             CASE WHEN ${PAST_EVENT_CONDITION} THEN 1 ELSE 0 END AS is_past,
             -- The bucket the edit overlay's tag picker should open on. A

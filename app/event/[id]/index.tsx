@@ -15,6 +15,8 @@ import ExpandIcon from '@/assets/images/expand.svg';
 import ExternalLinkIcon from '@/assets/images/external-link.svg';
 import FlagIcon from '@/assets/images/flag.svg';
 import MapIcon from '@/assets/images/map.svg';
+import PencilIcon from '@/assets/images/pencil.svg';
+import EditEventOverlay from '@/app/components/org/EditEventOverlay';
 import ShareIcon from '@/assets/images/share.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { ApiEvent } from '@/app/components/EventCard';
@@ -294,6 +296,7 @@ export default function EventDetailScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   // A write is in flight. The RSVP button used to give no sign of this at all,
   // which on a slow connection was indistinguishable from the tap having been
   // ignored -- half of what "the app freezes when you try to RSVP" (LOOP-278)
@@ -648,6 +651,23 @@ export default function EventDetailScreen() {
               </TouchableOpacity>
             ) : null}
 
+            {/* Edit, for whoever the server says may (LOOP-282): the event's
+                creator, or an admin/editor of its host org. Before this the
+                only way in was the profile's Manage sheet or the org console,
+                so a creator looking at their own event with a wrong RSVP link
+                had no visible way to fix it. Sits left of expand when both
+                show, so neither moves depending on whether there's a flyer. */}
+            {event.can_edit ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Edit event"
+                onPress={() => setEditing(true)}
+                style={[styles.expandButton, event.image_url ? { right: 64 } : null]}
+              >
+                <PencilIcon width={18} height={18} color={colors.brand} />
+              </TouchableOpacity>
+            ) : null}
+
             <View
               style={[
                 styles.poster,
@@ -866,6 +886,19 @@ export default function EventDetailScreen() {
         eventTitle={event.title}
         onClose={() => setShowToast(false)}
       />
+
+      {/* Saving invalidates eventsKeys.detail(event.id), which is this
+          screen's query key, so the new RSVP link is live on close with no
+          reload. ApiEvent is a superset of EventEditSource. */}
+      {event.can_edit ? (
+        <EditEventOverlay
+          visible={editing}
+          event={editing ? event : null}
+          orgId={event.host_organization_id}
+          token={token}
+          onClose={() => setEditing(false)}
+        />
+      ) : null}
     </View>
   );
 }

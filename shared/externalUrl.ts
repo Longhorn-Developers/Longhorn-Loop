@@ -44,25 +44,55 @@ const HTTP_SCHEME = /^https?:\/\//i;
  *     "https://rsvp" and call that a successful hand-off
  */
 export function toExternalHttpUrl(raw: string | null | undefined): string | null {
-  if (typeof raw !== 'string') return null;
+  const result = checkExternalUrlInput(raw);
+  return result.kind === 'valid' ? result.url : null;
+}
+
+/**
+ * Why a link was refused, in words a creator can act on while typing
+ * (LOOP-282).
+ *
+ * The read guard above only needs yes/no. The write side -- Create Event,
+ * Edit Event, and the server's validateUrl -- needs to say *what* is wrong
+ * before publishing rather than after, because a tester's only feedback used
+ * to be a link that silently didn't work on the live event.
+ */
+export type ExternalUrlInputResult =
+  { kind: 'empty' } | { kind: 'valid'; url: string } | { kind: 'invalid'; reason: string };
+
+export function checkExternalUrlInput(raw: string | null | undefined): ExternalUrlInputResult {
+  if (typeof raw !== 'string') return { kind: 'empty' };
 
   const trimmed = raw.trim();
-  if (!trimmed || trimmed.length > MAX_EXTERNAL_URL_LENGTH) return null;
+  if (!trimmed) return { kind: 'empty' };
+  if (trimmed.length > MAX_EXTERNAL_URL_LENGTH) {
+    return {
+      kind: 'invalid',
+      reason: `Links must be ${MAX_EXTERNAL_URL_LENGTH} characters or fewer`,
+    };
+  }
 
   // Leading/trailing space is a paste artefact and was trimmed above; space in
   // the middle is prose.
-  if (/\s/.test(trimmed)) return null;
+  if (/\s/.test(trimmed)) return { kind: 'invalid', reason: 'Links can’t contain spaces' };
 
   const hasScheme = SCHEME.test(trimmed);
-  if (hasScheme && !HTTP_SCHEME.test(trimmed)) return null;
+  if (hasScheme && !HTTP_SCHEME.test(trimmed)) {
+    return { kind: 'invalid', reason: 'Use a web link (https://…)' };
+  }
 
+  // A scheme-less value is a host, not an error: this is the normalisation
+  // LOOP-282 asked for. "texasperformingarts.evenue.net" pasted from an
+  // address bar is a perfectly good link that was being refused.
   const candidate = hasScheme ? trimmed : `https://${trimmed}`;
 
   // The authority is everything between "//" and the first /, ?, or #. Drop
   // any userinfo before checking the host, so "user@host/path" still resolves.
   const authority = candidate.replace(HTTP_SCHEME, '').split(/[/?#]/)[0];
   const host = (authority.split('@').pop() ?? '').split(':')[0];
-  if (!host || !host.includes('.') || host.startsWith('.') || host.endsWith('.')) return null;
+  if (!host || !host.includes('.') || host.startsWith('.') || host.endsWith('.')) {
+    return { kind: 'invalid', reason: 'That doesn’t look like a web address' };
+  }
 
-  return candidate;
+  return { kind: 'valid', url: candidate };
 }
