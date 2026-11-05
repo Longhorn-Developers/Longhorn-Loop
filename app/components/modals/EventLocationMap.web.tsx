@@ -8,6 +8,8 @@ interface EventLocationMapProps {
   label: string;
   user: Coord | null;
   showRoute: boolean;
+  variant?: 'modal' | 'inline';
+  walkMinutes?: number | null;
 }
 
 // Web has no native map; match the existing MapViewWrapper.web fallback.

@@ -10,7 +10,7 @@ import { classifyAspectRatio, fetchImageMeta } from '../events/normalize';
 import { fetchWithRetry, sleep } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { chicagoOffset, decodeHtmlEntities, inferVenueType } from './helpers';
 
 const BASE_URL = 'https://events.moody.utexas.edu';
 const LISTING_URL = `${BASE_URL}/upcoming-events`;
@@ -62,18 +62,6 @@ interface SchemaEvent {
   location?: string | SchemaPlace;
 }
 
-export function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;|&#0?39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
-
 function textContent(html: string): string {
   return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' '))
     .replace(/\s+/g, ' ')
@@ -100,18 +88,6 @@ export function extractEventCards(html: string): string[] {
 
 export function hasNextPage(html: string): boolean {
   return /rel="next"/.test(html);
-}
-
-function chicagoOffset(date: string): string {
-  // Listing dates have no offset. Resolve it for the event date rather than
-  // assuming CST or CDT, since one scrape can span a DST boundary.
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(new Date(`${date}T12:00:00Z`));
-  const match = parts.find((part) => part.type === 'timeZoneName')?.value.match(/GMT([+-]\d+)/);
-  const hours = match ? Number(match[1]) : -6;
-  return `${hours >= 0 ? '+' : '-'}${String(Math.abs(hours)).padStart(2, '0')}:00`;
 }
 
 const MONTHS: Record<string, number> = {

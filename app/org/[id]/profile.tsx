@@ -36,10 +36,11 @@ import UpcomingPastToggle from '@/app/components/profile/UpcomingPastToggle';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
+import { useOrgFollow } from '@/app/lib/useOrgFollow';
 import { useThemeColors } from '@/app/lib/themeColors';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import type { PublicProfileTab } from '@/shared/profileEventFilters';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
@@ -71,7 +72,6 @@ interface OrgEventsResponse {
 export default function PublicOrgProfileScreen() {
   const colors = useThemeColors();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const orgId = Number(id);
   const { data: onboarding } = useOnboarding();
@@ -96,18 +96,10 @@ export default function PublicOrgProfileScreen() {
     enabled: enabled && !!profileQuery.data,
   });
 
-  const follow = useMutation({
-    mutationFn: (next: boolean) =>
-      next
-        ? api.post<{ following: boolean }>(`/orgs/${orgId}/follow`, { token })
-        : api.delete<{ following: boolean }>(`/orgs/${orgId}/follow`, { token }),
-    onSuccess: () => {
-      setActionError(null);
-      // The follower count on the header moves with this, and the console's
-      // own header reads the same underlying table, so drop both.
-      queryClient.invalidateQueries({ queryKey: orgKeys.publicProfile(orgId) });
-      queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
-    },
+  // The mutation and its cache invalidation live in useOrgFollow so the event
+  // detail screen's Follow button shares them.
+  const follow = useOrgFollow(orgId, token, {
+    onSuccess: () => setActionError(null),
     onError: () => setActionError('Could not update follow. Try again.'),
   });
 

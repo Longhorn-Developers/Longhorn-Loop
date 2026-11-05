@@ -1,81 +1,22 @@
-# Welcome to your Expo app 👋
+# Longhorn Loop
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Campus event discovery for UT Austin. An Expo / React Native app (iOS, Android,
+web) talking to a Cloudflare Worker on D1.
 
-## Tech Stack
+## Quick start
 
-### 📱 Frontend
-
-- **React Native** – Cross-platform mobile development (iOS & Android)
-- **TypeScript** – Strongly typed JavaScript for safer and more scalable code
-- **Tailwind CSS** – Utility-first styling framework for fast and consistent UI design
-
-### 🗄️ Backend & Infrastructure
-
-- **SQL Database** – Structured data storage for users, app content, and analytics
-- **Cloudflare** – Edge computing, serverless functions, API routing, security, and global performance optimization
-
-## 🏗️ Architecture Overview
-
-- React Native handles the mobile interface.
-- TypeScript ensures type safety across the codebase.
-- Tailwind provides consistent and maintainable styling.
-- SQL stores structured application data.
-- Cloudflare powers serverless backend logic, API endpoints, authentication, and global content delivery.
-
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+You need **Node 22+** and a phone with [Expo Go](https://expo.dev/go), or an
+emulator.
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-## Pointing the app at a backend
-
-Nothing to configure. A fresh clone plus `npm install` and `npx expo start`
-talks to the deployed Worker — no wrangler, no local database, no Cloudflare
-account. Verification codes arrive in your real UT inbox, which is what a beta
-tester experiences.
+Scan the QR code with your phone. That's it — no backend setup, no database, no
+Cloudflare account. A fresh clone talks to the deployed Worker, and verification
+codes arrive in your real UT inbox, which is exactly what a beta tester
+experiences.
 
 On startup the app prints which backend it picked:
 
@@ -83,52 +24,129 @@ On startup the app prints which backend it picked:
 [api] https://loop-db.longhorn-developers.workers.dev  (default)
 ```
 
-**This writes to the production database.** Accounts you create and events you
-post are real and other people will see them. That is the right default while
-the team is testing flows end to end, and the wrong one if you are
-experimenting — run the backend locally for that (below), which needs
-`EXPO_PUBLIC_USE_LOCAL_API=1` in a `.env`. See `.env.example`.
+> **⚠️ That default writes to the production database.** Accounts you create and
+> events you post are real, and other people will see them. That is the right
+> default while the team is testing flows end to end, and the wrong one if you
+> are experimenting — in which case run the backend locally (below).
 
-`EXPO_PUBLIC_*` is inlined into the bundle at build time, so after editing
-`.env` you must restart with `npx expo start --clear` **and** reload the app.
-Editing it with Metro running has no effect.
+## Running the backend locally
 
-## Starting the Server
+Do this when you are changing server code, or when you want to break things
+without other people seeing it.
 
-The backend is a Cloudflare Worker, not a plain Node server. In development
-`app/config/api.ts` points the app at whichever machine started Expo, on port
-8787 — so the Worker has to be running locally or every request fails.
+Open a second terminal, keeping Expo running in the first.
 
-1. Open a second terminal, keeping the one running Expo open.
+**Once:**
 
-2. Set it up (once):
+```bash
+cd server
+npm install
+cp .dev.vars.example .dev.vars
+npx wrangler d1 execute loop-db --env local --local --file=schema.sql
+```
 
-   ```bash
-   cd server
-   npm install
-   cp .dev.vars.example .dev.vars
-   npx wrangler d1 execute loop-db --local --file=schema.sql
-   ```
+That last line builds your own SQLite copy of the database. Nothing you do
+locally touches production and you do not need a Cloudflare account — the dev
+scripts run against `[env.local]`, which omits the two bindings that would
+otherwise require one.
 
-   `.dev.vars` is git-ignored and its defaults work as-is. It is optional now —
-   `[env.local]` already sends verification codes to this terminal rather than
-   to an inbox, so you can sign in without it. Copy it anyway if you want to
-   set a real `RESEND_API_KEY` or the R2 image base URL.
+`.dev.vars` is git-ignored and its defaults work as-is. It is optional:
+`[env.local]` prints verification codes to this terminal instead of emailing
+them, so you can sign in without it. Copy it anyway if you want a real
+`RESEND_API_KEY` or the R2 image base URL.
 
-   The `d1 execute` line builds your own local SQLite copy of the database.
-   Nothing you do locally touches production, and you do not need a Cloudflare
-   account — the dev scripts run against `[env.local]`, which leaves out the two
-   bindings that would otherwise require one.
+**Every time:**
 
-3. Start it:
+```bash
+cd server
+npm run dev:lan
+```
 
-   ```bash
-   npm run dev:lan
-   ```
+`dev:lan` binds to `0.0.0.0` so a real phone on your wifi can reach it.
+`npm run dev` binds to localhost only — fine for Expo web and the iOS
+simulator, unreachable from a device.
 
-   `dev:lan` binds to `0.0.0.0` so a real phone on your wifi can reach it.
-   `npm run dev` binds to localhost only, which is fine for Expo web and the
-   iOS simulator but unreachable from a device.
+Then point the app at it. Create a `.env` in the repo root:
 
-See [`server/README.md`](server/README.md) for the rest — resetting the local
-database, running migrations, and deploying.
+```
+EXPO_PUBLIC_USE_LOCAL_API=1
+```
+
+and restart Expo with `npx expo start --clear`. See `.env.example`.
+
+## Things that will trip you up
+
+**`EXPO_PUBLIC_*` is inlined at build time.** After editing `.env` you must
+restart with `npx expo start --clear` _and_ reload the app. Editing it with
+Metro already running does nothing, silently.
+
+**Don't use `npx expo start --tunnel`.** It currently fails with
+`Cannot read properties of undefined (reading 'body')` — an open bug in Expo's
+ngrok wrapper ([expo#43335](https://github.com/expo/expo/issues/43335)), not
+your setup. Plain `npx expo start` works. If you are on campus wifi and your
+phone cannot see your laptop, turn on your phone's hotspot and join the laptop
+to it.
+
+**Run every `wrangler` command from `server/`.** `wrangler.toml` and
+`schema.sql` both live there. From the repo root you get
+`No environment found in configuration with name "local"` and
+`Unable to read SQL text file`.
+
+**Keep `--env local` on wrangler commands.** Without it you are pointed at the
+_production_ database. `[env.local]` deliberately uses an invalid database id so
+a stray deploy fails loudly instead of quietly standing up a second Worker wired
+to prod.
+
+**Node 22 or newer.** Part of the server test suite uses `node:sqlite` and skips
+itself on older versions, so on Node 20 those tests appear to pass by not
+running at all.
+
+## Project layout
+
+```
+app/        Expo Router client — screens, components, hooks
+server/     Cloudflare Worker — Hono routes, scrapers, D1 migrations
+shared/     Imported by BOTH client and server; no React, no server-only APIs
+site/       Static marketing + privacy pages
+docs/       Design notes
+```
+
+Routing is file-based: a file in `app/` is a route. Start at
+`app/(tabs)/home.tsx`.
+
+## Before you push
+
+CI runs these three on every PR to `main`, and all three must pass:
+
+```bash
+npm run lint
+npm run format:check
+npm run typecheck
+```
+
+Server tests are not yet in CI, so run them yourself when you touch `server/`:
+
+```bash
+cd server && npm test
+```
+
+## Conventions worth knowing
+
+[`CLAUDE.md`](CLAUDE.md) is the real guide — it covers the architecture, the
+scrapers, the feed ranking and the database. The three that bite newcomers
+fastest:
+
+- **Colours are `lhl*` tokens**, backed by CSS variables in `app/globals.css`.
+  Never hardcode `bg-white` or a hex value, or dark mode breaks.
+- **Fonts are per-weight families** — `font-roboto`, `font-roboto-medium`,
+  `font-roboto-semibold`, `font-roboto-bold`. React Native cannot pick a weight
+  off a variable font, so `font-bold` paired with a family will not work.
+- **Query keys live in `app/lib/queryKeys.ts`**, never inline, so the
+  hierarchical `invalidateQueries` prefixes keep working.
+
+## More
+
+- [`server/README.md`](server/README.md) — resetting the local database,
+  migrations, deploying
+- [`CLAUDE.md`](CLAUDE.md) — full architecture reference
+- [Expo documentation](https://docs.expo.dev/)

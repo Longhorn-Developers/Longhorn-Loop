@@ -31,6 +31,7 @@ import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import CalendarIcon from '@/assets/images/calendar.svg';
 import MapIcon from '@/assets/images/map.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
+import { formatShortDate, formatShortTime } from '@/app/lib/eventDateTime';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { LOCATION_PLACEHOLDER, VENUE_TYPE_LABELS } from '@/shared/venueType';
@@ -41,50 +42,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 /** Matches posterAspectRatio's portrait default on the detail screen. */
 const POSTER_ASPECT = 0.72;
-
-function formatShortDate(iso: string): string {
-  const date = new Date(iso);
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  const day = date.getDate();
-  const suffix = (n: number) => {
-    if (n >= 11 && n <= 13) return 'th';
-    switch (n % 10) {
-      case 1:
-        return 'st';
-      case 2:
-        return 'nd';
-      case 3:
-        return 'rd';
-      default:
-        return 'th';
-    }
-  };
-  return `${months[date.getMonth()]} ${day}${suffix(day)}`;
-}
-
-function formatShortTime(iso: string): string {
-  const date = new Date(iso);
-  let hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
-  return minutes === 0
-    ? `${hours}:00 ${ampm}`
-    : `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-}
 
 export default function EventPreview() {
   const colors = useThemeColors();
@@ -193,7 +150,9 @@ export default function EventPreview() {
 
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={styles.metaIconBadge}>
-                <MapIcon width={16} height={16} />
+                {/* theme-exempt: map.svg now paints from currentColor; this badge is
+                    brand-filled in both themes, so the glyph stays white. */}
+                <MapIcon width={16} height={16} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.metaPrimary} numberOfLines={2}>

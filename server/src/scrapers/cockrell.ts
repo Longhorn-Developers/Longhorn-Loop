@@ -17,7 +17,7 @@ import { classifyAspectRatio, fetchImageMeta, stripHtml } from '../events/normal
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { buildDatetime, decodeHtmlEntities, inferVenueType } from './helpers';
 
 const API_BASE = 'https://cockrell.utexas.edu/wp-json/wp/v2/event';
 export const SOURCE = 'cockrell';
@@ -64,57 +64,6 @@ export interface WpEvent {
   _embedded?: {
     'wp:term'?: WpTerm[][];
   };
-}
-
-// Helpers, exported for unit tests
-
-// WP's ".rendered" fields keep entities un-decoded, including numeric ones
-// (WP commonly emits &#8211; for en-dashes in titles). Decode numeric refs
-// generically instead of hardcoding each one.
-export function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
-
-// The API gives no UTC offset, so we look up the real America/Chicago
-// offset for the given date (DST-aware) instead of guessing.
-export function chicagoOffset(dateStr: string): string {
-  const date = new Date(`${dateStr}T12:00:00Z`); // noon UTC stays the same calendar day in Chicago
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
-    timeZoneName: 'shortOffset',
-  }).formatToParts(date);
-  const tzName = parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-6';
-  const match = tzName.match(/GMT([+-]\d+)/);
-  const hours = match ? parseInt(match[1], 10) : -6;
-  const sign = hours >= 0 ? '+' : '-';
-  return `${sign}${String(Math.abs(hours)).padStart(2, '0')}:00`;
-}
-
-// "9:00 am" / "5:00 pm" / "12:00 am" -> {hours: 0-23, minutes}
-export function parseTime12h(time: string): { hours: number; minutes: number } | null {
-  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*([ap]m)$/i);
-  if (!match) return null;
-  let hours = parseInt(match[1], 10) % 12;
-  if (match[3].toLowerCase() === 'pm') hours += 12;
-  return { hours, minutes: parseInt(match[2], 10) };
-}
-
-// Combines a plain date with an optional 12h time string into an ISO
-// datetime. No time -> date-only string (all-day), matching the
-// convention used by other scrapers for all-day/multi-day events.
-export function buildDatetime(dateStr: string, timeStr: string): string {
-  const time = timeStr ? parseTime12h(timeStr) : null;
-  if (!time) return dateStr;
-  const hh = String(time.hours).padStart(2, '0');
-  const mm = String(time.minutes).padStart(2, '0');
-  return `${dateStr}T${hh}:${mm}:00${chicagoOffset(dateStr)}`;
 }
 
 // Pure and sync so it's easy to test against saved API response fixtures.

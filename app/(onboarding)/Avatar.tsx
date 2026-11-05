@@ -226,7 +226,7 @@ export default function AddProfilePicture() {
               className="h-full w-full items-center justify-center"
               style={{ backgroundColor: BEVO_PREVIEW_BG }} // theme-exempt: fixed Bevo-world preview background
             >
-              <BevoAvatar config={pendingBevo} height={220} />
+              <BevoAvatar config={pendingBevo} crop="head" size={160} />
             </View>
           ) : (
             <View className="h-full w-full items-center justify-center bg-lhlPlaceholderGrey">

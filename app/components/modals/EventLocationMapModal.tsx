@@ -1,176 +1,54 @@
 import type { ApiEvent } from '@/app/components/EventCard';
-import { api } from '@/app/lib/api';
-import { searchPlace } from '@/app/lib/localSearch';
 import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
-import * as Linking from 'expo-linking';
-import * as Location from 'expo-location';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { EventLocation } from '@/app/lib/useEventLocation';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import EventLocationMap, { type Coord } from './EventLocationMap';
+import EventLocationMap from './EventLocationMap';
 
 interface EventLocationMapModalProps {
   visible: boolean;
   onClose: () => void;
   event: ApiEvent;
-  // Auth token, so a coordinate resolved from the location label can be
-  // written back to the server for this event (backfill). Optional: without it
-  // the map still shows, the coordinate just isn't persisted.
-  token?: string | null;
-}
-
-// Average walking speed (~5 km/h) for the straight-line ETA. Real turn-by-turn
-// distance would need a Directions API; this is the honest estimate we can give
-// from coordinates alone.
-const WALK_METERS_PER_MIN = 80;
-
-// Haversine distance in meters between two coordinates.
-function distanceMeters(a: Coord, b: Coord): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLng = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+  // The screen's location state (venue coordinate, the viewer's position, the
+  // walk estimate), NOT a copy of it. The modal used to run its own
+  // useEventLocation, so granting location from the modal's distance pill
+  // updated only the modal: the route card and the info card behind it stayed on
+  // "Show walking time" until the screen was reopened. Sharing one instance
+  // means allowing it in either place updates both, and the coordinate is
+  // geocoded and backfilled once instead of once per consumer.
+  location: EventLocation;
 }
 
 export default function EventLocationMapModal({
   visible,
   onClose,
   event,
-  token,
+  location,
 }: EventLocationMapModalProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  // Coordinate resolution: explicit lat/lng, else geocode the address string,
-  // else no location. 'resolving' covers the geocode round-trip.
-  const [coord, setCoord] = useState<Coord | null>(null);
-  const [resolving, setResolving] = useState(true);
-  const [user, setUser] = useState<Coord | null>(null);
-  const [locating, setLocating] = useState(false);
+  const {
+    coord,
+    resolving,
+    user,
+    locating,
+    walkMinutes,
+    requestUserLocation,
+    openInMaps,
+    hasLocation,
+  } = location;
 
   const locationName = event.location_short || event.location_full || null;
-  const addressString = event.location_full || event.location_short || null;
-
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-
-    const resolve = async () => {
-      setResolving(true);
-      if (event.latitude != null && event.longitude != null) {
-        if (!cancelled) {
-          setCoord({ latitude: event.latitude, longitude: event.longitude });
-          setResolving(false);
-        }
-        return;
-      }
-      if (!addressString) {
-        if (!cancelled) {
-          setCoord(null);
-          setResolving(false);
-        }
-        return;
-      }
-
-      // Resolve the location label to coordinates. MKLocalSearch first — it's a
-      // point-of-interest search (iOS only) that understands building/landmark
-      // names like "Texas Union Ballroom", which a plain postal geocoder can't.
-      // Fall back to geocodeAsync on other platforms or when POI search misses.
-      let resolved: Coord | null = null;
-      try {
-        const poi = await searchPlace(addressString);
-        if (poi) {
-          resolved = { latitude: poi.latitude, longitude: poi.longitude };
-        } else {
-          const results = await Location.geocodeAsync(addressString);
-          const first = results[0];
-          if (first) resolved = { latitude: first.latitude, longitude: first.longitude };
-        }
-      } catch {
-        resolved = null;
-      }
-
-      if (cancelled) return;
-      setCoord(resolved);
-      setResolving(false);
-
-      // Backfill: this event had no stored coordinates, so persist the one we
-      // just resolved. The server only fills when the columns are still NULL,
-      // so this is safe to fire and forget from any viewing client.
-      if (resolved && token) {
-        api
-          .post(`/events/${event.id}/coordinates`, {
-            token,
-            body: { latitude: resolved.latitude, longitude: resolved.longitude },
-          })
-          .catch(() => {});
-      }
-    };
-
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, event.id, event.latitude, event.longitude, addressString, token]);
-
-  // Reset per-open transient state when the modal closes.
-  useEffect(() => {
-    if (!visible) {
-      setUser(null);
-      setLocating(false);
-    }
-  }, [visible]);
-
-  const onShowDistance = useCallback(async () => {
-    if (locating) return;
-    setLocating(true);
-    try {
-      // Requesting permission is what surfaces the OS location prompt.
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const pos = await Location.getCurrentPositionAsync({});
-      setUser({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-    } catch {
-      // Leave user null; the distance hint stays available to retry.
-    } finally {
-      setLocating(false);
-    }
-  }, [locating]);
-
-  const walkMinutes = useMemo(() => {
-    if (!user || !coord) return null;
-    return Math.max(1, Math.round(distanceMeters(user, coord) / WALK_METERS_PER_MIN));
-  }, [user, coord]);
-
-  const onOpenInMaps = useCallback(() => {
-    const query = coord
-      ? `${coord.latitude},${coord.longitude}`
-      : addressString
-        ? encodeURIComponent(addressString)
-        : null;
-    if (!query) return;
-    // Apple Maps on iOS, Google Maps elsewhere.
-    const url =
-      Platform.OS === 'ios'
-        ? `http://maps.apple.com/?q=${query}`
-        : `https://www.google.com/maps/search/?api=1&query=${query}`;
-    Linking.openURL(url);
-  }, [coord, addressString]);
-
-  const hasLocation = coord != null || addressString != null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -216,7 +94,7 @@ export default function EventLocationMapModal({
                 {coord && (
                   <TouchableOpacity
                     style={styles.distancePill}
-                    onPress={onShowDistance}
+                    onPress={requestUserLocation}
                     disabled={locating}
                   >
                     {locating ? (
@@ -234,7 +112,7 @@ export default function EventLocationMapModal({
 
               <TouchableOpacity
                 style={styles.openButton}
-                onPress={onOpenInMaps}
+                onPress={() => openInMaps()}
                 activeOpacity={0.85}
               >
                 <Text style={styles.openButtonText}>Open in Maps</Text>

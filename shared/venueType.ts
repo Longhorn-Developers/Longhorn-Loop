@@ -39,6 +39,18 @@ export const LOCATION_PLACEHOLDER: Record<VenueType, string> = {
   online: 'Zoom or Teams link...',
 };
 
+/**
+ * An online event has no place to go: its "location" is a meeting link, so
+ * nothing that treats location as a place — the address row, the map card,
+ * geocoding it, walking time — applies. Takes `unknown` because the value comes
+ * off an API row that may predate the column or be missing from a list payload;
+ * anything other than 'online' is treated as in person, the same default the
+ * server uses.
+ */
+export function isOnlineVenue(value: unknown): boolean {
+  return value === 'online';
+}
+
 export function isVenueType(value: unknown): value is VenueType {
   return typeof value === 'string' && (VENUE_TYPES as readonly string[]).includes(value);
 }

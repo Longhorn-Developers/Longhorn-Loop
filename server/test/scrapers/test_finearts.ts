@@ -2,7 +2,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
-  decodeHtmlEntities,
   extractDateRange,
   extractEventRows,
   hasNextPage,
@@ -122,11 +121,5 @@ describe('orgNameForUrl', () => {
 
   it('falls back to the default org for an unparseable URL', () => {
     expect(orgNameForUrl('not-a-url')).toBe('College of Fine Arts');
-  });
-});
-
-describe('decodeHtmlEntities', () => {
-  it('decodes common HTML entities', () => {
-    expect(decodeHtmlEntities('&amp; Juliet')).toBe('& Juliet');
   });
 });

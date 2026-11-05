@@ -6,7 +6,6 @@ import {
   buildLocationFull,
   buildLocationShort,
   cleanHostOrganization,
-  decodeHtmlEntities,
   extractLocs,
   extractMccombsEventId,
   extractRsvpUrl,
@@ -196,14 +195,6 @@ describe('extractRsvpUrl', () => {
   it("returns null when there's no URL", () => {
     expect(extractRsvpUrl('RSVP required to attend.')).toBeNull();
     expect(extractRsvpUrl(null)).toBeNull();
-  });
-});
-
-describe('decodeHtmlEntities', () => {
-  it('decodes common entities', () => {
-    expect(decodeHtmlEntities('AT&amp;T &lt;tag&gt; &quot;quote&quot; &#39;s&#39;')).toBe(
-      `AT&T <tag> "quote" 's'`,
-    );
   });
 });
 

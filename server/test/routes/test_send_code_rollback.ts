@@ -26,6 +26,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { authRoutes } from '../../src/routes/auth.worker';
 import type { Env } from '../../src/worker';
+import { RESEND_COOLDOWN_MS } from '../../../shared/verificationCode';
 
 let DatabaseSync: (new (path: string) => any) | null = null;
 try {
@@ -152,7 +153,7 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
     await post('/send-code', { email: EMAIL });
 
     // The row is the cooldown. A row for a code that was never delivered is a
-    // 60-second lockout earned by someone else's outage.
+    // lockout earned by someone else's outage.
     expect(row()).toBeNull();
   });
 
@@ -177,7 +178,7 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
     await post('/send-code', { email: EMAIL });
     const before = row();
 
-    // Age the row past the 60s cooldown without waiting 60 real seconds.
+    // Age the row past the cooldown without waiting for it in real time.
     db.prepare('UPDATE verification_codes SET last_sent_at = ? WHERE email = ?').run(
       before.last_sent_at - 90_000,
       EMAIL,
@@ -196,6 +197,40 @@ describeOrSkip('verification code send failures (LOOP-255)', () => {
     expect(after.expires_at).toBe(aged.expires_at);
     expect(after.attempts).toBe(aged.attempts);
     expect(after.last_sent_at).toBe(aged.last_sent_at);
+  });
+
+  // LOOP-302: the 429 used to be a bare { error }. The verification screen
+  // turns retryAfterMs into its Resend countdown, so a 429 without it is a
+  // button that says "please wait" and never says how long.
+  describe.each(['/send-code', '/resend-code'])('%s cooldown 429', (path) => {
+    it('reports how long is left as retryAfterMs', async () => {
+      workingResend();
+      await post('/send-code', { email: EMAIL });
+      // Partway into the cooldown, without waiting in real time. A fraction
+      // of the cooldown rather than fixed seconds, so changing the constant
+      // can't age the row past it and silently turn the 429 into a 200.
+      const elapsed = Math.floor(RESEND_COOLDOWN_MS / 2);
+      db.prepare('UPDATE verification_codes SET last_sent_at = last_sent_at - ?').run(elapsed);
+
+      const res = await post(path, { email: EMAIL });
+      expect(res.status).toBe(429);
+      const body = await res.json();
+      expect(body.error).toBe('RESEND_TOO_SOON');
+      // A range, not an exact value: Date.now() moves between the UPDATE
+      // above and the handler's read.
+      expect(body.retryAfterMs).toBeGreaterThan(RESEND_COOLDOWN_MS - elapsed - 2_000);
+      expect(body.retryAfterMs).toBeLessThanOrEqual(RESEND_COOLDOWN_MS - elapsed);
+    });
+
+    it('lets the send through once the cooldown has passed', async () => {
+      workingResend();
+      await post('/send-code', { email: EMAIL });
+      db.prepare('UPDATE verification_codes SET last_sent_at = last_sent_at - ?').run(
+        RESEND_COOLDOWN_MS + 1,
+      );
+
+      expect((await post(path, { email: EMAIL })).status).toBe(200);
+    });
   });
 
   it('sends from the verified domain, not the Resend sandbox address', async () => {

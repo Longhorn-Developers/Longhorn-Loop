@@ -1672,7 +1672,7 @@ eventRoutes.get('/:id', async (c) => {
   const userId = auth ? await getUserId(c.env.DB, auth.email) : null;
 
   const event = await c.env.DB.prepare(
-    `SELECT e.*, o.profile_picture as org_profile_picture
+    `SELECT e.*, o.profile_picture as org_profile_picture, o.verified AS org_verified
      FROM events e
      LEFT JOIN organizations o ON e.host_organization_id = o.id
      WHERE e.id = ?`,
@@ -1742,8 +1742,24 @@ eventRoutes.get('/:id', async (c) => {
         .first())
     : false;
 
+  // Whether the caller follows the host org, so the detail screen's Follow
+  // button can render its state without a second GET /orgs/:id/profile per
+  // page view. Same table the follow endpoints and the org profile read.
+  // Scraped events have no host org row and signed-out callers have no
+  // identity; both are simply "not following".
+  const hostOrgId = event.host_organization_id as number | null;
+  const isFollowingOrg =
+    userId !== null && hostOrgId !== null
+      ? !!(await c.env.DB.prepare('SELECT 1 FROM org_followers WHERE org_id = ? AND user_id = ?')
+          .bind(hostOrgId, userId)
+          .first())
+      : false;
+
   return c.json({
     ...event,
+    // 0/1 in the row; a boolean on the wire, as on the org and user event lists.
+    org_verified: Number(event.org_verified) === 1,
+    is_following_org: isFollowingOrg,
     categories: categories.results.map((c: any) => ({
       id: c.category_id,
       name: c.category_name,

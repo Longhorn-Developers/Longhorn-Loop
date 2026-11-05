@@ -71,9 +71,6 @@ function ThemedStack() {
         {/* Main tabs — disable swipe back to prevent returning to onboarding */}
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
 
-        {/* View All events screen */}
-        <Stack.Screen name="view-all" />
-
         {/* Edit Profile + Past Events, pushed from the Profile tab */}
         <Stack.Screen name="profile/edit" />
         <Stack.Screen name="profile/past" />

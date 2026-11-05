@@ -10,6 +10,7 @@
 
 import type { Env } from '../worker';
 import { run as runCockrell, scrapeCockrell } from './cockrell';
+import { run as runEducation, scrapeEducation } from './education';
 import { run as runFineArts, scrapeFineArts } from './finearts';
 import { run as runCns } from './cns';
 // disabled to remove noisy events
@@ -43,6 +44,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'lawSchool', run: runLawSchool, manual: scrapeLawSchool },
   { name: 'cola', run: runLiberalArts, manual: scrapeLiberalArts },
   { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
+  { name: 'education', run: runEducation, manual: scrapeEducation },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'cns', run: runCns },
   { name: 'pharmacy', run: runPharmacy },
