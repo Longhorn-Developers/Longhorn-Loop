@@ -1,4 +1,6 @@
 import StepIndicator from '@/app/components/create-event/StepIndicator';
+import UrlInputHint from '@/app/components/create-event/UrlInputHint';
+import { checkExternalUrlInput, toExternalHttpUrl } from '@/shared/externalUrl';
 import ImagePlusIcon from '@/assets/images/image-plus.svg';
 import { useCreateEvent } from '@/app/context/CreateEventContext';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
@@ -99,7 +101,11 @@ async function buildCreateEventForm(data: CreateEventData): Promise<FormData> {
       form.append('longitude', String(place.longitude));
     }
   }
-  appendOptional(form, 'rsvp_url', data.rsvpUrl);
+  // Normalised, not raw (LOOP-282): "evenue.net/mha" goes over as
+  // "https://evenue.net/mha". The server applies the same rule, so this is
+  // belt-and-braces -- but it means the stored value is exactly what the
+  // inline hint promised. onPost has already refused an invalid link.
+  appendOptional(form, 'rsvp_url', toExternalHttpUrl(data.rsvpUrl));
   if (data.discoveryBucket) form.append('discoveryBucket', data.discoveryBucket);
   if (data.eventType) form.append('event_type', data.eventType);
   if (data.benefits.length > 0) {
@@ -233,6 +239,13 @@ export default function OptionalExtras() {
     }
     if (!data.title.trim() || !data.startDatetime) {
       Alert.alert('Missing details', 'Add an event title and start time before posting.');
+      return;
+    }
+    // The hint under the field already says what's wrong; this stops a post
+    // that would otherwise 400 on the same rule server-side.
+    const rsvp = checkExternalUrlInput(data.rsvpUrl);
+    if (rsvp.kind === 'invalid') {
+      Alert.alert('Check the RSVP link', rsvp.reason);
       return;
     }
     createEvent.mutate();
@@ -410,13 +423,14 @@ export default function OptionalExtras() {
             <TextInput
               value={data.rsvpUrl}
               onChangeText={(text) => update({ rsvpUrl: text })}
-              placeholder="https://www..."
+              placeholder="tickets.example.com/your-event"
               placeholderTextColor={colors.inkMuted}
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
             />
+            <UrlInputHint value={data.rsvpUrl} />
           </View>
 
           <View style={styles.buttonRow}>
