@@ -23,6 +23,7 @@ import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
 import { run as runMoody, scrapeMoody } from './moody';
+import { run as runNursing, scrapeNursing } from './nursing';
 import { run as runPharmacy } from './pharmacy';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
@@ -47,6 +48,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'education', run: runEducation, manual: scrapeEducation },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'cns', run: runCns },
+  { name: 'nursing', run: runNursing, manual: scrapeNursing },
   { name: 'pharmacy', run: runPharmacy },
 ];
 
