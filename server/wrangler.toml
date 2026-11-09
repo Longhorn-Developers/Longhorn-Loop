@@ -29,18 +29,21 @@ binding = "SELF"
 service = "loop-db"
 
 [triggers]
-# All schedules fire the same scheduled() handler in worker.ts, which
-# dispatches on event.cron:
-#   "0 */6 * * *"  -> scrapes Texas Today + HornsLink for new/updated events
-#   "*/15 * * * *" -> checks saved/bookmarked events for upcoming start
-#                      times and creates reminder notifications
-#   "0 8 * * *"    -> LOOP-241: sweeps the HornsLink ORG directory (orgs only,
-#                      no events) and tops up missing contact emails
-#   "0 9 * * *"    -> LOOP-150: archives expired events a user created,
-#                      RSVP'd to, or saved; hard-deletes expired events
-#                      nobody engaged with. One hour after the org sweep so
-#                      the two daily jobs don't share a cron string.
-crons = ["0 */6 * * *", "*/15 * * * *", "0 8 * * *", "0 9 * * *"]
+# ONE trigger (LOOP-295). Cron Triggers are a per-account budget on Workers
+# Free, shared by every Longhorn Developers project; Loop used to hold four of
+# the five. Every 15 minutes is the tightest cadence any job needs, and
+# scheduled() in src/worker.ts asks jobsDue() in src/lib/schedule.ts which jobs
+# fall on each tick, from the tick's scheduled time in UTC:
+#   every tick         -> reminder notifications for saved events starting soon
+#   00/06/12/18:00     -> every scraper in SCRAPERS (the event sweep)
+#   08:00              -> LOOP-241: HornsLink ORG directory (orgs only, no
+#                         events) and missing contact emails
+#   09:00              -> LOOP-150: archive expired events a user created,
+#                         RSVP'd to or saved; hard-delete the rest. Kept an
+#                         hour after the org sweep so two heavy D1 jobs don't
+#                         share a tick (a choice now, not a constraint).
+# Adding a job means a line in jobsDue(), not a new trigger here.
+crons = ["*/15 * * * *"]
 
 # Set your JWT secret as a Workers secret (not in this file):
 #   wrangler secret put JWT_SECRET
