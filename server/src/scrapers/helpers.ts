@@ -122,3 +122,42 @@ export function buildDatetime(dateStr: string, timeStr: string): string {
   const mm = String(time.minutes).padStart(2, '0');
   return `${dateStr}T${hh}:${mm}:00${chicagoOffset(dateStr)}`;
 }
+
+// ---------------------------------------------------------------------------
+// calendar.utexas.edu (Localist) feed URL -- LOOP-309.
+//
+// Localist's page-size parameter is `pp`. texasToday, cns and pharmacy each
+// built this URL by hand with `per_page`, which Localist silently ignores, so
+// every request fell back to the default page size of 10. Against the
+// campus-wide feed that is 80 sequential fetches (each with retries and
+// backoff) instead of 8, before a single D1 write -- the likeliest reason
+// texas_today never produced a row. Measured against the live API:
+//
+//   ?days=30&per_page=100  ->  page.size 10,  page.total 80
+//   ?days=30&pp=100        ->  page.size 100, page.total 8
+//
+// One builder so the parameter is spelled once, and pinned by
+// test/scrapers/test_helpers.ts.
+//
+// NOT for cockrell.ts / education.ts: those read WordPress's REST API, where
+// `per_page` IS the correct name. A blanket rename would break the two
+// scrapers that work.
+//
+// Other Localist names that look plausible and are also silently ignored,
+// returning the unfiltered feed: `department_id`, `dept_id`. Filter by
+// department with `group_id`.
+// ---------------------------------------------------------------------------
+
+export const LOCALIST_EVENTS_API = 'https://calendar.utexas.edu/api/2/events';
+
+/** Localist's maximum page size. */
+export const LOCALIST_PAGE_SIZE = 100;
+
+export function localistEventsUrl(opts: { days: number; page: number; groupId?: number }): string {
+  const params = new URLSearchParams();
+  if (opts.groupId !== undefined) params.set('group_id', String(opts.groupId));
+  params.set('days', String(opts.days));
+  params.set('pp', String(LOCALIST_PAGE_SIZE));
+  params.set('page', String(opts.page));
+  return `${LOCALIST_EVENTS_API}?${params.toString()}`;
+}
