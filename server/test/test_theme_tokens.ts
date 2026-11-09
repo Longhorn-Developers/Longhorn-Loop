@@ -77,6 +77,7 @@ const PAIRS: [string, string][] = [
   ['destructive-fill', 'destructiveFill'],
   ['destructive-soft', 'destructiveSoft'],
   ['info', 'info'],
+  ['cover', 'cover'],
 ];
 
 function srgb(c: number): number {
@@ -187,6 +188,12 @@ describe('theme meets WCAG AA', () => {
       });
       it('a selected card is distinguishable from a plain one', () => {
         expect(contrast(c.brandSoft, c.surface)).toBeGreaterThan(1.02);
+      });
+
+      // The profile cover (LOOP-312) carries no text, but it does have to read
+      // as a band rather than a smudge, and the white gear disc sits on it.
+      it('the profile cover is distinguishable from the page', () => {
+        expect(contrast(c.cover, c.background)).toBeGreaterThan(1.4);
       });
 
       it('a divider is visible against the page', () => {

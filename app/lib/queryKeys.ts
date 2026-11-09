@@ -45,6 +45,12 @@ export const user = {
   // makes the whole profile unreachable.
   publicEventsAll: (id: number | string) => [...user.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...user.publicEventsAll(id), tab] as const,
+  // Who follows a user / who they follow (LOOP-312 sheet, LOOP-307 endpoint).
+  // Hung off `user.all` so a follow or unfollow anywhere -- which already
+  // invalidates user queries for the counts -- refreshes the lists too.
+  followListAll: (id: number | string) => [...user.all, 'follow-list', String(id)] as const,
+  followList: (id: number | string, kind: 'followers' | 'following') =>
+    [...user.followListAll(id), kind] as const,
 };
 
 // User settings (/settings). One row per user; `mine` is the whole thing.
