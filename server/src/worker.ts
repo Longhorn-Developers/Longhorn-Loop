@@ -40,6 +40,10 @@ export type Env = {
   POSTMARK_API_TOKEN?: string;
   CRON_SECRET: string;
   WORKER_URL: string;
+  // Service binding to this same Worker (LOOP-309), used by the scrape cron to
+  // dispatch each scraper into its own invocation. Absent under
+  // `wrangler dev --env local`, which falls back to WORKER_URL. See scheduled().
+  SELF?: Fetcher;
   // Fixed code for the App Review reviewer bypass (LOOP-???, see APP_REVIEW_EMAIL
   // in shared/utEmail.ts and issueVerificationCode in auth.worker.ts). A Worker
   // secret, never committed, so the public bypass address alone isn't enough to
@@ -183,15 +187,41 @@ export default {
       return;
     }
 
-    // The 6-hour scrape cron. Fires every scraper in the registry.
+    // The 6-hour scrape cron. Fires every scraper in the registry, each in its
+    // own Worker invocation (LOOP-265), so one scraper's subrequests, D1
+    // queries and CPU time don't count against the others'.
+    //
+    // THROUGH THE SELF SERVICE BINDING, NOT fetch(WORKER_URL) (LOOP-309).
+    // LOOP-265 dispatched with a plain fetch() to this Worker's own
+    // workers.dev URL. Cloudflare does not route a Worker's fetch() back into
+    // a Worker on the same account like an outside request; the documented
+    // way for one Worker to call another -- itself included -- is a service
+    // binding. After that change landed (2026-08-26) no scraped row in prod
+    // was updated again: the newest updated_at on every source was from late
+    // August, though every run rewrites every row it sees. The failure was
+    // only ever logged as "dispatch failed: <status>", which nobody saw.
+    //
+    // WORKER_URL stays as the fallback because `wrangler dev --env local` has
+    // no service bindings, and there the URL is localhost, which works.
     for (const scraper of SCRAPERS) {
+      const path = `/events/scrape/${scraper.name}`;
+      const init: RequestInit = {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+      };
+      const dispatch = env.SELF
+        ? env.SELF.fetch(new Request(`https://self${path}`, init))
+        : fetch(`${env.WORKER_URL}${path}`, init);
+
       ctx.waitUntil(
-        fetch(`${env.WORKER_URL}/events/scrape/${scraper.name}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
-        })
-          .then((r) => {
-            if (!r.ok) console.error(`[cron] ${scraper.name} dispatch failed: ${r.status}`);
+        dispatch
+          .then(async (r) => {
+            if (r.ok) return;
+            // The body, not just the status: a Cloudflare error page or the
+            // route's own { error } is what says WHY, and the status alone hid
+            // this for two and a half months.
+            const body = (await r.text().catch(() => '')).slice(0, 300);
+            console.error(`[cron] ${scraper.name} dispatch failed: ${r.status} ${body}`);
           })
           .catch((err) => console.error(`[cron] ${scraper.name} dispatch error:`, err)),
       );

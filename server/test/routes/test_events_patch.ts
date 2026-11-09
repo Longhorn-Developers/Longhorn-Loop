@@ -97,6 +97,14 @@ class SqliteD1 {
   prepare(sql: string): SqliteD1Statement {
     return new SqliteD1Statement(this.db, sql);
   }
+
+  // Real D1 has batch(); writeEventTags uses it (LOOP-309). Sequential here --
+  // these tests check what was written, not rollback.
+  async batch(statements: SqliteD1Statement[]): Promise<unknown[]> {
+    const out: unknown[] = [];
+    for (const s of statements) out.push(await s.run());
+    return out;
+  }
 }
 
 async function signJwt(email: string): Promise<string> {

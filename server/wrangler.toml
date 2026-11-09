@@ -18,6 +18,16 @@ bucket_name = "longhorn-loop-event-images"
 [ai]
 binding = "AI"
 
+# This Worker, bound to itself (LOOP-309). The scrape cron dispatches each
+# scraper through it so every scraper gets its own invocation and its own
+# per-invocation limits. A plain fetch() to our own workers.dev URL does not
+# get there -- see scheduled() in src/worker.ts. Deliberately NOT repeated
+# under [env.local]: wrangler dev has no service bindings, and the code falls
+# back to WORKER_URL there.
+[[services]]
+binding = "SELF"
+service = "loop-db"
+
 [triggers]
 # All schedules fire the same scheduled() handler in worker.ts, which
 # dispatches on event.cron:
