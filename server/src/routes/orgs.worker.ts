@@ -52,6 +52,14 @@ import { refreshOrgContactEmail } from '../scrapers/hornslinkOrgs';
 import { UT_EMAIL_ERROR, isAllowedUTEmail } from '../../../shared/utEmail';
 import { decodeCursor, encodeCursor } from '../lib/cursor';
 import { InvalidCursorError, listOrgFollowers } from '../lib/followLists';
+import {
+  countMeetings,
+  createMeeting,
+  deleteMeeting,
+  listMeetings,
+  updateMeeting,
+} from '../lib/orgMeetings';
+import { MAX_MEETINGS_PER_ORG, validateMeeting } from '../../../shared/orgMeetings';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -1569,6 +1577,78 @@ orgRoutes.get('/:orgId/profile', async (c) => {
     is_member: !!membership,
     role: (membership?.role as string) ?? null,
   });
+});
+
+// Meeting times (LOOP-319).
+//
+//   GET    /orgs/:orgId/meetings              members (admin or editor)
+//   POST   /orgs/:orgId/meetings              admins
+//   PATCH  /orgs/:orgId/meetings/:meetingId   admins
+//   DELETE /orgs/:orgId/meetings/:meetingId   admins
+//
+// READ IS MEMBERS-ONLY ON THE SERVER. Where a student org meets is not public
+// the way its events are, and anyone can call this API directly, so the
+// landing page showing the section only to members is presentation; this is
+// the actual gate. A non-member gets 403 NOT_A_MEMBER, the same answer as the
+// rest of the console. Writes are admin-only, like invites and role changes.
+orgRoutes.get('/:orgId/meetings', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+  return c.json({ meetings: await listMeetings(c.env.DB, member.orgId) });
+});
+
+orgRoutes.post('/:orgId/meetings', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+  if (member.role !== 'admin') return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const parsed = validateMeeting(body ?? {});
+  if (!parsed.ok) return c.json({ error: 'INVALID_MEETING', errors: parsed.errors }, 400);
+
+  if ((await countMeetings(c.env.DB, member.orgId)) >= MAX_MEETINGS_PER_ORG) {
+    return c.json(
+      {
+        error: 'TOO_MANY_MEETINGS',
+        message: `An organization can list up to ${MAX_MEETINGS_PER_ORG} meeting times.`,
+      },
+      409,
+    );
+  }
+
+  const meeting = await createMeeting(c.env.DB, member.orgId, parsed.value);
+  return c.json({ meeting }, 201);
+});
+
+orgRoutes.patch('/:orgId/meetings/:meetingId', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+  if (member.role !== 'admin') return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const meetingId = parseInt(c.req.param('meetingId'), 10);
+  if (Number.isNaN(meetingId)) return c.json({ error: 'INVALID_MEETING_ID' }, 400);
+
+  const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const parsed = validateMeeting(body ?? {});
+  if (!parsed.ok) return c.json({ error: 'INVALID_MEETING', errors: parsed.errors }, 400);
+
+  const meeting = await updateMeeting(c.env.DB, member.orgId, meetingId, parsed.value);
+  if (!meeting) return c.json({ error: 'MEETING_NOT_FOUND' }, 404);
+  return c.json({ meeting });
+});
+
+orgRoutes.delete('/:orgId/meetings/:meetingId', async (c) => {
+  const member = await resolveMembership(c);
+  if (!member.ok) return c.json({ error: member.error }, member.status);
+  if (member.role !== 'admin') return c.json({ error: 'FORBIDDEN' }, 403);
+
+  const meetingId = parseInt(c.req.param('meetingId'), 10);
+  if (Number.isNaN(meetingId)) return c.json({ error: 'INVALID_MEETING_ID' }, 400);
+
+  if (!(await deleteMeeting(c.env.DB, member.orgId, meetingId))) {
+    return c.json({ error: 'MEETING_NOT_FOUND' }, 404);
+  }
+  return c.json({ ok: true });
 });
 
 // GET /orgs/:orgId/followers (LOOP-307)

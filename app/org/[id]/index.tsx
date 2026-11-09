@@ -80,7 +80,7 @@ import TrashIcon from '@/assets/images/trash.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -284,6 +284,17 @@ export default function OrgConsoleScreen() {
     enabled: !!token && Number.isFinite(orgId),
   });
 
+  // Replace, not push, so Back doesn't return to a screen that would only
+  // redirect again. In an effect because navigating during render mutates the
+  // router mid-commit.
+  const notAMember =
+    header.error instanceof ApiError &&
+    header.error.status === 403 &&
+    (header.error.body as Record<string, unknown> | null)?.error === 'NOT_A_MEMBER';
+  useEffect(() => {
+    if (notAMember) router.replace(`/org/${orgId}/profile`);
+  }, [notAMember, orgId, router]);
+
   const members = useQuery({
     queryKey: orgKeys.members(orgId),
     queryFn: () => api.get<MembersResponse>(`/orgs/${orgId}/members`, { token }),
@@ -386,6 +397,11 @@ export default function OrgConsoleScreen() {
   }
 
   if (header.isError) {
+    // Not on the team: show them the org's public page instead (LOOP-319).
+    // This screen is the members-only console; non-members only reach it
+    // through an old link or a deep link, and an error message is no use to
+    // them. The redirect itself runs in an effect above.
+    if (notAMember) return null;
     const message = describeError(header.error, 'Could not load this organization.');
     // Landing here (e.g. NOT_A_MEMBER, tapped straight from the Explore feed)
     // used to be a dead end -- no header, no tabs, nothing to press but the

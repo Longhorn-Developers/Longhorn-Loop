@@ -1,5 +1,16 @@
-// Public org profile -- the org account as a NON-MEMBER sees it (LOOP-180,
-// redesigned in LOOP-312).
+// An org's landing page -- what EVERYONE sees, member or not (LOOP-180,
+// redesigned in LOOP-312, made the one page per org in LOOP-319).
+//
+// LOOP-319 template, top to bottom:
+//   title + profile picture (verified check), followers / following, the
+//   description, then -- for MEMBERS only -- the org's meeting times and
+//   locations (components/org/OrgMeetingsSection), then its events. Further
+//   sections are still to be designed; nothing is stubbed in their place.
+//
+// Every entry point lands here: Explore's org card (it used to open the
+// console and show non-members "You're not a member of this organization"),
+// Home's "Orgs for you", and an event's "Posted by". The console itself now
+// sends non-members back here rather than showing that message.
 //
 // Figma: "Profile - Org Page" V4. Same shell as the user profiles -- cover,
 // avatar, counts, tab row -- with a taller identity block, because org names
@@ -38,6 +49,7 @@ import type { ApiEvent } from '@/app/components/EventCard';
 import SettingsDrawer from '@/app/components/SettingsDrawer';
 import { FollowButton } from '@/app/components/profile/FollowControl';
 import FollowListSheet from '@/app/components/profile/FollowListSheet';
+import OrgMeetingsSection from '@/app/components/org/OrgMeetingsSection';
 import OutlinedButton from '@/app/components/profile/OutlinedButton';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileCounts from '@/app/components/profile/ProfileCounts';
@@ -283,6 +295,13 @@ export default function PublicOrgProfileScreen() {
             {/* The same bio block as a user profile, read-only. */}
             <ProfileBio bio={org?.bio} />
           </View>
+
+          {/* --- Meetings, members only (LOOP-319) ---
+              Rendered for members only, but the server is the gate: the
+              meetings endpoint 403s anyone not in org_members. */}
+          {profileQuery.data?.is_member && profileQuery.data.role ? (
+            <OrgMeetingsSection orgId={orgId} role={profileQuery.data.role} token={token} />
+          ) : null}
 
           {/* --- Upcoming / Past --- */}
           <View className="mt-[24px] px-[20px]">
