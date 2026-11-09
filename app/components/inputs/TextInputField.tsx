@@ -2,6 +2,7 @@ import LhlPillCross from '@/assets/icons/LhlPillCross';
 import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 /** Form-field default. Deliberately unchanged — see the `height` prop. */
 const DEFAULT_HEIGHT = 33;
@@ -31,7 +32,7 @@ interface TextInputFieldProps extends TextInputProps {
    * lands AFTER the internal `ref` on the TextInput and would silently
    * overwrite it — breaking focusInput() and the clear button with it.
    */
-  ref?: React.Ref<TextInput>;
+  ref?: React.Ref<TextInputInstance>;
 }
 
 export default function TextInputField({
@@ -46,7 +47,7 @@ export default function TextInputField({
 }: TextInputFieldProps) {
   const colors = useThemeColors();
   const [isFocused, setIsFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   // ReturnType<typeof setTimeout>, not NodeJS.Timeout: RN's types no longer
   // pull in Node's globals (Expo SDK 57), and the handle here is whatever the
   // RN runtime's setTimeout returns — a number on Hermes — not a Node Timeout.
@@ -55,10 +56,10 @@ export default function TextInputField({
   // Callback ref that feeds both the internal ref and the caller's, so
   // forwarding costs the component none of its own control over the input.
   const setInputRef = useCallback(
-    (node: TextInput | null) => {
+    (node: TextInputInstance | null) => {
       inputRef.current = node;
       if (typeof ref === 'function') ref(node);
-      else if (ref) (ref as React.RefObject<TextInput | null>).current = node;
+      else if (ref) (ref as React.RefObject<TextInputInstance | null>).current = node;
     },
     [ref],
   );

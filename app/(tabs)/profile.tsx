@@ -1,30 +1,44 @@
-// Profile tab — "Profile Main" frame (LOOP-123 header + LOOP-137/138
-// collections, both signed off in design but never built in code).
+// Profile tab -- your own profile.
 //
-// Layout, top to bottom:
-//   hamburger (org management + settings)
-//   centred avatar, name, "N followers · N following"
-//   Edit Profile pill + linked-social icon row
-//   bio
-//   metadata rows — icon + values, one per category (academic, background)
-//   Interests — tag chips + "+" into Edit Profile
-//   My Events — Going / Saved / Posted segmented control with counts,
-//               search field, category chips, date sort, two-column grid
+// LOOP-312 redesign (Figma "Profile - My Events (Going/Saved/Posted) V4"),
+// replacing the LOOP-123 "Profile Main" header. Layout, top to bottom:
+//   cover band with the settings gear, avatar across its bottom edge
+//   name, year · majors, Events / Followers / Following counts
+//   Edit Profile + linked-social squares, bio
+//   interest chips with "+"
+//   Going / Saved / Posted tab row, search, category chips + date sort, grid
 //
-// Scope: this is the OWNER's own profile. The read-only Follow/Block variant
-// for other users and orgs is LOOP-180 (assigned separately), which is why
-// nothing here is written to take a target user id.
+// Spacing follows the frame's auto-layout: 24 between identity, interests and
+// My Events; 12 between tab row, search, chips and the grid.
+//
+// WHAT DID NOT CHANGE: the events query, its 300ms debounced search, the
+// filter/sort state, pull-to-refresh and the Manage Event overlays are all as
+// they were. LOOP-312 reworks the container, not the tabs.
+//
+// Followers / Following counts open FollowListSheet, which runs on a stub
+// until LOOP-307 adds the endpoint -- see app/lib/followList.ts.
+//
+// Someone else's profile is app/user/[id].tsx; an org's is
+// app/org/[id]/profile.tsx. Both share this screen's header components.
 
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import SettingsDrawer from '@/app/components/SettingsDrawer';
 import EditEventOverlay, { type EventEditSource } from '@/app/components/org/EditEventOverlay';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
+import FollowListSheet from '@/app/components/profile/FollowListSheet';
+import InterestChips from '@/app/components/profile/InterestChips';
 import ProfileBio from '@/app/components/profile/ProfileBio';
+import ProfileCounts from '@/app/components/profile/ProfileCounts';
+import ProfileCover, {
+  CoverIconButton,
+  PROFILE_AVATAR_SIZE,
+} from '@/app/components/profile/ProfileCover';
+import ProfileEmptyState from '@/app/components/profile/ProfileEmptyState';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
-import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
+import ProfileTabRow from '@/app/components/profile/ProfileTabRow';
 import OutlinedButton from '@/app/components/profile/OutlinedButton';
 import PencilIcon from '@/assets/images/pencil.svg';
-import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
+import LhlGearIcon from '@/assets/icons/LhlGearIcon';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
@@ -36,9 +50,8 @@ import ManageEventSheet from '@/app/components/modals/ManageEventSheet';
 import PostAnnouncementModal from '@/app/components/modals/PostAnnouncementModal';
 import ConfirmModal from '@/app/components/rsvp/ConfirmModal';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
-import SegmentBookmarkIcon from '@/assets/images/segment-bookmark.svg';
-import SegmentCalendarIcon from '@/assets/images/segment-calendar.svg';
-import SegmentCheckIcon from '@/assets/images/segment-check.svg';
+import type { FollowListKind } from '@/app/lib/followList';
+import { hitSlopFor } from '@/app/lib/tapTarget';
 import {
   PROFILE_EVENT_FILTERS,
   PROFILE_EVENT_FILTER_LABELS,
@@ -59,7 +72,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { SvgProps } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useThemeColors } from '@/app/lib/themeColors';
 
 interface MeResponse {
@@ -87,38 +100,52 @@ interface MyEventsResponse {
   counts: Record<ProfileEventTab, number>;
 }
 
-// Icon sizes come straight from the Figma and differ on purpose: the
-// checkmark is a solid glyph that reads heavy at 15, the outline bookmark and
-// calendar read thin at 12. Matching optical weight, not box size.
+/** Filter chips and the sort pill, drawn at the frame's 28; hitSlop takes them to 44. */
+const CHIP_HEIGHT = 28;
+
+// Per-tab empty copy (LOOP-312 step 7): each tab says what would fill IT, so
+// an empty Going tab next to a full Saved one reads as "nothing yet here"
+// rather than "you have no events".
 const TABS: {
   key: ProfileEventTab;
   label: string;
+  emptyTitle: string;
   empty: string;
-  Icon: React.FC<SvgProps>;
-  iconSize: number;
 }[] = [
   {
     key: 'going',
     label: 'Going',
+    emptyTitle: 'No events yet',
     empty: 'Events you RSVP to will show up here',
-    Icon: SegmentCheckIcon,
-    iconSize: 12,
   },
   {
     key: 'saved',
     label: 'Saved',
+    emptyTitle: 'Nothing saved yet',
     empty: 'Events you save will show up here',
-    Icon: SegmentBookmarkIcon,
-    iconSize: 15,
   },
   {
     key: 'posted',
     label: 'Posted',
+    emptyTitle: 'No posted events',
     empty: 'Events you create will show up here',
-    Icon: SegmentCalendarIcon,
-    iconSize: 15,
   },
 ];
+
+/** lucide "sort-desc", the frame's glyph on the Date pill. */
+function SortGlyph({ color }: { color: string }) {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 export default function ProfileScreen() {
   const colors = useThemeColors();
@@ -150,6 +177,7 @@ export default function ProfileScreen() {
   const [filter, setFilter] = useState<ProfileEventFilter>('all');
   const [sortRecent, setSortRecent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [followSheet, setFollowSheet] = useState<FollowListKind | null>(null);
   const [editingEvent, setEditingEvent] = useState<EventEditSource | null>(null);
 
   const profileQuery = useQuery({
@@ -268,7 +296,26 @@ export default function ProfileScreen() {
   const profile = profileQuery.data?.user;
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
 
-  const counts = eventsQuery.data?.counts;
+  /**
+   * The tab counts (and the Events count in the header, which is Posted) come
+   * back with whichever tab's events were fetched last. `tab` is part of that
+   * query key, so the first visit to a tab has no data yet -- and reading
+   * counts straight off it blanked every number in the tab row and the header
+   * for the length of a request. Holding the last counts seen keeps them on
+   * screen until fresh ones land: no flicker, and no header shift walking
+   * Going -> Saved -> Posted (a LOOP-312 acceptance check).
+   */
+  // Adjusted during render rather than in an effect: React's documented
+  // pattern for state that follows a prop, and it avoids a second render with
+  // the stale value.
+  const latestCounts = eventsQuery.data?.counts;
+  const [counts, setCounts] = useState<Record<ProfileEventTab, number> | undefined>(latestCounts);
+  if (latestCounts && latestCounts !== counts) setCounts(latestCounts);
+
+  const academicLine = profile
+    ? [profile.year_classification, ...(profile.majors ?? [])].filter(Boolean).join(' · ')
+    : '';
+
   const activeTab = TABS.find((t) => t.key === tab)!;
 
   if (!token) {
@@ -314,7 +361,9 @@ export default function ProfileScreen() {
       first and hands it on when it turns out not to be a drag.
     */
     <SettingsDrawer open={menuOpen} onOpenChange={setMenuOpen}>
-      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+      {/* No top SafeAreaView edge: the cover runs up under the status bar and
+          ProfileCover does its own inset maths. See its header. */}
+      <View className="flex-1 bg-lhlBackgroundColor">
         {profileQuery.isLoading ? (
           <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
             <ActivityIndicator color={colors.brand} />
@@ -322,7 +371,7 @@ export default function ProfileScreen() {
         ) : (
           <ScrollView
             className="flex-1 bg-lhlBackgroundColor"
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
             keyboardShouldPersistTaps="handled"
             refreshControl={
               <RefreshControl
@@ -333,78 +382,67 @@ export default function ProfileScreen() {
               />
             }
           >
-            {/* --- Hamburger: opens the settings drawer --- */}
-            <View className="absolute right-[20px] top-[6px] z-20 items-end">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Menu"
-                accessibilityState={{ expanded: menuOpen }}
-                // Opens the drawer. It also pulls in from the right edge, but a
-                // gesture nobody has discovered yet still needs a control.
-                onPress={() => setMenuOpen(true)}
-                hitSlop={10}
-                className="h-[28px] w-[28px] items-center justify-center"
-              >
-                {/* Three bars, drawn rather than an emoji glyph so it renders
-                  identically on both platforms. */}
-                {[0, 1, 2].map((i) => (
-                  <View key={i} className="my-[2px] h-[2px] w-[18px] rounded-full bg-lhlInk" />
-                ))}
-              </Pressable>
-            </View>
+            <ProfileCover
+              avatar={profile ? <AvatarDisplay user={profile} size={PROFILE_AVATAR_SIZE} /> : null}
+              right={
+                // Was a 28pt hamburger; V4 draws a gear, and it ships as a
+                // 44pt target (LOOP-312). It still opens the same drawer, which
+                // also pulls in from the right edge -- but a gesture nobody has
+                // discovered yet still needs a control.
+                <CoverIconButton
+                  accessibilityLabel="Settings"
+                  accessibilityState={{ expanded: menuOpen }}
+                  onPress={() => setMenuOpen(true)}
+                >
+                  <LhlGearIcon size={20} color={colors.ink} />
+                </CoverIconButton>
+              }
+            />
 
-            {/* --- Header --- */}
-            <View className="items-center px-[20px]">
-              <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
-                {profile ? <AvatarDisplay user={profile} size={92} /> : null}
-              </View>
-
+            {/* --- Identity block (289 wide in the frame) --- */}
+            <View className="w-[289px] max-w-full items-center self-center">
               <Text
                 numberOfLines={1}
-                className="font-['Roboto-Flex'] mt-[10px] text-[20px] font-bold text-lhlInk"
+                className="font-roboto-bold mt-[8px] text-[20px] leading-[23px] text-lhlInk"
               >
                 {fullName || 'Your profile'}
               </Text>
 
-              <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
-                <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
-                followers ·{' '}
-                <Text className="font-semibold text-lhlInk">{profile?.following_count ?? 0}</Text>{' '}
-                following
-              </Text>
+              {/* Year + majors on one line, per the frame. This replaces the
+                  icon-led ProfileMetaRow pair; V4 drops the Background row, so
+                  unique_classification is no longer shown on the profile (it
+                  is still editable in Edit Profile). */}
+              {academicLine ? (
+                <Text
+                  numberOfLines={1}
+                  className="font-roboto-medium mt-[8px] text-[12px] leading-[14px] text-lhlSecondaryTextGrey"
+                >
+                  {academicLine}
+                </Text>
+              ) : null}
 
-              {/*
-              Edit Profile + linked socials, one row, all 30pt tall.
+              <ProfileCounts
+                events={counts?.posted}
+                followers={profile?.follower_count ?? 0}
+                following={profile?.following_count ?? 0}
+                onPressFollowers={() => setFollowSheet('followers')}
+                onPressFollowing={() => setFollowSheet('following')}
+              />
 
-              Everything here was a size or two under the Figma and drawn with
-              the wrong hairline. The pill was a rounded-full chip sized by its
-              padding, so its height moved with the font; it is now the Figma's
-              fixed 100x30 with an 8pt radius, which is also what lets it and
-              the squares share a baseline instead of nearly sharing one.
-
-              The squares went from a 7pt radius to the Figma's 4, and their
-              glyphs from 16 to 20 -- a 16pt glyph in a 30pt box left more
-              padding than icon, which is the "it's small" being reported.
-
-              Border is lhlBorderSoft, not lhlMutedBorder. The design draws
-              these as white cards on the cream page, where the fill does the
-              separating and the edge only softens the join; lhlMutedBorder is
-              a control outline and was two steps too dark for that job.
-            */}
+              {/* Edit Profile + linked socials, one 36pt row. The pill is the
+                  Figma's 148 wide with an 8pt radius; OutlinedButton's hitSlop
+                  takes every control in the row to 44. */}
               <View className="mt-[10px] flex-row items-center gap-[8px]">
                 <OutlinedButton
                   accessibilityLabel="Edit profile"
                   onPress={() => router.push('/profile/edit')}
                   borderRadius={8}
-                  width={100}
-                  gap={5}
+                  width={148}
+                  gap={6}
                 >
-                  <Text className="font-['Roboto-Flex'] text-[12px] font-medium leading-[14px] text-lhlInk">
+                  <Text className="font-roboto-medium text-[14px] leading-[16px] text-lhlInk">
                     Edit Profile
                   </Text>
-                  {/* Was the text glyph "✎", which is a font character: it did
-                    not follow the ink colour, sat off the text baseline, and
-                    rendered differently per platform. */}
                   <PencilIcon width={12} height={12} color={colors.ink} />
                 </OutlinedButton>
 
@@ -419,7 +457,7 @@ export default function ProfileScreen() {
                       accessibilityLabel={`Open ${meta.label}`}
                       // Routed through the Open Link warning (LOOP-182).
                       onPress={() => openLink.request(social.url)}
-                      borderRadius={4}
+                      borderRadius={8}
                     >
                       <Icon size={20} color={colors.ink} />
                     </OutlinedButton>
@@ -430,105 +468,25 @@ export default function ProfileScreen() {
               <ProfileBio bio={profile?.bio} editable />
             </View>
 
-            {/* --- Metadata ---
-              One muted icon+value row per category, the pattern X and LinkedIn
-              use under a bio. Replaces a "Details and Interests" heading over a
-              row of grey chips: the icon carries the category so no label is
-              needed, and it scales to however many values exist. Left-aligned
-              because multi-item rows centre badly. */}
-            <View className="mt-[14px] px-[20px]">
-              <ProfileMetaRow
-                icon={<GraduationCapIcon />}
-                label="Academic"
-                values={[profile?.year_classification, ...(profile?.majors ?? [])]}
-              />
-              <ProfileMetaRow
-                icon={<GlobeIcon />}
-                label="Background"
-                values={profile?.unique_classification ?? []}
-              />
-            </View>
-
             {/* --- Interests --- */}
-            <View className="mt-[18px] px-[20px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-                Interests
-              </Text>
-
-              <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
-                {(profile?.tags ?? []).map((tag) => (
-                  <View
-                    key={tag}
-                    className="rounded-full border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[5px]"
-                  >
-                    <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
-                  </View>
-                ))}
-                {/* "+" goes to Edit Profile rather than opening an inline picker,
-                  so interests have exactly one place they're edited. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Add interests"
-                  onPress={() => router.push('/profile/edit')}
-                  className="h-[26px] w-[26px] items-center justify-center rounded-full border border-lhlMutedBorder bg-lhlSurface"
-                >
-                  <Text className="font-['Roboto-Flex'] text-[13px] leading-[15px] text-lhlSecondaryTextGrey">
-                    +
-                  </Text>
-                </Pressable>
-              </View>
+            <View className="mt-[24px] px-[20px]">
+              <InterestChips
+                tags={profile?.tags ?? []}
+                onAdd={() => router.push('/profile/edit')}
+              />
             </View>
 
-            {/* --- My Events --- */}
-            <View className="mt-[22px] px-[20px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-                My Events
-              </Text>
+            {/* --- My Events: tab row, search, chips, grid ---
+                Everything from here down is the same queries and state as
+                before LOOP-312; only the chrome around them changed. */}
+            <View className="mt-[24px] px-[20px]">
+              <ProfileTabRow<ProfileEventTab>
+                tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: counts?.[t.key] }))}
+                value={tab}
+                onChange={setTab}
+              />
 
-              {/*
-              Segmented control, Figma "Frame 482".
-
-              One track with three segments inside it, not three separate
-              pills. The old version was three bordered buttons with a gap
-              between them, which reads as three independent toggles -- any
-              number of which might be on. A single groove with one filled
-              segment is the shape that says "pick exactly one of these".
-
-              The selected segment is painted the PAGE colour rather than a
-              lighter grey, so it reads as a hole punched through the groove.
-              That is also why the whole row has no border: the groove itself
-              is the boundary.
-
-              Labels and icons stay full-strength ink on every segment, per the
-              Figma. The fill is doing the work of showing which one is on, and
-              dimming the other two as well would say it twice.
-            */}
-              <View className="mt-[10px] flex-row items-center gap-[4px] rounded-[16px] bg-lhlSegmentTrack p-[4px]">
-                {TABS.map((t) => {
-                  const isActive = t.key === tab;
-                  const count = counts?.[t.key];
-                  return (
-                    <Pressable
-                      key={t.key}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: isActive }}
-                      onPress={() => setTab(t.key)}
-                      className={`flex-1 flex-row items-center justify-center gap-[6px] rounded-[16px] px-[16px] py-[4px] ${
-                        isActive ? 'bg-lhlBackgroundColor' : ''
-                      }`}
-                    >
-                      <t.Icon width={t.iconSize} height={t.iconSize} color={colors.ink} />
-                      <Text className="font-['Roboto-Flex'] text-[12px] leading-[14px] text-lhlInk">
-                        {t.label}
-                        {count !== undefined ? ` (${count})` : ''}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Search */}
-              <View className="mt-[10px]">
+              <View className="mt-[12px]">
                 <TextInputField
                   value={searchInput}
                   onChangeText={setSearchInput}
@@ -536,14 +494,17 @@ export default function ProfileScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   borderRadius={8}
+                  // 44 rather than the form default 33, as on Explore's search
+                  // bar -- the whole field is the tap target.
+                  height={44}
                   clearable
                   leftIcon={<LhlSearchIcon size={14} color={colors.inkSecondary} />}
                 />
               </View>
 
-              {/* Category chips + date sort */}
-              <View className="mt-[10px] flex-row items-center justify-between">
-                <View className="flex-row gap-[6px]">
+              {/* Category chips + date sort, all 28pt drawn / 44pt touched */}
+              <View className="mt-[12px] flex-row items-center justify-between">
+                <View className="flex-row gap-[8px]">
                   {PROFILE_EVENT_FILTERS.map((key) => {
                     const isActive = key === filter;
                     return (
@@ -552,15 +513,17 @@ export default function ProfileScreen() {
                         accessibilityRole="button"
                         accessibilityState={{ selected: isActive }}
                         onPress={() => setFilter(key)}
-                        className={`rounded-full px-[12px] py-[5px] ${
+                        hitSlop={hitSlopFor(CHIP_HEIGHT)}
+                        className={`justify-center rounded-full px-[10px] ${
                           isActive
                             ? 'bg-lhlBurntOrange'
-                            : 'border border-lhlMutedBorder bg-lhlSurface'
+                            : 'border border-lhlBorderSoft bg-lhlSurfaceGrey'
                         }`}
+                        style={{ height: CHIP_HEIGHT }}
                       >
                         <Text
-                          className={`font-['Roboto-Flex'] text-[11px] font-medium ${
-                            isActive ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                          className={`font-roboto-medium text-[12px] ${
+                            isActive ? 'text-white' : 'text-lhlInk'
                           }`}
                         >
                           {PROFILE_EVENT_FILTER_LABELS[key]}
@@ -574,38 +537,45 @@ export default function ProfileScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={sortRecent ? 'Sort by date' : 'Sort by recently added'}
                   onPress={() => setSortRecent((v) => !v)}
-                  className="flex-row items-center gap-[4px] rounded-full border border-lhlMutedBorder bg-lhlSurface px-[10px] py-[5px]"
+                  hitSlop={hitSlopFor(CHIP_HEIGHT)}
+                  className="flex-row items-center gap-[4px] rounded-full bg-lhlSegmentTrack px-[9px]"
+                  style={{ height: CHIP_HEIGHT }}
                 >
-                  <Text className="font-['Roboto-Flex'] text-[11px] text-lhlSecondaryTextGrey">
+                  <SortGlyph color={colors.ink} />
+                  <Text className="font-roboto-medium text-[12px] text-lhlInk">
                     {sortRecent ? 'Recent' : 'Date'}
                   </Text>
                 </Pressable>
               </View>
 
-              {/* Grid */}
+              {/* Grid, or this tab's own empty state */}
               {eventsQuery.isLoading ? (
                 <ActivityIndicator className="mt-[24px]" color={colors.brand} />
               ) : (
-                <View className="mt-[14px] flex-row flex-wrap justify-between">
+                <View className="mt-[12px] flex-row flex-wrap justify-between">
                   {(eventsQuery.data?.events ?? []).length === 0 ? (
-                    <View className="w-full items-center py-[30px]">
-                      <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
-                        {search.trim() || filter !== 'all'
-                          ? 'No events match that search.'
-                          : activeTab.empty}
-                      </Text>
-                      {!search.trim() && filter === 'all' && tab !== 'posted' ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={() => router.push('/(tabs)/home')}
-                          className="mt-[14px] rounded-full bg-lhlBurntOrange px-[20px] py-[8px]"
-                        >
-                          <Text className="font-['Roboto-Flex'] text-[12px] font-semibold text-white">
-                            Explore Events
-                          </Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
+                    search.trim() || filter !== 'all' ? (
+                      <ProfileEmptyState
+                        title="No events match that search."
+                        body="Try a different word or category."
+                      />
+                    ) : (
+                      <ProfileEmptyState
+                        title={activeTab.emptyTitle}
+                        body={activeTab.empty}
+                        action={
+                          tab !== 'posted'
+                            ? {
+                                label: 'Explore Events',
+                                onPress: () => router.push('/(tabs)/home'),
+                              }
+                            : {
+                                label: 'Create an Event',
+                                onPress: () => router.push('/(tabs)/create'),
+                              }
+                        }
+                      />
+                    )
                   ) : (
                     eventsQuery.data?.events.map((event) => (
                       <ProfileEventCard
@@ -629,6 +599,18 @@ export default function ProfileScreen() {
             </View>
           </ScrollView>
         )}
+
+        {profile ? (
+          <FollowListSheet
+            visible={followSheet !== null}
+            onClose={() => setFollowSheet(null)}
+            userId={profile.id}
+            initialKind={followSheet ?? 'followers'}
+            followerCount={profile.follower_count}
+            followingCount={profile.following_count}
+            token={token}
+          />
+        ) : null}
 
         <OpenLinkModal {...openLink.modalProps} />
         {/*
@@ -702,7 +684,7 @@ export default function ProfileScreen() {
           }}
           onPost={(body, notify) => postAnnouncement.mutate({ body, notify })}
         />
-      </SafeAreaView>
+      </View>
     </SettingsDrawer>
   );
 }

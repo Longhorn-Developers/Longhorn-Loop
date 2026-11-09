@@ -77,7 +77,8 @@ function CornerButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={accessibilityState}
-      hitSlop={8}
+      // 26 + 9 + 9 = 44, the LOOP-312 tap-target floor. Was 8, which left it at 42.
+      hitSlop={9}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       onPress={onPress}
@@ -126,8 +127,9 @@ export default function ProfileEventCard({
       accessibilityLabel={event.title}
       onPress={() => router.push(`/event/${event.id}`)}
       // Half the row minus the gap. Set here rather than by the parent so the
-      // card is self-contained wherever the grid is reused.
-      className="mb-[16px] w-[48%] overflow-hidden rounded-[12px] border border-lhlMutedBorder bg-lhlSurface"
+      // card is self-contained wherever the grid is reused. 12 between rows and
+      // the 20 radius are the LOOP-312 profile spec; the contents are unchanged.
+      className="mb-[12px] w-[48%] overflow-hidden rounded-[20px] border border-lhlMutedBorder bg-lhlSurface"
     >
       <View className="h-[150px] w-full bg-lhlPlaceholderGrey">
         {event.image_url ? (

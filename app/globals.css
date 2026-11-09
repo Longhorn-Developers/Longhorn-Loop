@@ -80,6 +80,11 @@
 
   /* Scrim behind modals. */
   --lhl-scrim: 9 9 11;
+
+  /* The full-bleed band behind the avatar at the top of every profile variant
+     (LOOP-312, Figma "Profile - My Events V4"). A fill only -- nothing is ever
+     written on it, which is why it is not held to a text-contrast bar. */
+  --lhl-cover: 241 179 135; /* #F1B387 */
 }
 
 /* NativeWind does not put a real `.dark` wrapper around native views.
@@ -124,4 +129,9 @@
   --lhl-info: 90 180 238; /* #5AB4EE  lightened; the light blue is too dark here */
 
   --lhl-scrim: 0 0 0;
+
+  /* The peach turned to a deep burnt brown. Kept warm so it still reads as the
+     same band, and dark enough that it doesn't glare above a #14171C page --
+     the light value sits ~1.6:1 off its page, this sits ~1.7:1 off its own. */
+  --lhl-cover: 92 54 28; /* #5C361C */
 }

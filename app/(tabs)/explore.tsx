@@ -51,10 +51,10 @@ import {
   Platform,
   Pressable,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type EventsListResponse = { events: ApiEvent[] };
@@ -526,7 +526,7 @@ export default function ExploreScreen() {
    * the focus ring would otherwise stay put; `blur()` handles that and also
    * guarantees onBlur fires, which is what clears the field's orange border.
    */
-  const searchRef = useRef<TextInput>(null);
+  const searchRef = useRef<TextInputInstance>(null);
   const dismissSearch = useCallback(() => {
     searchRef.current?.blur();
     Keyboard.dismiss();
@@ -871,7 +871,7 @@ export default function ExploreScreen() {
         </View>
       )}
     </View>
-  ) : null;
+  ) : undefined;
 
   /**
    * The org destinations' list (LOOP-293). The orgs are the FlatList's own
@@ -912,7 +912,7 @@ export default function ExploreScreen() {
         )
       }
       ListFooterComponent={
-        orgResults.length === 0 ? null : orgsQuery.isFetchingNextPage ? (
+        orgResults.length === 0 ? undefined : orgsQuery.isFetchingNextPage ? (
           <ActivityIndicator color={colors.accent} style={{ paddingVertical: 12 }} />
         ) : !orgsQuery.hasNextPage ? (
           // The end of the list, said out loud. Without it a list that simply
@@ -923,7 +923,7 @@ export default function ExploreScreen() {
             {orgResults.length} {orgResults.length === 1 ? 'organization' : 'organizations'}
             {isSearching || orgFiltersApplied ? '' : ' · that’s all of them'}
           </Text>
-        ) : null
+        ) : undefined
       }
     />
   );
@@ -1002,7 +1002,7 @@ export default function ExploreScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
-            ) : null
+            ) : undefined
           }
           renderItem={renderItem}
         />

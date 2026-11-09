@@ -64,6 +64,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Step = 'form' | 'code' | 'success';
@@ -194,7 +195,7 @@ export default function OrgRegisterScreen() {
   // It owns digit entry, autofill and backspace (LOOP-280) and hands back the
   // whole char array, so all this screen keeps is the state.
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
-  const codeInput = useRef<TextInput>(null);
+  const codeInput = useRef<TextInputInstance>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

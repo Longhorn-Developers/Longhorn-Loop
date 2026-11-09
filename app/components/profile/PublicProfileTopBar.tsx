@@ -42,7 +42,7 @@ export default function PublicProfileTopBar({
         accessibilityRole="button"
         accessibilityLabel="Back"
         onPress={() => router.back()}
-        hitSlop={10}
+        hitSlop={11}
       >
         <ArrowLeftIcon width={22} height={22} color={colors.ink} />
       </Pressable>
@@ -51,7 +51,7 @@ export default function PublicProfileTopBar({
         accessibilityRole="button"
         accessibilityLabel={bellLabel}
         onPress={() => router.push(bellHref as never)}
-        hitSlop={10}
+        hitSlop={11}
       >
         {/* Icons take `accent`, never `brand` — brand is a fill colour and is
             only 3.4:1 as a foreground on a dark card. */}
