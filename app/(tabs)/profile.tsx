@@ -15,8 +15,8 @@
 // filter/sort state, pull-to-refresh and the Manage Event overlays are all as
 // they were. LOOP-312 reworks the container, not the tabs.
 //
-// Followers / Following counts open FollowListSheet, which runs on a stub
-// until LOOP-307 adds the endpoint -- see app/lib/followList.ts.
+// Followers / Following counts open FollowListSheet (lists from LOOP-307 --
+// see app/lib/followList.ts).
 //
 // Someone else's profile is app/user/[id].tsx; an org's is
 // app/org/[id]/profile.tsx. Both share this screen's header components.
@@ -604,7 +604,8 @@ export default function ProfileScreen() {
           <FollowListSheet
             visible={followSheet !== null}
             onClose={() => setFollowSheet(null)}
-            userId={profile.id}
+            subject={{ type: 'user', id: profile.id }}
+            ownProfile
             initialKind={followSheet ?? 'followers'}
             followerCount={profile.follower_count}
             followingCount={profile.following_count}
