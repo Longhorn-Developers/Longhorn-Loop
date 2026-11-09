@@ -36,9 +36,9 @@ import {
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
@@ -56,7 +56,7 @@ export default function DeleteAccountScreen() {
   const token = onboarding.token || null;
 
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
-  const codeInput = useRef<TextInput>(null);
+  const codeInput = useRef<TextInputInstance>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
