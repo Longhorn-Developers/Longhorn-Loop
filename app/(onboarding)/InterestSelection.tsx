@@ -81,7 +81,7 @@ export default function CategorySelectorScreen() {
 
       <View className="mt-[10px]">
         <SearchablePillDropdownField
-          leftIcon={<SearchIcon width={15} height={15} color={colors.inkMuted} />}
+          leftIcon={<SearchIcon width={15} height={15} color={colors.ink} />}
           placeholder="Search for interests, events, activities..."
           options={ALL_INTEREST_TAGS}
           selectedValues={selectedTags}
