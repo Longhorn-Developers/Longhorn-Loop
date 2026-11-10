@@ -213,15 +213,14 @@ export default function ExploreOrgFilterSheet({
             justifyContent: 'center',
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: colors.divider,
-            backgroundColor: colors.surface,
+            // Same treatment as Reset on the event sheet: the tapped Filters
+            // button's orange outline and text, no fill.
+            borderColor: colors.brand,
+            backgroundColor: 'transparent',
             opacity: active ? 1 : 0.5,
           }}
         >
-          <Text
-            className="font-roboto-semibold"
-            style={{ fontSize: 16, color: colors.inkSecondary }}
-          >
+          <Text className="font-roboto-semibold" style={{ fontSize: 16, color: colors.accent }}>
             Clear All Filters
           </Text>
         </Pressable>
