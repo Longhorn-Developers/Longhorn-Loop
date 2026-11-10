@@ -1,4 +1,5 @@
 import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -25,6 +26,7 @@ export default function DropdownSelectField({
   onToggle,
   borderRadius = 4,
 }: DropdownSelectFieldProps) {
+  const colors = useThemeColors();
   const borderColorClass = isOpen ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   return (
@@ -66,7 +68,8 @@ export default function DropdownSelectField({
         </Text>
 
         <View className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-          <LhlCaretDownIcon color="#000" />
+          {/* ink, not '#000': black vanished on the dark-mode page. */}
+          <LhlCaretDownIcon color={colors.ink} />
         </View>
       </Pressable>
 
