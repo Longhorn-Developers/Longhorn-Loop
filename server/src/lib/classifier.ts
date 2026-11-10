@@ -377,24 +377,60 @@ export function classifyEvent(title: string, description: string | null): Classi
 }
 
 /**
- * Write classifier results for a single event to D1.
- * Clears existing tags first (idempotent / safe to re-run).
+ * How a set of tag statements finds its event: by row id when the caller has
+ * it, or by the event's (source, source_event_id) natural key when it doesn't
+ * -- the bulk-ingest case, where the event row is written in the same batch
+ * and its id isn't known yet (LOOP-309).
+ */
+export type EventRef = number | { source: string; sourceEventId: string };
+
+/** SQL fragment + binds that resolve an EventRef to an events.id. */
+export function eventIdSql(ref: EventRef): { sql: string; binds: (string | number)[] } {
+  if (typeof ref === 'number') return { sql: '?', binds: [ref] };
+  return {
+    sql: '(SELECT id FROM events WHERE source = ? AND source_event_id = ?)',
+    binds: [ref.source, ref.sourceEventId],
+  };
+}
+
+/**
+ * The statements that replace an event's tags. Clears existing tags first, so
+ * it is idempotent and safe to re-run.
+ *
+ * Returned rather than executed so a caller can put them in a db.batch() with
+ * its other writes: D1 caps queries per Worker invocation (1,000 on Paid, 50
+ * on Free) and a batch counts as ONE query however many statements it holds.
+ */
+export function eventTagStatements(
+  db: D1Database,
+  ref: EventRef,
+  matches: ClassifierMatch[],
+): D1PreparedStatement[] {
+  const id = eventIdSql(ref);
+  return [
+    db.prepare(`DELETE FROM event_tags WHERE event_id = ${id.sql}`).bind(...id.binds),
+    ...matches.map(({ bucketId, tag, source, score }) =>
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO event_tags (event_id, bucket_id, tag, source, score)
+           VALUES (${id.sql}, ?, ?, ?, ?)`,
+        )
+        // A match with no source came from the keyword classifier; a keyword
+        // tag has no score, so default to null.
+        .bind(...id.binds, bucketId, tag, source ?? 'keyword', score ?? null),
+    ),
+  ];
+}
+
+/**
+ * Write classifier results for a single event to D1, as one batch: one query
+ * against the per-invocation limit, and atomic, so a failed insert can no
+ * longer leave the event with its old tags deleted and no new ones.
  */
 export async function writeEventTags(
   db: D1Database,
   eventId: number,
   matches: ClassifierMatch[],
 ): Promise<void> {
-  await db.prepare('DELETE FROM event_tags WHERE event_id = ?').bind(eventId).run();
-  for (const { bucketId, tag, source, score } of matches) {
-    await db
-      .prepare(
-        `INSERT OR IGNORE INTO event_tags (event_id, bucket_id, tag, source, score)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      // A match with no source came from the keyword classifier; a keyword tag
-      // has no score, so default to null.
-      .bind(eventId, bucketId, tag, source ?? 'keyword', score ?? null)
-      .run();
-  }
+  await db.batch(eventTagStatements(db, eventId, matches));
 }

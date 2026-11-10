@@ -81,6 +81,14 @@ class FakeD1Database {
     return new FakeD1Statement(this, sql);
   }
 
+  // Real D1 has batch(); writeEventTags uses it (LOOP-309). Sequential here --
+  // these tests check what was written, not rollback.
+  async batch(statements: FakeD1Statement[]): Promise<unknown[]> {
+    const out: unknown[] = [];
+    for (const s of statements) out.push(await s.run());
+    return out;
+  }
+
   first(sql: string, params: unknown[]): Record<string, unknown> | null {
     if (sql.includes('FROM users WHERE email = ?')) {
       return this.users.find((user) => user.email === params[0]) ?? null;

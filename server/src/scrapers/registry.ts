@@ -12,7 +12,6 @@ import type { Env } from '../worker';
 import { run as runCockrell, scrapeCockrell } from './cockrell';
 import { run as runEducation, scrapeEducation } from './education';
 import { run as runFineArts, scrapeFineArts } from './finearts';
-import { run as runCns } from './cns';
 // disabled to remove noisy events
 // import { run as runHornsLink, scrapeHornsLink } from './hornslink';
 // NOT the same thing as the line above: this one ingests ORGS only and never
@@ -23,7 +22,6 @@ import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
 import { run as runMoody, scrapeMoody } from './moody';
-import { run as runPharmacy } from './pharmacy';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
 
@@ -46,8 +44,15 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
   { name: 'education', run: runEducation, manual: scrapeEducation },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
-  { name: 'cns', run: runCns },
-  { name: 'pharmacy', run: runPharmacy },
+  // cns and pharmacy are retired from the cron (LOOP-309), not deleted. Both
+  // read calendar.utexas.edu scoped by group_id, and both groups are EMPTY:
+  // 0 events over a 365-day window, re-checked with the corrected page size.
+  // The group_id filter itself works (Fine Arts' returns 270), so these
+  // colleges simply don't publish there, and the two runs every six hours were
+  // dead work. Anything they do post centrally still arrives through
+  // texasToday, which reads the whole calendar. Re-add a line here if either
+  // college starts publishing to its group, or point the scraper wherever it
+  // does publish.
 ];
 
 /**

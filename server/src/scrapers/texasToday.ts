@@ -7,11 +7,8 @@ import { classifyAspectRatio, stripHtml } from '../events/normalize';
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { ImageAspectRatio, NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { inferVenueType, localistEventsUrl } from './helpers';
 
-const BASE_URL = 'https://calendar.utexas.edu';
-const API_BASE = `${BASE_URL}/api/2/events`;
-const PER_PAGE = 100;
 const DAYS_AHEAD = 30;
 export const SOURCE = 'texas_today';
 
@@ -196,7 +193,7 @@ export function parseEvent(raw: LocalistRawEvent, now = Date.now()): NormalizedE
 }
 
 async function fetchPage(page: number): Promise<LocalistApiResponse> {
-  const url = `${API_BASE}?days=${DAYS_AHEAD}&per_page=${PER_PAGE}&page=${page}`;
+  const url = localistEventsUrl({ days: DAYS_AHEAD, page });
   const res = await fetchWithRetry(url);
   return res.json() as Promise<LocalistApiResponse>;
 }

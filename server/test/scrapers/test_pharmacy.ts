@@ -150,6 +150,13 @@ describe('Pharmacy Localist scraper', () => {
     const events = await fetchAllEvents();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // LOOP-309: Localist's page size is `pp`; `per_page` is silently ignored.
+    for (const [input] of fetchMock.mock.calls) {
+      const params = new URL(String(input)).searchParams;
+      expect(params.get('pp')).toBe('100');
+      expect(params.has('per_page')).toBe(false);
+      expect(params.get('group_id')).toBe('47748554254291');
+    }
     expect(events.map((event) => event.sourceEventId)).toEqual([
       '70000000000001',
       '70000000000002',

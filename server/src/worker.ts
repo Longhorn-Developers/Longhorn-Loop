@@ -11,6 +11,7 @@ import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
+import { jobsDue } from './lib/schedule';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
 
 export type Env = {
@@ -40,6 +41,10 @@ export type Env = {
   POSTMARK_API_TOKEN?: string;
   CRON_SECRET: string;
   WORKER_URL: string;
+  // Service binding to this same Worker (LOOP-309), used by the scrape cron to
+  // dispatch each scraper into its own invocation. Absent under
+  // `wrangler dev --env local`, which falls back to WORKER_URL. See scheduled().
+  SELF?: Fetcher;
   // Fixed code for the App Review reviewer bypass (LOOP-???, see APP_REVIEW_EMAIL
   // in shared/utEmail.ts and issueVerificationCode in auth.worker.ts). A Worker
   // secret, never committed, so the public bypass address alone isn't enough to
@@ -76,22 +81,18 @@ app.route('/saved', savedRoutes);
 app.route('/orgs', orgRoutes);
 app.route('/settings', settingsRoutes);
 
-// Cron schedules, configured in wrangler.toml under [triggers]. The
-// scheduled() handler below dispatches on event.cron since the two jobs
-// run at different cadences.
-const REMINDER_CRON = '*/15 * * * *';
-
-// LOOP-241. The HornsLink org directory, on its own daily schedule rather than
-// the 6-hour event sweep: org rosters change slowly, and the run includes a
-// bounded pass of per-org HTML fetches that there is no reason to repeat four
-// times a day.
-const ORG_DIRECTORY_CRON = '0 8 * * *';
-
-// LOOP-150. Daily sweep that hard-deletes expired events nobody ever engaged
-// with and archives (soft-deletes) expired events a user created, RSVP'd to,
-// or saved. A distinct hour from ORG_DIRECTORY_CRON — event.cron is matched
-// exactly below, so two jobs on the same string would starve one of them.
-const EVENT_CLEANUP_CRON = '0 9 * * *';
+// Cron: ONE trigger, "*/15 * * * *" in wrangler.toml [triggers] (LOOP-295).
+// Which jobs run on a tick is decided from its scheduled time by jobsDue() in
+// lib/schedule.ts, which documents the cadence of each:
+//   reminders     every tick
+//   scrape        every 6 hours on the hour, UTC (00/06/12/18)
+//   orgDirectory  08:00 UTC daily (LOOP-241). The HornsLink org directory, on
+//                 its own daily schedule rather than the 6-hour event sweep:
+//                 org rosters change slowly, and the run includes a bounded
+//                 pass of per-org HTML fetches with no reason to repeat it.
+//   eventCleanup  09:00 UTC daily (LOOP-150). Hard-deletes expired events
+//                 nobody engaged with and archives (soft-deletes) expired
+//                 events a user created, RSVP'd to, or saved.
 
 // Lead time before an event starts at which we send a reminder notification.
 const REMINDER_LEAD_TIME_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -154,47 +155,85 @@ async function sendEventReminders(env: Env): Promise<void> {
   }
 }
 
+// The 6-hour scrape. Fires every scraper in the registry, each in its
+// own Worker invocation (LOOP-265), so one scraper's subrequests, D1
+// queries and CPU time don't count against the others'.
+//
+// THROUGH THE SELF SERVICE BINDING, NOT fetch(WORKER_URL) (LOOP-309).
+// LOOP-265 dispatched with a plain fetch() to this Worker's own
+// workers.dev URL. Cloudflare does not route a Worker's fetch() back into
+// a Worker on the same account like an outside request; the documented
+// way for one Worker to call another -- itself included -- is a service
+// binding. After that change landed (2026-08-26) no scraped row in prod
+// was updated again: the newest updated_at on every source was from late
+// August, though every run rewrites every row it sees. The failure was
+// only ever logged as "dispatch failed: <status>", which nobody saw.
+//
+// WORKER_URL stays as the fallback because `wrangler dev --env local` has
+// no service bindings, and there the URL is localhost, which works.
+function dispatchScrapers(env: Env, ctx: ExecutionContext): void {
+  for (const scraper of SCRAPERS) {
+    const path = `/events/scrape/${scraper.name}`;
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
+    };
+    const dispatch = env.SELF
+      ? env.SELF.fetch(new Request(`https://self${path}`, init))
+      : fetch(`${env.WORKER_URL}${path}`, init);
+
+    ctx.waitUntil(
+      dispatch
+        .then(async (r) => {
+          if (r.ok) return;
+          // The body, not just the status: a Cloudflare error page or the
+          // route's own { error } is what says WHY, and the status alone hid
+          // this for two and a half months.
+          const body = (await r.text().catch(() => '')).slice(0, 300);
+          console.error(`[cron] ${scraper.name} dispatch failed: ${r.status} ${body}`);
+        })
+        .catch((err) => console.error(`[cron] ${scraper.name} dispatch error:`, err)),
+    );
+  }
+}
+
 // Export fetch + scheduled handlers together.
 // Hono's default export is a fetch handler; wrapping lets us add cron support.
 export default {
   fetch: app.fetch.bind(app),
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (event.cron === REMINDER_CRON) {
-      ctx.waitUntil(sendEventReminders(env));
-      return;
-    }
-
-    if (event.cron === ORG_DIRECTORY_CRON) {
-      ctx.waitUntil(ORG_DIRECTORY_SCRAPER.run(env));
-      return;
-    }
-
-    if (event.cron === EVENT_CLEANUP_CRON) {
-      ctx.waitUntil(
-        runEventCleanup(env.DB).then(
-          (counts) =>
-            console.log(
-              `[cron] event cleanup: archived ${counts.archived}, purged ${counts.purged}`,
+    // Every job due at this tick, each in its own waitUntil with its own
+    // catch, so one failing job can't take the others down with it.
+    for (const job of jobsDue(event.scheduledTime)) {
+      switch (job) {
+        case 'reminders':
+          ctx.waitUntil(
+            sendEventReminders(env).catch((err) => console.error('[cron] reminders failed:', err)),
+          );
+          break;
+        case 'orgDirectory':
+          ctx.waitUntil(
+            ORG_DIRECTORY_SCRAPER.run(env).catch((err) =>
+              console.error('[cron] org directory failed:', err),
             ),
-          (err) => console.error('[cron] event cleanup failed:', err),
-        ),
-      );
-      return;
-    }
-
-    // The 6-hour scrape cron. Fires every scraper in the registry.
-    for (const scraper of SCRAPERS) {
-      ctx.waitUntil(
-        fetch(`${env.WORKER_URL}/events/scrape/${scraper.name}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${env.CRON_SECRET}` },
-        })
-          .then((r) => {
-            if (!r.ok) console.error(`[cron] ${scraper.name} dispatch failed: ${r.status}`);
-          })
-          .catch((err) => console.error(`[cron] ${scraper.name} dispatch error:`, err)),
-      );
+          );
+          break;
+        case 'eventCleanup':
+          ctx.waitUntil(
+            runEventCleanup(env.DB).then(
+              (counts) =>
+                console.log(
+                  `[cron] event cleanup: archived ${counts.archived}, purged ${counts.purged}`,
+                ),
+              (err) => console.error('[cron] event cleanup failed:', err),
+            ),
+          );
+          break;
+        case 'scrape':
+          dispatchScrapers(env, ctx);
+          break;
+      }
     }
   },
 };

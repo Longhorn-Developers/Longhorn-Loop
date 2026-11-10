@@ -4,6 +4,8 @@ import {
   chicagoOffset,
   decodeHtmlEntities,
   htmlToText,
+  LOCALIST_EVENTS_API,
+  localistEventsUrl,
   parseTime12h,
 } from '../../src/scrapers/helpers';
 
@@ -152,5 +154,29 @@ describe('buildDatetime', () => {
   it('falls back to the bare date when the time cannot be read', () => {
     expect(buildDatetime('2026-07-08', 'noon')).toBe('2026-07-08');
     expect(buildDatetime('2026-07-08', '9:99 am')).toBe('2026-07-08');
+  });
+});
+
+// LOOP-309. Localist's page size is `pp`; `per_page` is silently ignored and
+// the feed falls back to 10 a page.
+describe('localistEventsUrl', () => {
+  it('sends pp, never per_page', () => {
+    const url = new URL(localistEventsUrl({ days: 30, page: 2 }));
+    expect(`${url.origin}${url.pathname}`).toBe(LOCALIST_EVENTS_API);
+    expect(url.searchParams.get('pp')).toBe('100');
+    expect(url.searchParams.has('per_page')).toBe(false);
+    expect(url.searchParams.get('days')).toBe('30');
+    expect(url.searchParams.get('page')).toBe('2');
+  });
+
+  it('adds group_id only when given one', () => {
+    expect(new URL(localistEventsUrl({ days: 30, page: 1 })).searchParams.has('group_id')).toBe(
+      false,
+    );
+    expect(
+      new URL(localistEventsUrl({ days: 365, page: 1, groupId: 47748555362368 })).searchParams.get(
+        'group_id',
+      ),
+    ).toBe('47748555362368');
   });
 });
