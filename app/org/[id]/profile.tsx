@@ -37,6 +37,7 @@
 import type { ApiEvent } from '@/app/components/EventCard';
 import SettingsDrawer from '@/app/components/SettingsDrawer';
 import { FollowButton } from '@/app/components/profile/FollowControl';
+import FollowListSheet from '@/app/components/profile/FollowListSheet';
 import OutlinedButton from '@/app/components/profile/OutlinedButton';
 import ProfileBio from '@/app/components/profile/ProfileBio';
 import ProfileCounts from '@/app/components/profile/ProfileCounts';
@@ -99,6 +100,7 @@ export default function PublicOrgProfileScreen() {
   const [tab, setTab] = useState<PublicProfileTab>('upcoming');
   const [actionError, setActionError] = useState<string | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [followersOpen, setFollowersOpen] = useState(false);
 
   const enabled = !!token && Number.isFinite(orgId);
 
@@ -240,6 +242,10 @@ export default function PublicOrgProfileScreen() {
               events={counts ? counts.upcoming + counts.past : undefined}
               followers={org?.follower_count ?? 0}
               following={org?.following_count ?? 0}
+              // Followers open the list sheet (LOOP-307). Following stays
+              // plain: it counts other ORGS this org follows, which nothing
+              // lists yet and nobody has asked to see.
+              onPressFollowers={() => setFollowersOpen(true)}
             />
 
             <View className="mt-[10px] flex-row items-center gap-[8px]">
@@ -310,6 +316,17 @@ export default function PublicOrgProfileScreen() {
             )}
           </View>
         </ScrollView>
+
+        {org ? (
+          <FollowListSheet
+            visible={followersOpen}
+            onClose={() => setFollowersOpen(false)}
+            subject={{ type: 'org', id: org.id }}
+            initialKind="followers"
+            followerCount={org.follower_count}
+            token={token}
+          />
+        ) : null}
       </View>
     </SettingsDrawer>
   );

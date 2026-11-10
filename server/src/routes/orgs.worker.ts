@@ -51,6 +51,7 @@ import {
 import { refreshOrgContactEmail } from '../scrapers/hornslinkOrgs';
 import { UT_EMAIL_ERROR, isAllowedUTEmail } from '../../../shared/utEmail';
 import { decodeCursor, encodeCursor } from '../lib/cursor';
+import { InvalidCursorError, listOrgFollowers } from '../lib/followLists';
 
 export const orgRoutes = new Hono<{ Bindings: Env }>();
 
@@ -1568,6 +1569,42 @@ orgRoutes.get('/:orgId/profile', async (c) => {
     is_member: !!membership,
     role: (membership?.role as string) ?? null,
   });
+});
+
+// GET /orgs/:orgId/followers (LOOP-307)
+//
+// ?cursor=<opaque>&q=<name search>. Returns { entries, nextCursor }. Any
+// signed-in user may read it: an org's audience is public in a way a
+// student's following list arguably is not, but Loop applies the same rule to
+// both (see lib/followLists.ts). People the viewer has blocked, or who blocked
+// the viewer, are left out.
+orgRoutes.get('/:orgId/followers', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const orgId = parseInt(c.req.param('orgId'), 10);
+  if (Number.isNaN(orgId)) return c.json({ error: 'INVALID_ORG_ID' }, 400);
+
+  const org = await c.env.DB.prepare('SELECT 1 FROM organizations WHERE id = ?')
+    .bind(orgId)
+    .first();
+  if (!org) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+
+  try {
+    return c.json(
+      await listOrgFollowers(c.env.DB, orgId, {
+        viewerId,
+        cursor: c.req.query('cursor'),
+        q: c.req.query('q'),
+      }),
+    );
+  } catch (err) {
+    if (err instanceof InvalidCursorError) return c.json({ error: 'INVALID_CURSOR' }, 400);
+    throw err;
+  }
 });
 
 // GET /orgs/:orgId/profile/events?tab=upcoming|past

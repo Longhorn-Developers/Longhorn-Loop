@@ -1,15 +1,17 @@
-// Followers / Following sheet (LOOP-312 step 4, Figma "Followers Tab" and
-// "Following Tab", 402 x 657).
+// Followers / Following sheet (LOOP-312 design, LOOP-307 data; Figma
+// "Followers Tab" and "Following Tab", 402 x 657).
 //
-// Opened from the Followers and Following counts on your own profile. It is a
-// bottom SHEET over the profile, not a tab in the profile's own tab row --
-// that is what the frames draw (grabber, 14pt top corners, profile dimmed
-// behind) and it is also why switching to it cannot shift the header: the
-// header never re-renders.
+// Opened from the Followers / Following counts on any profile -- yours,
+// another person's, or an org's (Followers only: an org's "following" is
+// other orgs, which isn't a list anyone has asked for). It is a bottom SHEET
+// over the profile, not a tab in the profile's own tab row: that is what the
+// frames draw, and it is also why opening it cannot shift the header.
 //
-// DATA COMES FROM A STUB until LOOP-307 ships an endpoint. See
-// app/lib/followList.ts for the seam and for why follow taps stay local while
-// FOLLOW_LIST_IS_STUB is true.
+// DATA. Server lists from app/lib/followList.ts: keyset pages, loaded as the
+// list scrolls (FlatList onEndReached), and a name search that runs on the
+// SERVER after a 300ms pause, so it finds people past the first page. Who may
+// open a list, and the block filter, are the server's (see
+// server/src/lib/followLists.ts).
 //
 // The sheet reuses DragDismissSheet with dragFrom="header": the list scrolls,
 // and a pan over the whole surface would fight it for every vertical gesture
@@ -19,25 +21,27 @@ import TextInputField from '@/app/components/inputs/TextInputField';
 import DragDismissSheet from '@/app/components/modals/DragDismissSheet';
 import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay';
 import ProfileTabRow from '@/app/components/profile/ProfileTabRow';
-import { api } from '@/app/lib/api';
 import {
-  FOLLOW_LIST_IS_STUB,
   fetchFollowList,
+  toggleFollow,
   type FollowListEntry,
   type FollowListKind,
+  type FollowListSubject,
 } from '@/app/lib/followList';
-import { user as userKeys } from '@/app/lib/queryKeys';
+import { org as orgKeys, user as userKeys } from '@/app/lib/queryKeys';
 import { hitSlopFor } from '@/app/lib/tapTarget';
 import { useThemeColors } from '@/app/lib/themeColors';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import SegmentCheckIcon from '@/assets/images/segment-check.svg';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import VerifiedIcon from '@/assets/images/verified.svg';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
+  Image,
   Pressable,
-  ScrollView,
   Text,
   View,
   useWindowDimensions,
@@ -48,26 +52,33 @@ const SHEET_HEIGHT = 657;
 const AVATAR = 44;
 const ROW_BUTTON_HEIGHT = 30;
 const ROW_BUTTON_WIDTH = 94;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const rowKey = (e: Pick<FollowListEntry, 'kind' | 'id'>) => `${e.kind}:${e.id}`;
 
 export interface FollowListSheetProps {
   visible: boolean;
   onClose: () => void;
   /** Whose lists these are. */
-  userId: number;
-  /** Which list the sheet opens on. */
+  subject: FollowListSubject;
+  /** Which list the sheet opens on. Ignored for an org, which only has Followers. */
   initialKind: FollowListKind;
   followerCount: number;
-  followingCount: number;
+  /** Omit for an org. */
+  followingCount?: number;
+  /** True on your own profile, the one place "Follow Back" is the right label. */
+  ownProfile?: boolean;
   token: string | null;
 }
 
 export default function FollowListSheet({
   visible,
   onClose,
-  userId,
+  subject,
   initialKind,
   followerCount,
   followingCount,
+  ownProfile = false,
   token,
 }: FollowListSheetProps) {
   const colors = useThemeColors();
@@ -75,15 +86,15 @@ export default function FollowListSheet({
   const queryClient = useQueryClient();
   const { height: windowHeight } = useWindowDimensions();
 
-  const [kind, setKind] = useState<FollowListKind>(initialKind);
+  const isOrg = subject.type === 'org';
+  const [kind, setKind] = useState<FollowListKind>(isOrg ? 'followers' : initialKind);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   /**
-   * Follow state the user has changed in this sheet, keyed by row id. Used
-   * for every tap while the list is a stub (nothing may reach the server --
-   * see app/lib/followList.ts), and as the optimistic value while a real
-   * request is in flight once it isn't.
+   * Follow state changed in this sheet, keyed by rowKey. The optimistic value
+   * while a request is in flight; dropped again if it fails.
    */
-  const [overrides, setOverrides] = useState<Record<number, boolean>>({});
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
   // Re-aim the sheet each time it opens: tapping Following should land on
   // Following even if Followers was the last tab looked at. Done on the
@@ -93,62 +104,87 @@ export default function FollowListSheet({
   if (visible !== wasVisible) {
     setWasVisible(visible);
     if (visible) {
-      setKind(initialKind);
+      setKind(isOrg ? 'followers' : initialKind);
+      setSearchInput('');
       setSearch('');
+      setOverrides({});
     }
   }
 
-  const list = useQuery({
-    queryKey: userKeys.followList(userId, kind),
-    queryFn: () => fetchFollowList(userId, kind, token),
-    enabled: visible && Number.isFinite(userId),
+  // The search runs on the server, so wait for typing to pause rather than
+  // firing a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const queryKey = isOrg
+    ? orgKeys.followers(subject.id, search)
+    : userKeys.followList(subject.id, kind, search);
+
+  const list = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) =>
+      fetchFollowList(subject, kind, { cursor: pageParam, q: search, token }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    enabled: visible && Number.isFinite(subject.id) && !!token,
   });
 
+  const rows = useMemo(() => list.data?.pages.flatMap((p) => p.entries) ?? [], [list.data]);
+
   const follow = useMutation({
-    mutationFn: ({ id, next }: { id: number; next: boolean }) =>
-      next
-        ? api.post(`/users/${id}/follow`, { token })
-        : api.delete(`/users/${id}/follow`, { token }),
-    onSettled: (_data, error, { id }) => {
-      if (error) {
-        setOverrides(({ [id]: _dropped, ...rest }) => rest);
+    mutationFn: ({ entry, next }: { entry: FollowListEntry; next: boolean }) =>
+      toggleFollow(entry, next, token),
+    onError: (_err, { entry }) => {
+      setOverrides(({ [rowKey(entry)]: _dropped, ...rest }) => rest);
+    },
+    onSettled: (_data, _err, { entry }) => {
+      // The viewer's own Following list and count moved, and so did the
+      // follower count on whoever was tapped.
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
+      if (entry.kind === 'org') {
+        queryClient.invalidateQueries({ queryKey: orgKeys.publicProfile(entry.id) });
+        queryClient.invalidateQueries({ queryKey: orgKeys.followersAll(entry.id) });
       }
-      // Counts on the profile header and both lists can move.
-      queryClient.invalidateQueries({ queryKey: userKeys.followListAll(userId) });
-      queryClient.invalidateQueries({ queryKey: userKeys.me() });
     },
   });
 
   const toggle = (entry: FollowListEntry) => {
-    const next = !(overrides[entry.id] ?? entry.is_following);
-    setOverrides((prev) => ({ ...prev, [entry.id]: next }));
-    if (!FOLLOW_LIST_IS_STUB) follow.mutate({ id: entry.id, next });
+    const next = !(overrides[rowKey(entry)] ?? entry.is_following);
+    setOverrides((prev) => ({ ...prev, [rowKey(entry)]: next }));
+    follow.mutate({ entry, next });
   };
 
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const all = list.data ?? [];
-    if (!q) return all;
-    return all.filter((r) => `${r.first_name} ${r.last_name}`.toLowerCase().includes(q));
-  }, [list.data, search]);
+  const open = (entry: FollowListEntry) => {
+    onClose();
+    if (entry.kind === 'org') router.push(`/org/${entry.id}/profile`);
+    else if (entry.is_self) router.push('/(tabs)/profile');
+    else router.push(`/user/${entry.id}`);
+  };
 
   const header = (
     <View className="px-[20px] pt-[14px]">
       <ProfileTabRow<FollowListKind>
-        tabs={[
-          { key: 'followers', label: 'Followers', count: followerCount },
-          { key: 'following', label: 'Following', count: followingCount },
-        ]}
+        tabs={
+          isOrg
+            ? [{ key: 'followers', label: 'Followers', count: followerCount }]
+            : [
+                { key: 'followers', label: 'Followers', count: followerCount },
+                { key: 'following', label: 'Following', count: followingCount },
+              ]
+        }
         value={kind}
         onChange={(next) => {
           setKind(next);
+          setSearchInput('');
           setSearch('');
         }}
       />
       <View className="mt-[19px]">
         <TextInputField
-          value={search}
-          onChangeText={setSearch}
+          value={searchInput}
+          onChangeText={setSearchInput}
           placeholder={kind === 'followers' ? 'Search followers...' : 'Search following...'}
           autoCapitalize="none"
           autoCorrect={false}
@@ -161,6 +197,24 @@ export default function FollowListSheet({
     </View>
   );
 
+  const empty = list.isLoading ? (
+    <ActivityIndicator className="mt-[24px]" color={colors.brand} />
+  ) : list.isError ? (
+    <Pressable accessibilityRole="button" onPress={() => list.refetch()} className="mt-[24px]">
+      <Text className="font-roboto text-center text-[14px] leading-[18px] text-lhlSecondaryTextGrey">
+        Couldn’t load this list. Tap to try again.
+      </Text>
+    </Pressable>
+  ) : (
+    <Text className="font-roboto mt-[24px] text-center text-[14px] leading-[18px] text-lhlSecondaryTextGrey">
+      {search
+        ? 'No one matches that search.'
+        : kind === 'followers'
+          ? 'No followers yet.'
+          : 'Not following anyone yet.'}
+    </Text>
+  );
+
   return (
     <DragDismissSheet
       visible={visible}
@@ -169,70 +223,63 @@ export default function FollowListSheet({
       header={header}
       sheetStyle={{ height: Math.min(SHEET_HEIGHT, windowHeight * 0.85) }}
     >
-      <ScrollView
-        className="flex-1"
+      <FlatList
+        style={{ flex: 1 }}
+        data={rows}
+        keyExtractor={rowKey}
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 }}
         keyboardShouldPersistTaps="handled"
-      >
-        {list.isLoading ? (
-          <ActivityIndicator className="mt-[24px]" color={colors.brand} />
-        ) : rows.length === 0 ? (
-          <Text className="font-roboto mt-[24px] text-center text-[14px] leading-[18px] text-lhlSecondaryTextGrey">
-            {search.trim()
-              ? 'No one matches that search.'
-              : FOLLOW_LIST_IS_STUB
-                ? // Release builds land here until LOOP-307: say so plainly
-                  // rather than claiming nobody follows them.
-                  'Follower lists are coming soon.'
-                : kind === 'followers'
-                  ? 'No followers yet.'
-                  : 'Not following anyone yet.'}
-          </Text>
-        ) : (
-          rows.map((entry, i) => (
-            <FollowRow
-              key={entry.id}
-              entry={entry}
-              kind={kind}
-              isFollowing={overrides[entry.id] ?? entry.is_following}
-              last={i === rows.length - 1}
-              onToggle={() => toggle(entry)}
-              onOpen={
-                // Sample rows have no profile to open.
-                FOLLOW_LIST_IS_STUB
-                  ? undefined
-                  : () => {
-                      onClose();
-                      router.push(`/user/${entry.id}`);
-                    }
-              }
-            />
-          ))
+        ListEmptyComponent={empty}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+        }}
+        ListFooterComponent={
+          list.isFetchingNextPage ? (
+            <ActivityIndicator className="mt-[12px]" color={colors.brand} />
+          ) : undefined
+        }
+        renderItem={({ item, index }) => (
+          <FollowRow
+            entry={item}
+            followBack={ownProfile && kind === 'followers'}
+            isFollowing={overrides[rowKey(item)] ?? item.is_following}
+            last={index === rows.length - 1}
+            onToggle={() => toggle(item)}
+            onOpen={() => open(item)}
+          />
         )}
-      </ScrollView>
+      />
     </DragDismissSheet>
   );
 }
 
 function FollowRow({
   entry,
-  kind,
+  followBack,
   isFollowing,
   last,
   onToggle,
   onOpen,
 }: {
   entry: FollowListEntry;
-  kind: FollowListKind;
+  /** Your own Followers list: they follow you, so "Follow Back". */
+  followBack: boolean;
   isFollowing: boolean;
   last: boolean;
   onToggle: () => void;
-  onOpen?: () => void;
+  onOpen: () => void;
 }) {
   const colors = useThemeColors();
-  const name = `${entry.first_name} ${entry.last_name}`.trim();
-  const initials = `${entry.first_name[0] ?? ''}${entry.last_name[0] ?? ''}`.toUpperCase();
-  const subtitle = [entry.year_classification, ...entry.majors].filter(Boolean).join(' · ');
+  const isOrg = entry.kind === 'org';
+  const name = isOrg ? entry.name : `${entry.first_name} ${entry.last_name}`.trim();
+  const initials = isOrg
+    ? (entry.name[0] ?? '').toUpperCase()
+    : `${entry.first_name[0] ?? ''}${entry.last_name[0] ?? ''}`.toUpperCase();
+  const subtitle = isOrg
+    ? entry.category
+    : [entry.year_classification, ...entry.majors].filter(Boolean).join(' · ');
+  const isSelf = !isOrg && entry.is_self;
 
   return (
     <View
@@ -241,9 +288,8 @@ function FollowRow({
       }`}
     >
       <Pressable
-        accessibilityRole={onOpen ? 'button' : undefined}
-        accessibilityLabel={onOpen ? `Open ${name}'s profile` : name}
-        disabled={!onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={isOrg ? `Open ${name}` : `Open ${name}'s profile`}
         onPress={onOpen}
         className="flex-1 flex-row items-center gap-[9px] pr-[10px]"
         style={{ minHeight: AVATAR }}
@@ -252,7 +298,12 @@ function FollowRow({
           className="items-center justify-center overflow-hidden rounded-full bg-lhlPlaceholderGrey"
           style={{ width: AVATAR, height: AVATAR }}
         >
-          {hasAvatar(entry) ? (
+          {isOrg && entry.profile_picture ? (
+            <Image
+              source={{ uri: entry.profile_picture }}
+              style={{ width: AVATAR, height: AVATAR }}
+            />
+          ) : !isOrg && hasAvatar(entry) ? (
             <AvatarDisplay user={entry} size={AVATAR} />
           ) : (
             <Text className="font-roboto-bold text-[16px] text-lhlSecondaryTextGrey">
@@ -261,12 +312,17 @@ function FollowRow({
           )}
         </View>
         <View className="flex-1">
-          <Text
-            numberOfLines={1}
-            className="font-roboto-semibold text-[12px] leading-[19px] text-lhlInk"
-          >
-            {name}
-          </Text>
+          <View className="flex-row items-center gap-[4px]">
+            <Text
+              numberOfLines={1}
+              className="font-roboto-semibold shrink text-[12px] leading-[19px] text-lhlInk"
+            >
+              {name}
+            </Text>
+            {isOrg && entry.verified ? (
+              <VerifiedIcon width={12} height={12} accessibilityLabel="Verified organization" />
+            ) : null}
+          </View>
           {subtitle ? (
             <Text numberOfLines={1} className="font-roboto text-[12px] leading-[19px] text-lhlInk">
               {subtitle}
@@ -275,29 +331,33 @@ function FollowRow({
         </View>
       </Pressable>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={isFollowing ? `Unfollow ${name}` : `Follow ${name}`}
-        accessibilityState={{ selected: isFollowing }}
-        onPress={onToggle}
-        hitSlop={hitSlopFor(ROW_BUTTON_HEIGHT)}
-        // Following: the tinted brand pill with a tick. Not following: the
-        // outlined neutral pill -- "Follow Back" on your followers list, where
-        // the relationship is already half there, plain "Follow" otherwise.
-        className={`flex-row items-center justify-center gap-[6px] rounded-[8px] px-[8px] ${
-          isFollowing ? 'bg-lhlBrandSoft' : 'border border-lhlDivider bg-lhlSurface'
-        }`}
-        style={{ height: ROW_BUTTON_HEIGHT, minWidth: ROW_BUTTON_WIDTH }}
-      >
-        {isFollowing ? <SegmentCheckIcon width={14} height={14} color={colors.accent} /> : null}
-        <Text
-          className={`font-roboto-semibold text-[12px] ${
-            isFollowing ? 'text-lhlAccent' : 'text-lhlSecondaryTextGrey'
+      {/* No button on your own row: following yourself isn't a thing. */}
+      {isSelf ? null : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isFollowing ? `Unfollow ${name}` : `Follow ${name}`}
+          accessibilityState={{ selected: isFollowing }}
+          onPress={onToggle}
+          hitSlop={hitSlopFor(ROW_BUTTON_HEIGHT)}
+          // Following: the tinted brand pill with a tick. Not following: the
+          // outlined neutral pill -- "Follow Back" on YOUR Followers list,
+          // where they already follow you, plain "Follow" everywhere else
+          // (on someone else's list they follow that person, not you).
+          className={`flex-row items-center justify-center gap-[6px] rounded-[8px] px-[8px] ${
+            isFollowing ? 'bg-lhlBrandSoft' : 'border border-lhlDivider bg-lhlSurface'
           }`}
+          style={{ height: ROW_BUTTON_HEIGHT, minWidth: ROW_BUTTON_WIDTH }}
         >
-          {isFollowing ? 'Following' : kind === 'followers' ? 'Follow Back' : 'Follow'}
-        </Text>
-      </Pressable>
+          {isFollowing ? <SegmentCheckIcon width={14} height={14} color={colors.accent} /> : null}
+          <Text
+            className={`font-roboto-semibold text-[12px] ${
+              isFollowing ? 'text-lhlAccent' : 'text-lhlSecondaryTextGrey'
+            }`}
+          >
+            {isFollowing ? 'Following' : followBack && !isOrg ? 'Follow Back' : 'Follow'}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }

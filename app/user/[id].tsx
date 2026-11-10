@@ -20,9 +20,9 @@
 //     tabs are private -- showing a visitor what you saved turns a bookmark
 //     into a public statement -- so a visitor gets the one collection that was
 //     already public, split by time. See shared/profileEventFilters.ts.
-//   * Followers / Following are NOT tappable here. Who may see another
-//     person's follower list is an open product call on LOOP-307, so the
-//     counts stay plain text until it is settled.
+//   * Followers / Following open the same list sheet as your own profile
+//     (LOOP-307). Any signed-in user may see anyone's lists, the Instagram
+//     rule for a public account; the server drops blocked people from them.
 //   * The bio's "+ Add a bio" prompt and the interests "+" are gone, not
 //     disabled. An affordance that appears and then refuses is worse than no
 //     affordance.
@@ -46,6 +46,7 @@ import type { ApiEvent } from '@/app/components/EventCard';
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
 import { BlockButton, FollowButton } from '@/app/components/profile/FollowControl';
+import FollowListSheet from '@/app/components/profile/FollowListSheet';
 import InterestChips from '@/app/components/profile/InterestChips';
 import OutlinedButton from '@/app/components/profile/OutlinedButton';
 import ProfileBio from '@/app/components/profile/ProfileBio';
@@ -60,6 +61,7 @@ import ProfileTabRow from '@/app/components/profile/ProfileTabRow';
 import PublicProfileTopBar from '@/app/components/profile/PublicProfileTopBar';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
+import type { FollowListKind } from '@/app/lib/followList';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -117,6 +119,7 @@ export default function PublicUserProfileScreen() {
 
   const [tab, setTab] = useState<PublicProfileTab>('upcoming');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [followSheet, setFollowSheet] = useState<FollowListKind | null>(null);
 
   const enabled = !!token && Number.isFinite(userId);
 
@@ -304,6 +307,8 @@ export default function PublicUserProfileScreen() {
             events={counts ? counts.upcoming + counts.past : undefined}
             followers={profile?.follower_count ?? 0}
             following={profile?.following_count ?? 0}
+            onPressFollowers={() => setFollowSheet('followers')}
+            onPressFollowing={() => setFollowSheet('following')}
           />
 
           {/* Follow, then the linked-social squares, then Block -- the row the
@@ -398,6 +403,18 @@ export default function PublicUserProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      {profile ? (
+        <FollowListSheet
+          visible={followSheet !== null}
+          onClose={() => setFollowSheet(null)}
+          subject={{ type: 'user', id: profile.id }}
+          initialKind={followSheet ?? 'followers'}
+          followerCount={profile.follower_count}
+          followingCount={profile.following_count}
+          token={token}
+        />
+      ) : null}
 
       <OpenLinkModal {...openLink.modalProps} />
     </View>

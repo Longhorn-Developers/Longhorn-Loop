@@ -47,10 +47,11 @@ export const user = {
   publicEvents: (id: number | string, tab: string) => [...user.publicEventsAll(id), tab] as const,
   // Who follows a user / who they follow (LOOP-312 sheet, LOOP-307 endpoint).
   // Hung off `user.all` so a follow or unfollow anywhere -- which already
-  // invalidates user queries for the counts -- refreshes the lists too.
+  // invalidates user queries for the counts -- refreshes the lists too. The
+  // debounced search is part of the key: each query is its own paged list.
   followListAll: (id: number | string) => [...user.all, 'follow-list', String(id)] as const,
-  followList: (id: number | string, kind: 'followers' | 'following') =>
-    [...user.followListAll(id), kind] as const,
+  followList: (id: number | string, kind: 'followers' | 'following', q = '') =>
+    [...user.followListAll(id), kind, q] as const,
 };
 
 // User settings (/settings). One row per user; `mine` is the whole thing.
@@ -109,6 +110,10 @@ export const org = {
   forYou: () => [...org.all, 'for-you'] as const,
   publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
+  // Who follows an org (LOOP-307). followersAll() is the prefix to drop after a
+  // follow changes it; the debounced search is part of the key.
+  followersAll: (id: number | string) => [...org.all, 'followers', String(id)] as const,
+  followers: (id: number | string, q = '') => [...org.followersAll(id), q] as const,
   // "Find your organization" on the registration form (LOOP-141). The
   // DEBOUNCED query is part of the key, so each settled query caches on its
   // own and backspacing to a previous one is instant instead of a refetch.
