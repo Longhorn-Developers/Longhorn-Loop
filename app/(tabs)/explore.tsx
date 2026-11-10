@@ -712,6 +712,7 @@ export default function ExploreScreen() {
         onSelect={handleSelect}
         activeCount={orgMode ? orgFilterCount : activeFilterCount(filters)}
         onOpenFilters={openFilters}
+        filtersOpen={filtersOpen}
       />
 
       <View
