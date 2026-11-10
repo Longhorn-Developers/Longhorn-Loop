@@ -114,6 +114,9 @@ export const org = {
   // follow changes it; the debounced search is part of the key.
   followersAll: (id: number | string) => [...org.all, 'followers', String(id)] as const,
   followers: (id: number | string, q = '') => [...org.followersAll(id), q] as const,
+  // Meeting times (LOOP-319). Members-only on the server; only ever fetched
+  // for a viewer the profile says is a member.
+  meetings: (id: number | string) => [...org.all, 'meetings', String(id)] as const,
   // "Find your organization" on the registration form (LOOP-141). The
   // DEBOUNCED query is part of the key, so each settled query caches on its
   // own and backspacing to a previous one is instant instead of a refetch.

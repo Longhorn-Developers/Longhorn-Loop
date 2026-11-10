@@ -90,6 +90,19 @@ export default function SettingsDrawer({
   }, [open, panelWidth, x]);
 
   const pan = Gesture.Pan()
+    // WHERE THE PAN MAY START, not just which starts it acts on. While the
+    // drawer is closed only the right-edge strip can begin a drag; open, the
+    // whole surface can (to push the panel back).
+    //
+    // onBegin below used to be the only filter, and it runs AFTER the pan has
+    // claimed the touch: any horizontal drag anywhere activated this gesture,
+    // which then ignored it -- but the touch was already taken. On a pushed
+    // screen that swallowed iOS's left-edge swipe-back, so the org landing
+    // page (which wraps itself in this drawer for its notification sheet,
+    // LOOP-319) was the one stack screen you couldn't swipe away. Limiting
+    // the hit area hands every other touch, left edge included, to whatever
+    // sits underneath.
+    .hitSlop(open ? {} : { right: 0, width: EDGE_WIDTH })
     .activeOffsetX([-DRAG_SLOP, DRAG_SLOP])
     .failOffsetY([-20, 20])
     .onBegin((e) => {
