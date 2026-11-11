@@ -49,6 +49,8 @@ export interface ThemeColors {
   info: string;
   /** Modal scrim, already carrying its alpha. */
   scrim: string;
+  /** The band behind the avatar at the top of a profile (LOOP-312). Fill only. */
+  cover: string;
 }
 
 export const LIGHT_COLORS: ThemeColors = {
@@ -71,6 +73,7 @@ export const LIGHT_COLORS: ThemeColors = {
   destructiveSoft: '#FCE4E4',
   info: '#2591D4',
   scrim: 'rgba(9, 9, 11, 0.5)',
+  cover: '#F1B387',
 };
 
 export const DARK_COLORS: ThemeColors = {
@@ -99,6 +102,7 @@ export const DARK_COLORS: ThemeColors = {
   // Heavier in dark: a 50% scrim over an already-dark page doesn't separate
   // the modal from what's behind it.
   scrim: 'rgba(0, 0, 0, 0.7)',
+  cover: '#5C361C',
 };
 
 /**

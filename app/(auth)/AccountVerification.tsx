@@ -2,7 +2,8 @@ import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { UT_EMAIL_ERROR } from '@/shared/utEmail';
 import { RESEND_COOLDOWN_MS } from '@/shared/verificationCode';
@@ -53,7 +54,7 @@ export default function AccountVerification() {
   });
   const cooldownUntil = cooldown.until;
   const cooldownSec = Math.max(0, Math.ceil((cooldownUntil - cooldown.now) / 1000));
-  const codeInput = useRef<TextInput>(null);
+  const codeInput = useRef<TextInputInstance>(null);
   const hasSentInitialCode = useRef(params.sent === '1');
 
   const allFilled = code.every((digit) => digit !== '');

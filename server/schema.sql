@@ -285,6 +285,25 @@ CREATE TABLE IF NOT EXISTS org_follows (
   CHECK (org_id <> followed_org_id)
 );
 
+-- An org's regular meeting times (LOOP-319, migration 0021). Visible only to
+-- the org's members; the server withholds them from everyone else. Weekly
+-- recurring only, Austin wall-clock "HH:MM". See shared/orgMeetings.ts.
+CREATE TABLE IF NOT EXISTS org_meetings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  -- 0 = Sunday ... 6 = Saturday
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  start_time TEXT NOT NULL,
+  end_time TEXT,
+  location TEXT NOT NULL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_meetings_org ON org_meetings(org_id, day_of_week, start_time);
+
 -- Per-org notification toggles (Figma Frame 470). One row per org; defaults
 -- match the design's on-by-default state.
 CREATE TABLE IF NOT EXISTS org_notification_settings (

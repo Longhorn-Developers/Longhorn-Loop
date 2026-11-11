@@ -81,6 +81,14 @@ class FakeD1Database {
     return new FakeD1Statement(this, sql);
   }
 
+  // Real D1 has batch(); writeEventTags uses it (LOOP-309). Sequential here --
+  // these tests check what was written, not rollback.
+  async batch(statements: FakeD1Statement[]): Promise<unknown[]> {
+    const out: unknown[] = [];
+    for (const s of statements) out.push(await s.run());
+    return out;
+  }
+
   first(sql: string, params: unknown[]): Record<string, unknown> | null {
     if (sql.includes('FROM users WHERE email = ?')) {
       return this.users.find((user) => user.email === params[0]) ?? null;
@@ -312,6 +320,46 @@ describe('POST /events/create', () => {
       { id: 'board-games-and-tabletop', name: 'Board Games & Tabletop' },
     ]);
     expect(db.events).toHaveLength(1);
+  });
+
+  // LOOP-282: the tester's link only "registered" once they typed https://.
+  it('adds https:// to a scheme-less RSVP link instead of rejecting it', async () => {
+    const db = new FakeD1Database();
+    const token = await signJwt(USER_EMAIL);
+
+    const res = await postCreate(
+      makeEnv(db),
+      {
+        title: 'MHA in Concert',
+        start_datetime: '2026-07-07T19:00:00-05:00',
+        rsvp_url: 'texasperformingarts.evenue.net',
+      },
+      token,
+    );
+
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { event: EventRow };
+    expect(json.event.rsvp_url).toBe('https://texasperformingarts.evenue.net/');
+  });
+
+  it('rejects an RSVP link that is not a web address', async () => {
+    const db = new FakeD1Database();
+    const token = await signJwt(USER_EMAIL);
+
+    const res = await postCreate(
+      makeEnv(db),
+      {
+        title: 'MHA in Concert',
+        start_datetime: '2026-07-07T19:00:00-05:00',
+        rsvp_url: 'mailto:tickets@utexas.edu',
+      },
+      token,
+    );
+
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { fields: Record<string, string> };
+    expect(json.fields.rsvp_url).toBe('Use a web link (https://…)');
+    expect(db.events).toHaveLength(0);
   });
 
   it('writes hand-picked taxonomy tags to event_tags with source user', async () => {

@@ -78,7 +78,7 @@ function OptionRow({
           {subtitle}
         </Text>
       </View>
-      <CaretRightIcon size={18} color={colors.inkMuted} />
+      <CaretRightIcon size={18} color={colors.ink} />
     </Pressable>
   );
 }
@@ -230,7 +230,7 @@ export default function AddProfilePicture() {
             </View>
           ) : (
             <View className="h-full w-full items-center justify-center bg-lhlPlaceholderGrey">
-              <ImageIcon size={40} color={colors.inkMuted} />
+              <ImageIcon size={40} color={colors.ink} />
             </View>
           )}
         </View>

@@ -1,5 +1,5 @@
 import { useThemeColors } from '@/app/lib/themeColors';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -81,6 +81,8 @@ type Props = {
   /** Active filter groups for whichever sheet the button opens. */
   activeCount: number;
   onOpenFilters: () => void;
+  /** Whether that sheet is open, so the button stays lit while it is. */
+  filtersOpen: boolean;
 };
 
 type Entry = { key: string; label: string; selection: ExploreSelection };
@@ -91,9 +93,21 @@ const ENTRIES: Entry[] = [
   { key: 'orgs', label: 'Orgs', selection: { kind: 'orgs' } },
 ];
 
-export default function ExploreToggles({ selection, onSelect, activeCount, onOpenFilters }: Props) {
+export default function ExploreToggles({
+  selection,
+  onSelect,
+  activeCount,
+  onOpenFilters,
+  filtersOpen,
+}: Props) {
   const colors = useThemeColors();
   const activeKey = selectionKey(selection);
+  const [filtersPressed, setFiltersPressed] = useState(false);
+
+  const applied = activeCount > 0;
+  const engaged = filtersPressed || filtersOpen;
+  // Same foreground as a selected chip when solid; accent text on the tint.
+  const filtersFg = applied ? colors.surface : engaged ? colors.accent : colors.inkSecondary;
 
   return (
     <View>
@@ -111,10 +125,23 @@ export default function ExploreToggles({ selection, onSelect, activeCount, onOpe
         {/* Filters. On the org destinations this opens the org sheet rather
             than the event one — an org has no start time, no perks and no
             taxonomy bucket, so the event sheet would offer four controls that
-            do nothing there (LOOP-293). */}
+            do nothing there (LOOP-293).
+
+            THREE LOOKS, so a tap visibly lands. It used to have two -- plain,
+            and a light-orange tint once a filter was applied -- so tapping it
+            looked like nothing happened until a filter was chosen:
+              idle                plain outline
+              pressed / sheet open light orange (brandSoft), orange outline
+              filters applied     solid orange, like a selected chip, with
+                                  the count badge inverted
+            Pressed state is tracked in React state, not a ({ pressed }) style
+            function: NativeWind's jsx runtime drops function-valued styles. */}
         <Pressable
           onPress={onOpenFilters}
+          onPressIn={() => setFiltersPressed(true)}
+          onPressOut={() => setFiltersPressed(false)}
           accessibilityRole="button"
+          accessibilityState={{ expanded: filtersOpen }}
           accessibilityLabel={
             activeCount === 0
               ? 'Filters'
@@ -128,21 +155,24 @@ export default function ExploreToggles({ selection, onSelect, activeCount, onOpe
             paddingVertical: 7,
             borderRadius: 999,
             borderWidth: 1,
-            borderColor: activeCount > 0 ? colors.brand : colors.border,
-            backgroundColor: activeCount > 0 ? colors.brandSoft : 'transparent',
+            borderColor: applied || engaged ? colors.brand : colors.border,
+            backgroundColor: applied ? colors.brand : engaged ? colors.brandSoft : 'transparent',
+            // Already solid orange when applied, so dim slightly on press
+            // instead -- the tap still shows.
+            opacity: applied && filtersPressed ? 0.85 : 1,
           }}
         >
-          <SliderGlyph color={activeCount > 0 ? colors.accent : colors.inkSecondary} />
+          <SliderGlyph color={filtersFg} />
           <Text
             style={{
               fontSize: 13,
               fontWeight: '700',
-              color: activeCount > 0 ? colors.accent : colors.inkSecondary,
+              color: filtersFg,
             }}
           >
             Filters
           </Text>
-          {activeCount > 0 ? (
+          {applied ? (
             <View
               style={{
                 minWidth: 18,
@@ -151,10 +181,12 @@ export default function ExploreToggles({ selection, onSelect, activeCount, onOpe
                 borderRadius: 999,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: colors.brand,
+                // Inverted on the solid button: a surface-coloured pill with
+                // the count in brand, instead of orange-on-orange.
+                backgroundColor: colors.surface,
               }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent }}>
                 {activeCount}
               </Text>
             </View>

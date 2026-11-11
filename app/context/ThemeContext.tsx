@@ -33,7 +33,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { colorScheme } from 'nativewind';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 
 interface ThemeContextValue {
   /** What is actually on screen right now, OS included. */
@@ -59,14 +59,26 @@ const ThemeContext = createContext<ThemeContextValue>({
  * preference must not be able to brick startup if that config is ever changed
  * back or a NativeWind upgrade shifts the rules.
  *
- * Always given the RESOLVED scheme, never 'system'. NativeWind can follow the
- * OS itself, but then two things would be deciding what dark means — this
- * context and NativeWind — and any disagreement shows up as `dark:` classes
- * fighting the colours from useThemeColors on the same screen.
+ * ON NATIVE, SYSTEM MUST BE PASSED THROUGH AS 'system'. NativeWind's set()
+ * is not a NativeWind-only switch there: it calls RN's
+ * Appearance.setColorScheme(), an APP-WIDE OVERRIDE that useColorScheme() then
+ * reports back as if it were the OS. This used to always pass the resolved
+ * scheme, so picking Light pinned Appearance to 'light'; switching back to
+ * System then read that pin from useColorScheme(), resolved it to light, and
+ * re-applied light -- System never let go of the last manual choice, and a
+ * dark phone stayed light. set('system') clears the override ('unspecified' on
+ * RN >= 0.82), after which useColorScheme() is the real OS again and both this
+ * context and NativeWind read the same source, so they still cannot disagree.
+ *
+ * On WEB the resolved scheme is still right. NativeWind never touches
+ * Appearance there, so useColorScheme() was never polluted; and its web
+ * set('system') just drops the `dark` class, which with darkMode 'class' would
+ * mean always-light.
  */
-function applyColorScheme(dark: boolean): void {
+function applyColorScheme(preference: ThemePreference, dark: boolean): void {
   try {
-    colorScheme.set(dark ? 'dark' : 'light');
+    if (preference === 'system' && Platform.OS !== 'web') colorScheme.set('system');
+    else colorScheme.set(dark ? 'dark' : 'light');
   } catch (err) {
     console.warn('[theme] could not apply color scheme; check darkMode in tailwind.config.js', err);
   }
@@ -134,9 +146,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Keep NativeWind in lockstep, so `dark:` classes and this context can never
   // disagree. Runs on OS changes too, because isDark moves with them.
+  // Keyed on the preference as well as isDark: Light -> System on a light
+  // phone leaves isDark unchanged, but the override still has to be cleared.
   useEffect(() => {
-    applyColorScheme(isDark);
-  }, [isDark]);
+    applyColorScheme(preference, isDark);
+  }, [preference, isDark]);
 
   const setPreference = useCallback((next: ThemePreference) => {
     setStored(next);

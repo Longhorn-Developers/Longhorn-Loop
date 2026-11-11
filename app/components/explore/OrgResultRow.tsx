@@ -97,7 +97,11 @@ export default function OrgResultRow({ org }: Props) {
 
   return (
     <TouchableOpacity
-      onPress={() => router.push(`/org/${org.id}`)}
+      // The PUBLIC landing page, like Home's "Orgs for you" and an event's
+      // "Posted by". This pushed `/org/${id}` -- the members-only management
+      // console -- so everyone who wasn't on the org's team got "You're not a
+      // member of this organization" (LOOP-319).
+      onPress={() => router.push(`/org/${org.id}/profile`)}
       accessibilityRole="button"
       accessibilityLabel={[name, org.verified ? 'verified' : null, ...meta]
         .filter(Boolean)

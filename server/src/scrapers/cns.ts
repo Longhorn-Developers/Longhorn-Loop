@@ -15,14 +15,11 @@ import { classifyAspectRatio, stripHtml } from '../events/normalize';
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { ImageAspectRatio, NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { inferVenueType, localistEventsUrl } from './helpers';
 
-const BASE_URL = 'https://calendar.utexas.edu';
-const API_BASE = `${BASE_URL}/api/2/events`;
 // College of Natural Sciences group id, confirmed against
 // https://calendar.utexas.edu/department/college-of-natural-sciences
 const GROUP_ID = 47748555362368;
-const PER_PAGE = 100;
 const DAYS_AHEAD = 365;
 export const SOURCE = 'cns';
 const DEFAULT_ORG_NAME = 'College of Natural Sciences';
@@ -208,7 +205,7 @@ export function parseEvent(raw: LocalistRawEvent, now = Date.now()): NormalizedE
 }
 
 async function fetchPage(page: number): Promise<LocalistApiResponse> {
-  const url = `${API_BASE}?group_id=${GROUP_ID}&days=${DAYS_AHEAD}&per_page=${PER_PAGE}&page=${page}`;
+  const url = localistEventsUrl({ groupId: GROUP_ID, days: DAYS_AHEAD, page });
   const res = await fetchWithRetry(url);
   return res.json() as Promise<LocalistApiResponse>;
 }

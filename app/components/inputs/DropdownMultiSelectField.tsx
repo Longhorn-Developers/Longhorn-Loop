@@ -1,4 +1,5 @@
 import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
@@ -25,6 +26,7 @@ export default function DropdownMultiSelectField({
   onToggle,
   borderRadius = 4,
 }: DropdownMultiSelectFieldProps) {
+  const colors = useThemeColors();
   const borderColorClass = isOpen ? 'border-lhlBurntOrange' : 'border-lhlBorderColor';
 
   const handleSelect = (option: string) => {
@@ -90,7 +92,8 @@ export default function DropdownMultiSelectField({
         </Text>
 
         <View className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-          <LhlCaretDownIcon color="#000" />
+          {/* ink, not '#000': black vanished on the dark-mode page. */}
+          <LhlCaretDownIcon color={colors.ink} />
         </View>
       </Pressable>
 
@@ -119,7 +122,7 @@ export default function DropdownMultiSelectField({
                 {/* Custom Checkbox UI */}
                 <View
                   className={`w-4 h-4 border rounded sm items-center justify-center ${
-                    isSelected ? 'bg-lhlBurntOrange border-lhlBurntOrange' : 'border-black'
+                    isSelected ? 'bg-lhlBurntOrange border-lhlBurntOrange' : 'border-lhlInk'
                   }`}
                 >
                   {isSelected && (

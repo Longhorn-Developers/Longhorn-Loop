@@ -1,13 +1,14 @@
 import { useThemeColors } from '@/app/lib/themeColors';
 import React, { useState } from 'react';
 import { Platform, Text, TextInput, View } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 
 interface OtpInputProps {
   /** One entry per box; its length is the code length. */
   code: string[];
   error: boolean;
   /** The single real input — focus it to put the keypad up. */
-  inputRef: React.RefObject<TextInput | null>;
+  inputRef: React.RefObject<TextInputInstance | null>;
   onChangeCode: (code: string[]) => void;
 }
 

@@ -97,6 +97,14 @@ class SqliteD1 {
   prepare(sql: string): SqliteD1Statement {
     return new SqliteD1Statement(this.db, sql);
   }
+
+  // Real D1 has batch(); writeEventTags uses it (LOOP-309). Sequential here --
+  // these tests check what was written, not rollback.
+  async batch(statements: SqliteD1Statement[]): Promise<unknown[]> {
+    const out: unknown[] = [];
+    for (const s of statements) out.push(await s.run());
+    return out;
+  }
 }
 
 async function signJwt(email: string): Promise<string> {
@@ -323,8 +331,9 @@ describeOrSkip('PATCH /events/:id (LOOP-136)', () => {
     });
 
     it('never nulls a column the overlay does not know about', async () => {
-      // The overlay has no image or RSVP-link field. A patch built by naively
-      // spreading the form over every column would blank both.
+      // The overlay has no image field, and sends rsvp_url only when it moved
+      // (LOOP-282). A patch built by naively spreading the form over every
+      // column would blank both.
       await patch(ORG_EVENT, { title: 'Renamed', description: 'New blurb.' }, ADMIN);
 
       const after = row(ORG_EVENT);
@@ -352,6 +361,38 @@ describeOrSkip('PATCH /events/:id (LOOP-136)', () => {
       // "" is a deliberate clear, which is exactly what an omitted key is not.
       await patch(ORG_EVENT, { description: '' }, ADMIN);
       expect(row(ORG_EVENT).description).toBeNull();
+    });
+
+    // LOOP-282: a tester published a ticketed event with a wrong RSVP link and
+    // had no way to correct it.
+    it('updates the RSVP link, adding https:// to a scheme-less host', async () => {
+      const res = await patch(ORG_EVENT, { rsvp_url: 'texasperformingarts.evenue.net/mha' }, ADMIN);
+
+      expect(res.status).toBe(200);
+      expect(row(ORG_EVENT).rsvp_url).toBe('https://texasperformingarts.evenue.net/mha');
+    });
+
+    it('lets the creator of a personal event set an RSVP link', async () => {
+      const res = await patch(PERSONAL_EVENT, { rsvpUrl: 'https://rsvp.test/jam' }, CREATOR);
+
+      expect(res.status).toBe(200);
+      expect(row(PERSONAL_EVENT).rsvp_url).toBe('https://rsvp.test/jam');
+    });
+
+    it('clears the RSVP link when it is explicitly emptied', async () => {
+      await patch(ORG_EVENT, { rsvp_url: '' }, ADMIN);
+      expect(row(ORG_EVENT).rsvp_url).toBeNull();
+    });
+
+    it('rejects an RSVP link that is not a web address, leaving the old one', async () => {
+      for (const bad of ['mailto:events@utexas.edu', 'RSVP at the door', 'rsvp']) {
+        const res = await patch(ORG_EVENT, { rsvp_url: bad }, ADMIN);
+        expect(res.status).toBe(400);
+        const body = (await res.json()) as { error: string; fields: Record<string, string> };
+        expect(body.error).toBe('VALIDATION_ERROR');
+        expect(body.fields.rsvp_url).toBeTruthy();
+      }
+      expect(row(ORG_EVENT).rsvp_url).toBe('https://rsvp.test/x');
     });
 
     it('accepts an empty body as a no-op rather than an error', async () => {

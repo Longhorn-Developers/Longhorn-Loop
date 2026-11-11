@@ -1,35 +1,35 @@
-// Public user profile — somebody else's (LOOP-180).
+// Public user profile -- somebody else's (LOOP-180, redesigned in LOOP-312).
 //
-// Figma: "Profile Main" frame, public user profile ("Not Todd Jenkins"),
-// reviewed 2026-06-08.
-//
-// Layout, top to bottom, mirroring app/(tabs)/profile.tsx line for line so the
-// two read as one screen in two states:
-//   back arrow + notification bell
-//   centred avatar, name, "N followers · N following"
-//   Follow button (+ Block on its menu) + linked-social icon row
+// Figma: "Profile - Public User View" V4. The same shell as your own profile
+// (app/(tabs)/profile.tsx) so the two read as one screen in two states:
+//   cover band with Back, avatar across its bottom edge
+//   name, year · majors, Events / Followers / Following counts
+//   Follow + linked-social squares + Block
 //   bio, read-only
-//   metadata rows — academic, background
-//   Interests — chips with NO "+"
-//   "<First> Events" with an Upcoming / Past toggle over a read-only grid
+//   interest chips, no "+"
+//   Upcoming / Past tab row over a read-only grid
 //
-// SCOPE — what makes this the read-only variant, and why each piece differs:
+// SCOPE -- what makes this the read-only variant, and why each piece differs:
 //
-//   * Edit Profile becomes Follow + Block. components/profile/FollowControl.
+//   * Edit Profile becomes Follow, and Block gets its own pill at the end of
+//     the row. components/profile/FollowControl explains why Block left the
+//     "..." menu and how it stays two deliberate taps away.
+//   * No settings gear. The frame draws one, but LOOP-312 says outright that
+//     the public view has none: there is nothing of yours to configure here.
 //   * Going / Saved / Posted becomes Upcoming / Past. The first two of those
-//     tabs are private — showing a visitor what you saved turns a bookmark
-//     into a public statement — so a visitor gets the one collection that was
+//     tabs are private -- showing a visitor what you saved turns a bookmark
+//     into a public statement -- so a visitor gets the one collection that was
 //     already public, split by time. See shared/profileEventFilters.ts.
+//   * Followers / Following open the same list sheet as your own profile
+//     (LOOP-307). Any signed-in user may see anyone's lists, the Instagram
+//     rule for a public account; the server drops blocked people from them.
 //   * The bio's "+ Add a bio" prompt and the interests "+" are gone, not
 //     disabled. An affordance that appears and then refuses is worse than no
-//     affordance; ProfileBio already handles this via its `editable` prop,
-//     which defaults false.
-//   * The event cards carry no bookmark button. Saving somebody else's event
-//     is a real thing you might want to do, but the frame draws a plain grid
-//     and ProfileEventCard hides the control when no handler is passed.
-//   * There is no search field, no category chips and no date sort. The frame
-//     shows none of them on a public profile, and the endpoint behind this
-//     screen deliberately doesn't implement them.
+//     affordance.
+//   * The event cards carry no bookmark button, and there is no search field,
+//     no category chips and no date sort: the frame shows none of them on a
+//     public profile, and the endpoint behind this screen doesn't implement
+//     them.
 //
 // This screen lives at /user/[id] rather than /profile/[id] because
 // app/profile/ already holds `edit` and `past`. Expo Router matches a literal
@@ -45,20 +45,33 @@
 import type { ApiEvent } from '@/app/components/EventCard';
 import OpenLinkModal, { useOpenLinkGuard } from '@/app/components/modals/OpenLinkModal';
 import { AvatarDisplay } from '@/app/components/profile/AvatarDisplay';
-import FollowControl from '@/app/components/profile/FollowControl';
+import { BlockButton, FollowButton } from '@/app/components/profile/FollowControl';
+import FollowListSheet from '@/app/components/profile/FollowListSheet';
+import InterestChips from '@/app/components/profile/InterestChips';
+import OutlinedButton from '@/app/components/profile/OutlinedButton';
 import ProfileBio from '@/app/components/profile/ProfileBio';
+import ProfileCounts from '@/app/components/profile/ProfileCounts';
+import ProfileCover, {
+  CoverIconButton,
+  PROFILE_AVATAR_SIZE,
+} from '@/app/components/profile/ProfileCover';
+import ProfileEmptyState from '@/app/components/profile/ProfileEmptyState';
 import ProfileEventCard from '@/app/components/profile/ProfileEventCard';
-import ProfileMetaRow from '@/app/components/profile/ProfileMetaRow';
+import ProfileTabRow from '@/app/components/profile/ProfileTabRow';
 import PublicProfileTopBar from '@/app/components/profile/PublicProfileTopBar';
-import UpcomingPastToggle from '@/app/components/profile/UpcomingPastToggle';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { ApiError, api } from '@/app/lib/api';
+import type { FollowListKind } from '@/app/lib/followList';
 import { user as userKeys } from '@/app/lib/queryKeys';
 import { getSocialPlatformUI, type LinkedSocial } from '@/app/lib/socialPlatforms';
 import { useThemeColors } from '@/app/lib/themeColors';
-import { GlobeIcon, GraduationCapIcon } from '@/assets/icons/LhlProfileMetaIcons';
+import ArrowLeftIcon from '@/assets/images/arrow-left.svg';
 import type { AvatarConfig } from '@/shared/avatar';
-import type { PublicProfileTab } from '@/shared/profileEventFilters';
+import {
+  PUBLIC_PROFILE_TABS,
+  PUBLIC_PROFILE_TAB_LABELS,
+  type PublicProfileTab,
+} from '@/shared/profileEventFilters';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -106,6 +119,7 @@ export default function PublicUserProfileScreen() {
 
   const [tab, setTab] = useState<PublicProfileTab>('upcoming');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [followSheet, setFollowSheet] = useState<FollowListKind | null>(null);
 
   const enabled = !!token && Number.isFinite(userId);
 
@@ -129,6 +143,16 @@ export default function PublicUserProfileScreen() {
     // going to 404 too, and firing it anyway just doubles the failed requests.
     enabled: enabled && !!profile && !isSelf,
   });
+
+  // Last counts seen, so switching Upcoming <-> Past doesn't blank the tab
+  // numbers and the Events count while the other tab loads. Same reasoning as
+  // the owner's profile.
+  // Adjusted during render rather than in an effect: React's documented
+  // pattern for state that follows a prop, and it avoids a second render with
+  // the stale value.
+  const latestCounts = eventsQuery.data?.counts;
+  const [counts, setCounts] = useState<Record<PublicProfileTab, number> | undefined>(latestCounts);
+  if (latestCounts && latestCounts !== counts) setCounts(latestCounts);
 
   const follow = useMutation({
     mutationFn: (next: boolean) =>
@@ -224,150 +248,175 @@ export default function PublicUserProfileScreen() {
   }
 
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '';
+  const academicLine = profile
+    ? [profile.year_classification, ...(profile.majors ?? [])].filter(Boolean).join(' · ')
+    : '';
   const events = eventsQuery.data?.events ?? [];
+  const pending = follow.isPending || block.isPending;
 
-  return (
-    <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
-      <PublicProfileTopBar />
-
-      {profileQuery.isLoading ? (
+  if (profileQuery.isLoading) {
+    // The plain top bar while loading, so Back works before there is a cover
+    // to put it on.
+    return (
+      <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['top']}>
+        <PublicProfileTopBar />
         <View className="flex-1 items-center justify-center bg-lhlBackgroundColor">
           <ActivityIndicator color={colors.brand} />
         </View>
-      ) : (
-        <ScrollView
-          className="flex-1 bg-lhlBackgroundColor"
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
-          {/* --- Header --- */}
-          <View className="items-center px-[20px]">
-            <View className="h-[92px] w-[92px] overflow-hidden rounded-full bg-lhlPlaceholderGrey">
-              {profile ? <AvatarDisplay user={profile} size={92} /> : null}
-            </View>
+      </SafeAreaView>
+    );
+  }
 
+  return (
+    // No top SafeAreaView edge: the cover runs under the status bar and
+    // ProfileCover does its own inset maths.
+    <View className="flex-1 bg-lhlBackgroundColor">
+      <ScrollView
+        className="flex-1 bg-lhlBackgroundColor"
+        // The frame adds 32 under the content stack on public and org views.
+        contentContainerStyle={{ paddingBottom: 64 }}
+      >
+        <ProfileCover
+          avatar={profile ? <AvatarDisplay user={profile} size={PROFILE_AVATAR_SIZE} /> : null}
+          left={
+            <CoverIconButton accessibilityLabel="Back" onPress={() => router.back()}>
+              <ArrowLeftIcon width={18} height={18} color={colors.ink} />
+            </CoverIconButton>
+          }
+        />
+
+        {/* --- Identity block (297 tall in the frame; width 289) --- */}
+        <View className="w-[289px] max-w-full items-center self-center">
+          <Text
+            numberOfLines={1}
+            className="font-roboto-bold mt-[8px] text-[20px] leading-[23px] text-lhlInk"
+          >
+            {fullName || 'Profile'}
+          </Text>
+
+          {academicLine ? (
             <Text
               numberOfLines={1}
-              className="font-['Roboto-Flex'] mt-[10px] text-[20px] font-bold text-lhlInk"
+              className="font-roboto-medium mt-[8px] text-[12px] leading-[14px] text-lhlSecondaryTextGrey"
             >
-              {fullName || 'Profile'}
+              {academicLine}
             </Text>
-
-            <Text className="font-['Roboto-Flex'] mt-[3px] text-[12px] text-lhlSecondaryTextGrey">
-              <Text className="font-semibold text-lhlInk">{profile?.follower_count ?? 0}</Text>{' '}
-              followers ·{' '}
-              <Text className="font-semibold text-lhlInk">{profile?.following_count ?? 0}</Text>{' '}
-              following
-            </Text>
-
-            {/* Follow + Block, then the linked-social icons — the same row the
-                owner's profile puts Edit Profile in. */}
-            <View className="mt-[10px] flex-row items-center gap-[8px]">
-              <FollowControl
-                isFollowing={profileQuery.data?.is_following ?? false}
-                pending={follow.isPending || block.isPending}
-                displayName={profile?.first_name}
-                onToggleFollow={() => {
-                  setActionError(null);
-                  follow.mutate(!(profileQuery.data?.is_following ?? false));
-                }}
-                onBlock={() => block.mutate()}
-              />
-
-              {profile?.socials?.map((social) => {
-                const meta = getSocialPlatformUI(social.platform);
-                if (!meta) return null;
-                const Icon = meta.icon;
-                return (
-                  <Pressable
-                    key={social.platform}
-                    accessibilityRole="link"
-                    accessibilityLabel={`Open ${meta.label}`}
-                    // Same Open Link warning the owner's profile uses
-                    // (LOOP-182) — more relevant here, since these are a
-                    // stranger's links.
-                    onPress={() => openLink.request(social.url)}
-                    className="h-[30px] w-[30px] items-center justify-center rounded-[7px] border border-lhlMutedBorder bg-lhlSurface"
-                  >
-                    <Icon size={16} />
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {actionError ? (
-              <Text className="font-['Roboto-Flex'] mt-[8px] text-center text-[12px] text-lhlDestructiveRed">
-                {actionError}
-              </Text>
-            ) : null}
-
-            {/* editable defaults false: no "+ Add a bio" prompt, and the block
-                collapses entirely when they haven't written one. */}
-            <ProfileBio bio={profile?.bio} />
-          </View>
-
-          {/* --- Metadata --- */}
-          <View className="mt-[14px] px-[20px]">
-            <ProfileMetaRow
-              icon={<GraduationCapIcon />}
-              label="Academic"
-              values={[profile?.year_classification, ...(profile?.majors ?? [])]}
-            />
-            <ProfileMetaRow
-              icon={<GlobeIcon />}
-              label="Background"
-              values={profile?.unique_classification ?? []}
-            />
-          </View>
-
-          {/* --- Interests, read-only --- */}
-          {(profile?.tags ?? []).length > 0 ? (
-            <View className="mt-[18px] px-[20px]">
-              <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-                Interests
-              </Text>
-              <View className="mt-[8px] flex-row flex-wrap items-center gap-[7px]">
-                {(profile?.tags ?? []).map((tag) => (
-                  <View
-                    key={tag}
-                    className="rounded-full border border-lhlMutedBorder bg-lhlSurface px-[12px] py-[5px]"
-                  >
-                    <Text className="font-['Roboto-Flex'] text-[11px] text-lhlInk">{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
           ) : null}
 
-          {/* --- "<First> Events" --- */}
-          <View className="mt-[22px] px-[20px]">
-            <Text className="font-['Roboto-Flex'] text-[14px] font-bold text-lhlInk">
-              {profile?.first_name ? `${profile.first_name} Events` : 'Events'}
-            </Text>
+          <ProfileCounts
+            events={counts ? counts.upcoming + counts.past : undefined}
+            followers={profile?.follower_count ?? 0}
+            following={profile?.following_count ?? 0}
+            onPressFollowers={() => setFollowSheet('followers')}
+            onPressFollowing={() => setFollowSheet('following')}
+          />
 
-            <UpcomingPastToggle value={tab} onChange={setTab} counts={eventsQuery.data?.counts} />
+          {/* Follow, then the linked-social squares, then Block -- the row the
+              owner's profile puts Edit Profile in. */}
+          <View className="mt-[10px] flex-row items-center gap-[8px]">
+            <FollowButton
+              isFollowing={profileQuery.data?.is_following ?? false}
+              pending={pending}
+              displayName={profile?.first_name}
+              onToggleFollow={() => {
+                setActionError(null);
+                follow.mutate(!(profileQuery.data?.is_following ?? false));
+              }}
+            />
 
-            {eventsQuery.isLoading ? (
-              <ActivityIndicator className="mt-[24px]" color={colors.brand} />
-            ) : (
-              <View className="mt-[14px] flex-row flex-wrap justify-between">
-                {events.length === 0 ? (
-                  <View className="w-full items-center py-[30px]">
-                    <Text className="font-['Roboto-Flex'] text-center text-[13px] text-lhlSecondaryTextGrey">
-                      {tab === 'upcoming' ? 'No upcoming events.' : 'No past events.'}
-                    </Text>
-                  </View>
-                ) : (
-                  // No onToggleSave: the grid is read-only, so the card draws
-                  // no bookmark overlay.
-                  events.map((event) => <ProfileEventCard key={event.id} event={event} />)
-                )}
-              </View>
-            )}
+            {profile?.socials?.map((social) => {
+              const meta = getSocialPlatformUI(social.platform);
+              if (!meta) return null;
+              const Icon = meta.icon;
+              return (
+                <OutlinedButton
+                  key={social.platform}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${meta.label}`}
+                  // Same Open Link warning the owner's profile uses
+                  // (LOOP-182) -- more relevant here, since these are a
+                  // stranger's links.
+                  onPress={() => openLink.request(social.url)}
+                  borderRadius={8}
+                >
+                  <Icon size={20} color={colors.ink} />
+                </OutlinedButton>
+              );
+            })}
+
+            <BlockButton
+              pending={pending}
+              displayName={profile?.first_name}
+              onBlock={() => block.mutate()}
+            />
           </View>
-        </ScrollView>
-      )}
+
+          {actionError ? (
+            <Text className="font-roboto mt-[8px] text-center text-[12px] text-lhlDestructiveRed">
+              {actionError}
+            </Text>
+          ) : null}
+
+          {/* editable defaults false: no "+ Add a bio" prompt, and the block
+              collapses entirely when they haven't written one. */}
+          <ProfileBio bio={profile?.bio} />
+        </View>
+
+        {/* --- Interests, read-only --- */}
+        {(profile?.tags ?? []).length > 0 ? (
+          <View className="mt-[24px] px-[20px]">
+            <InterestChips tags={profile?.tags ?? []} />
+          </View>
+        ) : null}
+
+        {/* --- Upcoming / Past --- */}
+        <View className="mt-[24px] px-[20px]">
+          <ProfileTabRow<PublicProfileTab>
+            tabs={PUBLIC_PROFILE_TABS.map((key) => ({
+              key,
+              label: PUBLIC_PROFILE_TAB_LABELS[key],
+              count: counts?.[key],
+            }))}
+            value={tab}
+            onChange={setTab}
+          />
+
+          {eventsQuery.isLoading ? (
+            <ActivityIndicator className="mt-[24px]" color={colors.brand} />
+          ) : (
+            <View className="mt-[12px] flex-row flex-wrap justify-between">
+              {events.length === 0 ? (
+                <ProfileEmptyState
+                  title={tab === 'upcoming' ? 'No upcoming events' : 'No past events'}
+                  body={
+                    tab === 'upcoming'
+                      ? `${profile?.first_name ?? 'This person'} hasn’t posted anything coming up.`
+                      : undefined
+                  }
+                />
+              ) : (
+                // No onToggleSave: the grid is read-only, so the card draws
+                // no bookmark overlay.
+                events.map((event) => <ProfileEventCard key={event.id} event={event} />)
+              )}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {profile ? (
+        <FollowListSheet
+          visible={followSheet !== null}
+          onClose={() => setFollowSheet(null)}
+          subject={{ type: 'user', id: profile.id }}
+          initialKind={followSheet ?? 'followers'}
+          followerCount={profile.follower_count}
+          followingCount={profile.following_count}
+          token={token}
+        />
+      ) : null}
 
       <OpenLinkModal {...openLink.modalProps} />
-    </SafeAreaView>
+    </View>
   );
 }

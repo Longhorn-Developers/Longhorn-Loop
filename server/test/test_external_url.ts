@@ -15,7 +15,36 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { MAX_EXTERNAL_URL_LENGTH, toExternalHttpUrl } from '../../shared/externalUrl';
+import {
+  checkExternalUrlInput,
+  MAX_EXTERNAL_URL_LENGTH,
+  toExternalHttpUrl,
+} from '../../shared/externalUrl';
+
+describe('checkExternalUrlInput (LOOP-282)', () => {
+  it('treats blank input as empty, not invalid — the field is optional', () => {
+    expect(checkExternalUrlInput('')).toEqual({ kind: 'empty' });
+    expect(checkExternalUrlInput('   ')).toEqual({ kind: 'empty' });
+    expect(checkExternalUrlInput(null)).toEqual({ kind: 'empty' });
+  });
+
+  it('normalises a scheme-less host to https', () => {
+    expect(checkExternalUrlInput('texasperformingarts.evenue.net')).toEqual({
+      kind: 'valid',
+      url: 'https://texasperformingarts.evenue.net',
+    });
+  });
+
+  it('gives a reason a creator can act on for each kind of refusal', () => {
+    const reason = (raw: string) => {
+      const result = checkExternalUrlInput(raw);
+      return result.kind === 'invalid' ? result.reason : null;
+    };
+    expect(reason('mailto:a@utexas.edu')).toBe('Use a web link (https://…)');
+    expect(reason('RSVP at the door')).toBe('Links can’t contain spaces');
+    expect(reason('rsvp')).toBe('That doesn’t look like a web address');
+  });
+});
 
 describe('toExternalHttpUrl (LOOP-278)', () => {
   it('passes through http and https URLs unchanged', () => {
