@@ -317,19 +317,11 @@ userRoutes.post('/me/profile', async (c) => {
 
   const userId = dbUser.id as number;
 
-  /**
-   * Accept any org invite waiting on this address.
-   *
-   * HERE, and not only at sign-up. An invite is very often sent to somebody
-   * who ALREADY has an account, and that person has no reason to verify their
-   * email ever again -- so hooking redemption to the auth flow would leave
-   * exactly the common case unhandled. /users/me is the route every signed-in
-   * client hits, which makes it the one place that catches an invite whenever
-   * it arrives.
-   *
-   * Cheap when there is nothing to do: one indexed lookup on
-   * idx_org_invites_email that returns no rows, and no writes at all.
-   */
+  // Accept any org invite waiting on this address, so a brand-new user who was
+  // invited before they had an account lands in the org the moment onboarding
+  // finishes. This is the NEW-account path only -- existing accounts never
+  // re-submit onboarding, which is why GET /users/me and GET /orgs/mine redeem
+  // too. See the comment on GET /users/me.
   await redeemPendingOrgInvites(c.env.DB, userId, user.email);
 
   // A photo takes precedence over the Bevo config on display (client-side),
@@ -380,6 +372,26 @@ userRoutes.get('/me', async (c) => {
   if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
+
+  /**
+   * Accept any org invite waiting on this address.
+   *
+   * HERE, and not only at sign-up. An invite is very often sent to somebody
+   * who ALREADY has an account, and that person has no reason to verify their
+   * email or re-submit onboarding ever again. /users/me is the route every
+   * signed-in client hits (profile tab icon, profile, edit profile, create
+   * event), which makes it the one place that catches an invite whenever it
+   * arrives.
+   *
+   * This call used to live only in POST /me/profile (the onboarding upsert),
+   * under a comment claiming it ran here. So every invite sent to an existing
+   * account sat at 'pending' forever -- the invitee had a link in their inbox
+   * and no org in the app. Keep it in this handler.
+   *
+   * Cheap when there is nothing to do: one indexed lookup on
+   * idx_org_invites_email that returns no rows, and no writes at all.
+   */
+  await redeemPendingOrgInvites(c.env.DB, userId, user.email);
 
   // Fetch majors and tags
   const majors = await c.env.DB.prepare('SELECT major FROM user_majors WHERE user_id = ?')
