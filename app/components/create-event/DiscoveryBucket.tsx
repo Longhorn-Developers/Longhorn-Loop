@@ -10,14 +10,52 @@ import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } fr
 
 const DEFAULT_ICON_SIZE = { width: 22, height: 22 };
 
-// Derived from the shared interestCategories.ts.
-const BUCKETS = INTEREST_CATEGORIES.map((c) => ({
-  id: c.id as DiscoveryBucketId,
-  title: c.label,
-  description: c.description,
-  Icon: c.icon,
-  iconSize: DEFAULT_ICON_SIZE,
-}));
+/**
+ * The order a POSTER sees the buckets in (LOOP-268: "reorder so the more
+ * relevant buckets are at the top").
+ *
+ * Deliberately local rather than a reorder of shared/taxonomy.ts. Taxonomy
+ * order is also onboarding's interest-picker order and the order classifier
+ * output is written in; what a student browsing interests should see first is
+ * not the same question as what a club posting an event most often is. Most
+ * in-app posts are org meetings, info sessions, socials and career events, so
+ * those lead; the niche buckets trail.
+ *
+ * Any bucket missing from this list still renders, after the listed ones, in
+ * taxonomy order -- so adding a bucket to the taxonomy can't silently hide it
+ * from the create flow.
+ */
+const POSTER_BUCKET_ORDER = [
+  'social',
+  'education',
+  'tech',
+  'food',
+  'sports',
+  'performing',
+  'arts',
+  'gaming',
+  'outdoors',
+  'spirituality',
+  'nightlife',
+  'travel',
+];
+
+function posterRank(id: string): number {
+  const index = POSTER_BUCKET_ORDER.indexOf(id);
+  return index === -1 ? POSTER_BUCKET_ORDER.length : index;
+}
+
+// Derived from the shared interestCategories.ts. Array.prototype.sort is
+// stable, so unlisted buckets keep their taxonomy order among themselves.
+const BUCKETS = [...INTEREST_CATEGORIES]
+  .sort((a, b) => posterRank(a.id) - posterRank(b.id))
+  .map((c) => ({
+    id: c.id as DiscoveryBucketId,
+    title: c.label,
+    description: c.description,
+    Icon: c.icon,
+    iconSize: DEFAULT_ICON_SIZE,
+  }));
 
 export default function DiscoveryBucket() {
   const colors = useThemeColors();
