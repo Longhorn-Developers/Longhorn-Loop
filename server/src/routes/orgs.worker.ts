@@ -26,6 +26,7 @@ import {
 } from '../../../shared/profileEventFilters';
 import { MAX_BIO, normalizeBio } from '../../../shared/bio';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { redeemPendingOrgInvites } from '../lib/orgInvites';
 import { DEFAULT_EMAIL_FROM, sendEmail } from '../email/send';
 import { orgInviteEmail, orgVerificationEmail } from '../email/templates';
 // "Has this event ended?" is answered in exactly one place in the codebase.
@@ -114,6 +115,14 @@ orgRoutes.get('/mine', async (c) => {
 
   const userId = await getUserId(c.env.DB, auth.email);
   if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  // Redeem pending invites BEFORE listing memberships. GET /users/me redeems
+  // too, but Settings fetches this route on its own, and the two requests race
+  // -- if this one won, a freshly invited admin would open Settings and still
+  // see no org until the next refetch. Redeeming here makes the list that
+  // answers "which orgs am I in" correct on its own. Idempotent and a single
+  // indexed lookup when there is nothing pending (see lib/orgInvites.ts).
+  await redeemPendingOrgInvites(c.env.DB, userId, auth.email);
 
   const { results } = await c.env.DB.prepare(
     `SELECT o.id, o.name, o.profile_picture, o.verified, m.role,
