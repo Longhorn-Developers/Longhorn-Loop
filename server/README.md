@@ -112,11 +112,15 @@ EXPO_PUBLIC_API_BASE_URL=https://loop-db.longhorn-developers.workers.dev
 ### Seed events
 
 Manual scrapes are triggered per source via `POST /events/scrape/:name`.
-Available sources: `hornslink`, `mccombs`, `texasGlobal`, `lawSchool`,
-`cockrell`, `cofa`.
+Every call needs `Authorization: Bearer <CRON_SECRET>` (`dev-cron-secret` in
+`.dev.vars.example`); without a configured secret the route refuses everyone.
+Send a JSON body to use a scraper's manual entry point (`dryRun`, `maxEvents`);
+send no body to run the full scraper the way the cron does. An unknown name
+returns the list of available sources.
 
 ```bash
 curl -X POST http://localhost:8787/events/scrape/hornslink \
+  -H "Authorization: Bearer dev-cron-secret" \
   -H "Content-Type: application/json" \
   -d '{"maxPages":3}'
 ```
@@ -125,6 +129,7 @@ Pulls events from HornsLink into your local D1.
 
 ```bash
 curl -X POST http://localhost:8787/events/scrape/mccombs \
+  -H "Authorization: Bearer dev-cron-secret" \
   -H "Content-Type: application/json" \
   -d '{"dryRun":true}'
 ```
