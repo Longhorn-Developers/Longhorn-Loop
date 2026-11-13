@@ -250,7 +250,7 @@ function RoleBadge({ role }: { role: 'admin' | 'editor' }) {
     >
       <Text
         className={`font-['Roboto-Flex'] text-[10px] font-semibold ${
-          isAdmin ? 'text-white' : 'text-lhlSecondaryTextGrey'
+          isAdmin ? 'text-lhlSurface' : 'text-lhlSecondaryTextGrey'
         }`}
       >
         {isAdmin ? 'Admin' : 'Editor'}
@@ -790,7 +790,7 @@ export default function OrgConsoleScreen() {
                 >
                   <Text
                     className={`font-['Roboto-Flex'] text-[11px] font-medium ${
-                      eventFilter === 'all' ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                      eventFilter === 'all' ? 'text-lhlSurface' : 'text-lhlSecondaryTextGrey'
                     }`}
                   >
                     All events
@@ -809,7 +809,7 @@ export default function OrgConsoleScreen() {
                     <Text
                       numberOfLines={1}
                       className={`font-['Roboto-Flex'] max-w-[120px] text-[11px] font-medium ${
-                        eventFilter === e.id ? 'text-white' : 'text-lhlSecondaryTextGrey'
+                        eventFilter === e.id ? 'text-lhlSurface' : 'text-lhlSecondaryTextGrey'
                       }`}
                     >
                       {e.title}
