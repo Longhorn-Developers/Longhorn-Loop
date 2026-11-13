@@ -18,7 +18,13 @@
 // occurrences):
 //   - description: the Event node in the page's JSON-LD, falling back to
 //     og:description for the few pages that have no JSON-LD.
-//   - location: the "Location" field. Not every event has one.
+//   - location: the "Location" field (a room or venue: "NUR 5.178", "Zoom
+//     Meeting"). Not every event has one.
+//   - address: some bodies also carry a street address, in the editors'
+//     "Location: NUR 5.178 | School of Nursing | 1710 Red River St., Austin,
+//     Texas" line (4 of the 12 upcoming pages when this was written, one of
+//     them a non-Nursing building). It is appended to the location so
+//     `locationFull` keeps it, the same shape Pharmacy's carried.
 //   - categories: the "Event tags" field.
 //   - registration link: the first button inside the event body.
 //   - image: a picture embedded in the body, when the editor added one.
@@ -26,8 +32,15 @@
 // Things we can't get:
 //   - organizer: events carry no host, so every one is attributed to the School
 //     of Nursing itself.
-//   - coordinates: locations are room names ("NUR 5.178", "Zoom Meeting"), not
-//     addresses, so latitude/longitude stay null.
+//   - coordinates: the page publishes none (the address line above links to a
+//     Google Maps search, which is not a point we should scrape), so this
+//     scraper leaves latitude/longitude null. That is deliberate, not a gap:
+//     ingestEvents fills them for every scraper from the UT building registry
+//     (attachBuildingCoordinates in events/ingest.ts, data/ut-buildings.json),
+//     keyed on the building code in the location. "NUR 5.178", "NUR - various"
+//     and the address above all resolve to the Nursing building (1710 Red River
+//     St), and a venue the registry doesn't know is logged there as
+//     "unresolved event location". Online events are skipped there, too.
 //   - a banner image for most events: only about one in seven pages has a
 //     picture, and the site sets no og:image to fall back on.
 //
@@ -92,6 +105,8 @@ interface EventImage {
 export interface EventDetail {
   description: string | null;
   location: string | null;
+  // Street address from the body's "Location:" line, when the editor wrote one.
+  address: string | null;
   tags: { id: string; name: string }[];
   rsvpUrl: string | null;
   image: EventImage | null;
@@ -215,6 +230,33 @@ function jsonLdDescription(html: string): string | null {
   return null;
 }
 
+// "1710 Red River St., Austin, Texas": a house number, a street, then the city.
+// Requiring ", Austin" keeps a room ("NUR 5.178") or a building name from ever
+// being taken for an address.
+const STREET_ADDRESS_RE = /^\d{1,6}\s+\S.*,\s*Austin\b/i;
+
+// Editors paste the same line into many event bodies:
+//   <strong>Location:</strong> NUR 5.178 | School of Nursing |&nbsp;<a ...>1710 Red River St., Austin, Texas</a>
+// Its parts are separated by "|" and the address, when there is one, is the
+// last. A line with no address ("Location: Zoom", "NUR 5.178 | School of
+// Nursing") fails the street-address pattern and yields null.
+function extractBodyAddress(body: string | undefined): string | null {
+  const line = body?.match(/<p[^>]*>\s*<strong>\s*Location:?\s*<\/strong>([\s\S]*?)<\/p>/i)?.[1];
+  if (!line) return null;
+  const parts = htmlToText(line)
+    .split('|')
+    .map((part) => part.trim());
+  const last = parts[parts.length - 1];
+  return STREET_ADDRESS_RE.test(last) ? last : null;
+}
+
+// "NUR 5.178" + "1710 Red River St., Austin, Texas" -> both, comma-joined. Either
+// alone is returned as is; so is the room when it already contains the address.
+function joinLocation(location: string | null, address: string | null): string | null {
+  if (!address || location?.includes(address)) return location;
+  return location ? `${location}, ${address}` : address;
+}
+
 function toNumberOrNull(value: string | null): number | null {
   const parsed = value ? parseInt(value, 10) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
@@ -253,6 +295,7 @@ export function parseDetailPage(html: string): EventDetail {
   return {
     description: description || null,
     location: location ? htmlToText(location) || null : null,
+    address: extractBodyAddress(body),
     tags,
     rsvpUrl: button ? attr(button, 'href') : null,
     image: imgSrc
@@ -286,7 +329,8 @@ export function parseCalendarEvent(
   }
   if (timing.endMs < now) return null;
 
-  const { image, location } = detail;
+  const { image } = detail;
+  const locationFull = joinLocation(detail.location, detail.address);
 
   return {
     source: SOURCE,
@@ -295,9 +339,12 @@ export function parseCalendarEvent(
     description: detail.description,
     startDatetime: timing.startDatetime,
     endDatetime: timing.endDatetime,
-    venueType: inferVenueType(location, null),
-    locationShort: truncateLocation(location),
-    locationFull: location,
+    venueType: inferVenueType(locationFull, null),
+    // The room or venue, not the address: the short form is what a card shows.
+    locationShort: truncateLocation(detail.location ?? detail.address),
+    locationFull,
+    // Null on purpose; ingestEvents resolves them from the building in
+    // locationFull. See "coordinates" in the header.
     latitude: null,
     longitude: null,
     organization: {

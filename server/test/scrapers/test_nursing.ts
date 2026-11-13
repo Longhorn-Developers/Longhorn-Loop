@@ -11,6 +11,7 @@ import {
   type CalendarEvent,
   type EventDetail,
 } from '../../src/scrapers/nursing';
+import { isNonPhysicalLocation, resolveBuilding } from '../../src/lib/utBuildings';
 import type { Env } from '../../src/worker';
 
 function loadFixture(name: string): string {
@@ -29,6 +30,7 @@ const byEid = (eid: string): CalendarEvent => calendar.find((e) => e.eid === eid
 const EMPTY_DETAIL: EventDetail = {
   description: null,
   location: null,
+  address: null,
   tags: [],
   rsvpUrl: null,
   image: null,
@@ -128,6 +130,8 @@ describe('Nursing detail page', () => {
       'The Center for Professional Development and Scholarship invites you to a HRSA Grants Presentation on Wednesday, October 21st from 12:00 pm – 1:00 pm in room NUR 5.178 at the School of Nursing.',
     );
     expect(detail.location).toBe('NUR 5.178');
+    // From the body's "Location: NUR 5.178 | School of Nursing | <address>" line.
+    expect(detail.address).toBe('1710 Red River St., Austin, Texas');
     expect(detail.tags).toEqual([
       { id: 'event-type-141', name: 'Faculty' },
       { id: 'event-type-138', name: 'Information Session' },
@@ -151,6 +155,7 @@ describe('Nursing detail page', () => {
 
     expect(detail.rsvpUrl).toBe('https://utexas.zoom.us/j/89690535791');
     expect(detail.location).toBe('Zoom Meeting');
+    expect(detail.address).toBeNull();
     expect(detail.tags.map((t) => t.name)).toEqual(['Current Students', 'Information Session']);
     expect(detail.image).toBeNull();
   });
@@ -162,11 +167,43 @@ describe('Nursing detail page', () => {
     expect(detail).toEqual({
       description: null,
       location: null,
+      address: null,
       tags: [],
       // No event body to scope to, so the livestream button is not picked up,
       // and neither is the footer's "Give" button.
       rsvpUrl: null,
       image: null,
+    });
+  });
+
+  describe('street address', () => {
+    // The editors' template, as it appears inside an event body.
+    const body = (line: string) =>
+      `<div class="field field--name-field-utevent-body"><p><strong>Location:</strong> ${line}</p></div>`;
+
+    it('takes the last "|" part of the Location line when it is a street address', () => {
+      const html = body(
+        'UTC, Room TBA | University Teaching Center (UTC) |&nbsp;<a href="https://maps.example">105 West 21st Street, Austin, Texas</a>',
+      );
+
+      expect(parseDetailPage(html).address).toBe('105 West 21st Street, Austin, Texas');
+    });
+
+    it('ignores a Location line whose last part is a room or building, not an address', () => {
+      expect(parseDetailPage(body('NUR 5.178 | School of Nursing')).address).toBeNull();
+    });
+
+    it('takes a Location line that is only an address, and ignores one that is not', () => {
+      expect(parseDetailPage(body('1710 Red River St., Austin, Texas')).address).toBe(
+        '1710 Red River St., Austin, Texas',
+      );
+      expect(parseDetailPage(body('Zoom')).address).toBeNull();
+    });
+
+    it('finds no address on a page without a body', () => {
+      expect(
+        parseDetailPage('<p><strong>Location:</strong> A | 1 Main St., Austin</p>').address,
+      ).toBeNull();
     });
   });
 
@@ -195,8 +232,9 @@ describe('Nursing event mapping', () => {
       startDatetime: '2026-10-21T12:00:00-05:00',
       endDatetime: '2026-10-21T13:00:00-05:00',
       venueType: 'in_person',
+      // The card shows the room; the full form keeps the address too.
       locationShort: 'NUR 5.178',
-      locationFull: 'NUR 5.178',
+      locationFull: 'NUR 5.178, 1710 Red River St., Austin, Texas',
       latitude: null,
       longitude: null,
       organization: { sourceOrgId: null, name: 'School of Nursing', profilePicture: null },
@@ -267,6 +305,58 @@ describe('Nursing event mapping', () => {
     expect(event.locationShort).toHaveLength(40);
     expect(event.locationShort).toBe('Nursing Building, Room 5.178, School ...');
     expect(event.locationFull).toBe(detail.location);
+  });
+
+  it('does not repeat an address the room text already contains', () => {
+    const detail = {
+      ...EMPTY_DETAIL,
+      location: 'NUR 5.178, 1710 Red River St., Austin, Texas',
+      address: '1710 Red River St., Austin, Texas',
+    };
+
+    expect(parseCalendarEvent(byEid('2515-D-0'), detail, NOW)!.locationFull).toBe(
+      'NUR 5.178, 1710 Red River St., Austin, Texas',
+    );
+  });
+
+  it('uses the address alone when the page has no room', () => {
+    const detail = { ...EMPTY_DETAIL, address: '1710 Red River St., Austin, Texas' };
+    const event = parseCalendarEvent(byEid('2515-D-0'), detail, NOW)!;
+
+    expect(event.locationFull).toBe('1710 Red River St., Austin, Texas');
+    expect(event.locationShort).toBe('1710 Red River St., Austin, Texas');
+  });
+
+  // The scraper leaves coordinates null and ingestEvents fills them from the UT
+  // building registry using locationFull (attachBuildingCoordinates). These pin
+  // that contract: if Nursing's location text stops resolving, events silently
+  // lose their map pins, and nothing else would fail.
+  describe('coordinates (resolved at ingest from the building registry)', () => {
+    it('resolves the room, the address-bearing form and the "various" placeholder to the Nursing building', () => {
+      const withAddress = parseCalendarEvent(byEid('2515-D-0'), cpds, NOW)!;
+      const various = parseCalendarEvent(
+        byEid('2515-D-0'),
+        { ...EMPTY_DETAIL, location: 'NUR - various' },
+        NOW,
+      )!;
+
+      for (const event of [withAddress, various]) {
+        expect(event.latitude).toBeNull();
+        expect(resolveBuilding(event.locationFull)).toMatchObject({
+          code: 'NUR',
+          address: '1710 RED RIVER ST, AUSTIN, TX 78712',
+          latitude: 30.2776692,
+          longitude: -97.7333708,
+        });
+      }
+    });
+
+    it('treats online locations as non-physical, so ingest skips them instead of warning', () => {
+      const event = parseCalendarEvent(byEid('2473-D-3'), series, NOW)!;
+
+      expect(event.venueType).toBe('online');
+      expect(isNonPhysicalLocation(event.locationFull)).toBe(true);
+    });
   });
 
   it('returns null for events that are over', () => {
