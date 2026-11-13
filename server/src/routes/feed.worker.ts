@@ -213,11 +213,25 @@ async function loadCandidates(db: D1Database, userId: number | null): Promise<Fe
  * org is a series we collapse; same title across DIFFERENT orgs (four clubs'
  * "General Meeting") stays distinct. Input is sorted soonest-first, so the
  * first occurrence per key is the next upcoming.
+ *
+ * Scraped rows only (LOOP-268). A user-created event's host_organization_name
+ * is the poster's own name when they post as themselves, so a tester who
+ * posted three events with the same title got one card on Home and two that
+ * looked lost -- the bug bash's "post 3 events, only one shows up". Every
+ * user-created row is an event somebody deliberately published; collapsing
+ * them second-guesses the author. The series problem this exists for is a
+ * scraper artefact, and that is where it stays.
+ *
+ * Exported for the test suite.
  */
-function dedupeRecurring(events: FeedEvent[]): FeedEvent[] {
+export function dedupeRecurring<T extends Record<string, unknown>>(events: T[]): T[] {
   const seen = new Set<string>();
-  const out: FeedEvent[] = [];
+  const out: T[] = [];
   for (const e of events) {
+    if (e.source === 'user_created') {
+      out.push(e);
+      continue;
+    }
     const title = ((e.title as string) ?? '').trim().toLowerCase();
     const org = ((e.host_organization_name as string) ?? '').trim().toLowerCase();
     // Only dedup when we can key on a real (title, org) pair; otherwise keep.
