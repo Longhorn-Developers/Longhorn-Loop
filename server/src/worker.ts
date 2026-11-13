@@ -11,6 +11,7 @@ import { orgRoutes } from './routes/orgs.worker';
 import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
+import { hasCronSecret } from './lib/cronAuth';
 import { jobsDue } from './lib/schedule';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
 
@@ -39,7 +40,9 @@ export type Env = {
   // [[send_email]] AND the domain is onboarded in the dashboard.
   EMAIL?: SendEmailBinding;
   POSTMARK_API_TOKEN?: string;
-  CRON_SECRET: string;
+  // Optional in the type because it genuinely can be missing: prod ran for
+  // months without it. lib/cronAuth.ts fails closed when it is.
+  CRON_SECRET?: string;
   WORKER_URL: string;
   // Service binding to this same Worker (LOOP-309), used by the scrape cron to
   // dispatch each scraper into its own invocation. Absent under
@@ -172,6 +175,17 @@ async function sendEventReminders(env: Env): Promise<void> {
 // WORKER_URL stays as the fallback because `wrangler dev --env local` has
 // no service bindings, and there the URL is localhost, which works.
 function dispatchScrapers(env: Env, ctx: ExecutionContext): void {
+  // /events/scrape/:name fails closed without CRON_SECRET (lib/cronAuth.ts),
+  // so dispatching would only produce one 401 per scraper. Say the actual
+  // problem once instead. Prod ran without this secret until 2026-11-12,
+  // hidden because the old check compared against "Bearer undefined".
+  if (!hasCronSecret(env.CRON_SECRET)) {
+    console.error(
+      '[cron] scrape skipped: CRON_SECRET is not set. Run `wrangler secret put CRON_SECRET`.',
+    );
+    return;
+  }
+
   for (const scraper of SCRAPERS) {
     const path = `/events/scrape/${scraper.name}`;
     const init: RequestInit = {
