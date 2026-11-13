@@ -5,6 +5,7 @@ import FlowLayout from '@/app/components/layouts/FlowLayout';
 import { API_BASE_URL } from '@/app/config/api';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { UT_EMAIL_ERROR, isAllowedUTEmail } from '@/shared/utEmail';
+import { RESEND_COOLDOWN_MS } from '@/shared/verificationCode';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
@@ -55,15 +56,19 @@ export default function RegisterPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      // RESEND_TOO_SOON is not a failure here (LOOP-302). It means a code for
+      // this address went out a moment ago — typically from this same screen,
+      // before the user tapped back off the verification step to check their
+      // email and then tapped Continue again. That code is still valid. The
+      // old alert stranded them on this page with "please wait", no idea how
+      // long, and no way forward to type the code they already had.
+      const tooSoon = !res.ok && data.error === 'RESEND_TOO_SOON';
+
+      if (!res.ok && !tooSoon) {
         if (data.error === 'INVALID_UT_EMAIL') {
           setAlertMessage(UT_EMAIL_ERROR);
         } else if (data.error === 'SEND_FAILED') {
           setAlertMessage("We couldn't send your code right now. Please try again.");
-        } else if (data.error === 'RESEND_TOO_SOON') {
-          setAlertMessage(
-            'Verification code already sent. Please wait before requesting a new one.',
-          );
         } else {
           setAlertMessage('Something went wrong. Please try again.');
         }
@@ -76,10 +81,13 @@ export default function RegisterPage() {
         lastName: fieldLastName.trim(),
         email,
       });
-      // ?sent=1: the code went out just above. Without it the verification
-      // screen sends a second one on mount and immediately trips the
-      // 60-second cooldown this request created.
-      router.push('/AccountVerification?sent=1');
+      // ?sent=1: a code is already out (just now, or from the earlier send
+      // that caused the 429). Without it the verification screen sends a
+      // second one on mount and immediately trips the cooldown.
+      // retryAfterMs: so Resend shows the real wait instead of looking
+      // available while the server would refuse it.
+      const retryAfterMs = tooSoon ? data.retryAfterMs : RESEND_COOLDOWN_MS;
+      router.push(`/AccountVerification?sent=1&retryAfterMs=${Number(retryAfterMs) || 0}`);
     } catch (_err) {
       setAlertMessage('Network error. Please check your connection.');
     } finally {

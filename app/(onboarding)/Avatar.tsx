@@ -78,7 +78,7 @@ function OptionRow({
           {subtitle}
         </Text>
       </View>
-      <CaretRightIcon size={18} color={colors.inkMuted} />
+      <CaretRightIcon size={18} color={colors.ink} />
     </Pressable>
   );
 }
@@ -226,11 +226,11 @@ export default function AddProfilePicture() {
               className="h-full w-full items-center justify-center"
               style={{ backgroundColor: BEVO_PREVIEW_BG }} // theme-exempt: fixed Bevo-world preview background
             >
-              <BevoAvatar config={pendingBevo} height={220} />
+              <BevoAvatar config={pendingBevo} crop="head" size={160} />
             </View>
           ) : (
             <View className="h-full w-full items-center justify-center bg-lhlPlaceholderGrey">
-              <ImageIcon size={40} color={colors.inkMuted} />
+              <ImageIcon size={40} color={colors.ink} />
             </View>
           )}
         </View>

@@ -6,6 +6,7 @@ import {
   MAX_BENEFIT_NAME_LENGTH,
   normalizeBenefitName,
 } from '../../../shared/eventBenefits';
+import { checkExternalUrlInput } from '../../../shared/externalUrl';
 import { BUCKET_ID_SET, TAXONOMY_BUCKETS } from '../../../shared/taxonomy';
 import { classifyAspectRatio, parseImageDimensions } from '../events/normalize';
 import type { ImageAspectRatio } from '../events/types';
@@ -227,14 +228,27 @@ function truncateLocation(location: string | null): string | null {
   return `${location.slice(0, 37)}...`;
 }
 
+// Scheme-less input is normalised to https:// rather than refused (LOOP-282).
+// A tester pasted "texasperformingarts.evenue.net" as their RSVP and got
+// 'Must be a valid URL' -- `new URL()` throws without a scheme -- so the only
+// way to post was to know to type the prefix. checkExternalUrlInput is the
+// same rule the client applies while typing and the event page applies before
+// opening a link, so all three agree on what a web address is; `new URL()`
+// then only canonicalises.
 function validateUrl(value: string | null, field: string, errors: ValidationErrors): string | null {
   if (!value) return null;
   if (value.length > MAX_URL_LENGTH) {
     errors[field] = `Must be ${MAX_URL_LENGTH} characters or fewer`;
     return null;
   }
+  const checked = checkExternalUrlInput(value);
+  if (checked.kind === 'empty') return null;
+  if (checked.kind === 'invalid') {
+    errors[field] = checked.reason;
+    return null;
+  }
   try {
-    const url = new URL(value);
+    const url = new URL(checked.url);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
       errors[field] = 'Must be an http or https URL';
       return null;
@@ -1044,8 +1058,8 @@ eventRoutes.post('/create', async (c) => {
 //
 // Partial by contract: a key the caller omits is never written. That is what
 // makes this safe to call from an overlay that only knows about six fields —
-// it cannot clobber image_url, rsvp_url, the denormalized counters, or any
-// other column it has never heard of.
+// it cannot clobber image_url, the denormalized counters, or any other column
+// it has never heard of. (rsvp_url joined the editable set in LOOP-282.)
 //
 // Validation reuses the POST /events/create helpers rather than restating the
 // rules. A second validator would drift, and the first thing to drift would be
@@ -1059,6 +1073,8 @@ eventRoutes.post('/create', async (c) => {
 //   location         string, <=200  (also location_full / location_short)
 //   categories       string[] | {id,name}[], <=20   (also interestTags)
 //   benefits         string[], <=10, each <=60      (also perks)
+//   rsvp_url         http(s) URL, scheme optional; null / "" clears it
+//                    (LOOP-282, also rsvpUrl)
 //   discovery_bucket taxonomy bucket id; rewrites event_tags when sent
 //                    alongside categories
 //
@@ -1084,6 +1100,7 @@ const START_KEYS = ['start_datetime', 'startDatetime', 'datetime'];
 const END_KEYS = ['end_datetime', 'endDatetime'];
 const CATEGORY_KEYS = ['categories', 'interestTags', 'interest_tags'];
 const BENEFIT_KEYS = ['benefits', 'perks'];
+const RSVP_URL_KEYS = ['rsvp_url', 'rsvpUrl'];
 
 /**
  * May `userId` edit this event?
@@ -1255,6 +1272,15 @@ eventRoutes.patch('/:id', async (c) => {
         errors,
       ) ??
       truncateLocation(locationFull);
+  }
+
+  // RSVP link (LOOP-282). Create Event made a bad link permanent: a tester
+  // posted a ticketed event, found the link wrong, and had no way to fix it.
+  // Same validator as create, so a link the edit form accepts is one the
+  // create form would have, scheme normalisation included. An explicit null or
+  // "" clears it -- an event can stop taking external RSVPs.
+  if (hasField(body, RSVP_URL_KEYS)) {
+    updates.rsvp_url = validateUrl(readStringField(body, RSVP_URL_KEYS), 'rsvp_url', errors);
   }
 
   const patchesCategories = hasField(body, CATEGORY_KEYS);
@@ -1672,7 +1698,7 @@ eventRoutes.get('/:id', async (c) => {
   const userId = auth ? await getUserId(c.env.DB, auth.email) : null;
 
   const event = await c.env.DB.prepare(
-    `SELECT e.*, o.profile_picture as org_profile_picture
+    `SELECT e.*, o.profile_picture as org_profile_picture, o.verified AS org_verified
      FROM events e
      LEFT JOIN organizations o ON e.host_organization_id = o.id
      WHERE e.id = ?`,
@@ -1742,8 +1768,41 @@ eventRoutes.get('/:id', async (c) => {
         .first())
     : false;
 
+  // Whether the caller follows the host org, so the detail screen's Follow
+  // button can render its state without a second GET /orgs/:id/profile per
+  // page view. Same table the follow endpoints and the org profile read.
+  // Scraped events have no host org row and signed-out callers have no
+  // identity; both are simply "not following".
+  const hostOrgId = event.host_organization_id as number | null;
+  const isFollowingOrg =
+    userId !== null && hostOrgId !== null
+      ? !!(await c.env.DB.prepare('SELECT 1 FROM org_followers WHERE org_id = ? AND user_id = ?')
+          .bind(hostOrgId, userId)
+          .first())
+      : false;
+
+  // Whether the caller may edit this event, so the detail screen can offer the
+  // pencil to its creator and the host org's admins/editors (LOOP-282). The
+  // same canEditEvent PATCH enforces, so the affordance can't promise an edit
+  // the server would 403. Presentation only -- PATCH re-checks on every call.
+  const canEdit =
+    userId !== null
+      ? await canEditEvent(
+          c.env.DB,
+          {
+            host_organization_id: hostOrgId,
+            created_by_user_id: (event.created_by_user_id as number | null) ?? null,
+          },
+          userId,
+        )
+      : false;
+
   return c.json({
     ...event,
+    // 0/1 in the row; a boolean on the wire, as on the org and user event lists.
+    org_verified: Number(event.org_verified) === 1,
+    is_following_org: isFollowingOrg,
+    can_edit: canEdit,
     categories: categories.results.map((c: any) => ({
       id: c.category_id,
       name: c.category_name,

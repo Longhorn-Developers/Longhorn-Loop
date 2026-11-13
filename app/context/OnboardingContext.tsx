@@ -124,7 +124,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         // making it wait on a network round trip would put a blank screen in
         // front of every cold start — including offline ones, where it would
         // never resolve.
-        void refreshFromServer(session.token);
+        void refreshFromServer(session.token, session.onboardingComplete);
       })
       .finally(() => {
         if (!cancelled) setIsHydrating(false);
@@ -141,7 +141,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
      * the point at which the cached flag gets corrected if it ever drifts
      * (a profile finished on another device, say).
      */
-    async function refreshFromServer(token: string): Promise<void> {
+    async function refreshFromServer(token: string, finishedOnboarding: boolean): Promise<void> {
       try {
         const res = await fetch(`${API_BASE_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -161,7 +161,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         // looks signed in, so every screen renders and then fails on its own,
         // and Settings fails too — which is where Log Out lives. There is no
         // way out from inside the UI. Clearing here is the escape hatch.
-        if (res.status === 401 || res.status === 404) {
+        //
+        // BUT NOT A 404 MID-ONBOARDING. The users row is only created by the
+        // profile submit on "Go to home" (POST /users/me/profile), so for
+        // someone who verified their code and hasn't finished yet, 404 is
+        // the expected answer, not a deleted account. Clearing on it threw
+        // away a perfectly good token: close and reopen the app partway
+        // through onboarding and the final submit went out as "Bearer "
+        // and failed with 401 UNAUTHORIZED. Before onboarding completes,
+        // only a 401 means the session is dead.
+        if (res.status === 401 || (res.status === 404 && finishedOnboarding)) {
           if (!cancelled) reset();
           return;
         }

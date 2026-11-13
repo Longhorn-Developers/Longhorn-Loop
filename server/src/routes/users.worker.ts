@@ -1,5 +1,5 @@
 // User routes for Cloudflare Worker + D1
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
   MAX_LINKED_SOCIALS,
   isSocialPlatformId,
@@ -8,6 +8,7 @@ import {
   validateSocialUrl,
 } from '../lib/socialLinks';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { InvalidCursorError, listUserFollowers, listUserFollowing } from '../lib/followLists';
 import { redeemPendingOrgInvites } from '../lib/orgInvites';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
@@ -316,19 +317,11 @@ userRoutes.post('/me/profile', async (c) => {
 
   const userId = dbUser.id as number;
 
-  /**
-   * Accept any org invite waiting on this address.
-   *
-   * HERE, and not only at sign-up. An invite is very often sent to somebody
-   * who ALREADY has an account, and that person has no reason to verify their
-   * email ever again -- so hooking redemption to the auth flow would leave
-   * exactly the common case unhandled. /users/me is the route every signed-in
-   * client hits, which makes it the one place that catches an invite whenever
-   * it arrives.
-   *
-   * Cheap when there is nothing to do: one indexed lookup on
-   * idx_org_invites_email that returns no rows, and no writes at all.
-   */
+  // Accept any org invite waiting on this address, so a brand-new user who was
+  // invited before they had an account lands in the org the moment onboarding
+  // finishes. This is the NEW-account path only -- existing accounts never
+  // re-submit onboarding, which is why GET /users/me and GET /orgs/mine redeem
+  // too. See the comment on GET /users/me.
   await redeemPendingOrgInvites(c.env.DB, userId, user.email);
 
   // A photo takes precedence over the Bevo config on display (client-side),
@@ -379,6 +372,26 @@ userRoutes.get('/me', async (c) => {
   if (!dbUser) return c.json({ error: 'USER_NOT_FOUND' }, 404);
 
   const userId = dbUser.id as number;
+
+  /**
+   * Accept any org invite waiting on this address.
+   *
+   * HERE, and not only at sign-up. An invite is very often sent to somebody
+   * who ALREADY has an account, and that person has no reason to verify their
+   * email or re-submit onboarding ever again. /users/me is the route every
+   * signed-in client hits (profile tab icon, profile, edit profile, create
+   * event), which makes it the one place that catches an invite whenever it
+   * arrives.
+   *
+   * This call used to live only in POST /me/profile (the onboarding upsert),
+   * under a comment claiming it ran here. So every invite sent to an existing
+   * account sat at 'pending' forever -- the invitee had a link in their inbox
+   * and no org in the app. Keep it in this handler.
+   *
+   * Cheap when there is nothing to do: one indexed lookup on
+   * idx_org_invites_email that returns no rows, and no writes at all.
+   */
+  await redeemPendingOrgInvites(c.env.DB, userId, user.email);
 
   // Fetch majors and tags
   const majors = await c.env.DB.prepare('SELECT major FROM user_majors WHERE user_id = ?')
@@ -1350,6 +1363,49 @@ userRoutes.get('/:userId/profile', async (c) => {
     blocked: false,
   });
 });
+
+// GET /users/:userId/followers  and  GET /users/:userId/following (LOOP-307)
+//
+// ?cursor=<opaque>&q=<name search>. Returns { entries, nextCursor }; Following
+// mixes people and orgs (each entry carries `kind`), matching
+// following_count. Any signed-in user may read either list, the Instagram rule
+// for a public account -- see lib/followLists.ts for that decision and for the
+// two-sided block filter. A block between the viewer and the owner 404s like
+// the profile, so the list can't confirm what the profile hides.
+async function followListRoute(
+  c: Context<{ Bindings: Env }>,
+  kind: 'followers' | 'following',
+): Promise<Response> {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const viewerId = await getUserId(c.env.DB, auth.email);
+  if (!viewerId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const ownerId = parseInt(c.req.param('userId') ?? '', 10);
+  if (Number.isNaN(ownerId)) return c.json({ error: 'INVALID_USER_ID' }, 400);
+
+  const exists = await c.env.DB.prepare('SELECT 1 FROM users WHERE id = ?').bind(ownerId).first();
+  if (!exists) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+  if ((await isBlockedBetween(c.env.DB, viewerId, ownerId)).blocked) {
+    return c.json({ error: 'USER_NOT_FOUND' }, 404);
+  }
+
+  const options = { viewerId, cursor: c.req.query('cursor'), q: c.req.query('q') };
+  try {
+    const page =
+      kind === 'followers'
+        ? await listUserFollowers(c.env.DB, ownerId, options)
+        : await listUserFollowing(c.env.DB, ownerId, options);
+    return c.json(page);
+  } catch (err) {
+    if (err instanceof InvalidCursorError) return c.json({ error: 'INVALID_CURSOR' }, 400);
+    throw err;
+  }
+}
+
+userRoutes.get('/:userId/followers', (c) => followListRoute(c, 'followers'));
+userRoutes.get('/:userId/following', (c) => followListRoute(c, 'following'));
 
 // GET /users/:userId/profile/events?tab=upcoming|past
 //

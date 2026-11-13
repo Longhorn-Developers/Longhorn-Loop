@@ -5,7 +5,8 @@
 // SCOPE, decided by the product owner and deliberately narrower than the
 // create flow:
 //
-//   IN  — title, description, start/end datetime, location, interest tags.
+//   IN  — title, description, start/end datetime, location, RSVP link
+//         (LOOP-282), interest tags.
 //   OUT — image replacement. Swapping a flyer means an authenticated upload to
 //         R2 and orphaning the old object; PATCH /events/:id takes JSON only
 //         and never touches image_url, so an event keeps the poster it was
@@ -25,6 +26,8 @@
 // doesn't.
 
 import DateTimeField from '@/app/components/create-event/DateTimeField';
+import UrlInputHint from '@/app/components/create-event/UrlInputHint';
+import { checkExternalUrlInput, toExternalHttpUrl } from '@/shared/externalUrl';
 import LeaveWithoutSavingModal from '@/app/components/modals/LeaveWithoutSavingModal';
 import { ApiError, api } from '@/app/lib/api';
 import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
@@ -61,6 +64,7 @@ interface EditableEvent {
   startDatetime: string | null;
   endDatetime: string | null;
   location: string;
+  rsvpUrl: string;
   bucket: string | null;
   tags: string[];
 }
@@ -74,6 +78,7 @@ export interface EventEditSource {
   end_datetime: string | null;
   location_short: string | null;
   location_full: string | null;
+  rsvp_url?: string | null;
   discovery_bucket?: string | null;
   tags: string[];
 }
@@ -85,6 +90,7 @@ function toForm(event: EventEditSource): EditableEvent {
     startDatetime: event.start_datetime ?? null,
     endDatetime: event.end_datetime ?? null,
     location: event.location_full ?? event.location_short ?? '',
+    rsvpUrl: event.rsvp_url ?? '',
     bucket: event.discovery_bucket ?? null,
     tags: event.tags ?? [],
   };
@@ -111,6 +117,11 @@ function buildPatch(form: EditableEvent, initial: EditableEvent): Record<string,
   if (form.startDatetime !== initial.startDatetime) patch.start_datetime = form.startDatetime;
   if (form.endDatetime !== initial.endDatetime) patch.end_datetime = form.endDatetime;
   if (form.location.trim() !== initial.location.trim()) patch.location = form.location.trim();
+  if (form.rsvpUrl.trim() !== initial.rsvpUrl.trim()) {
+    // Normalised the same way Create Event sends it; "" clears the link. An
+    // invalid value never reaches here -- it disables Save (see rsvpInvalid).
+    patch.rsvp_url = toExternalHttpUrl(form.rsvpUrl) ?? '';
+  }
 
   // Tags and their bucket move together: the server only rewrites event_tags
   // when it receives both, so that fixing a typo in a title can't wipe the
@@ -173,6 +184,10 @@ export default function EditEventOverlay({
 
   const patch = form && initial ? buildPatch(form, initial) : {};
   const isDirty = Object.keys(patch).length > 0;
+  // A bad link keeps Save off rather than round-tripping to a 400; the hint
+  // under the field says why.
+  const rsvpInvalid = checkExternalUrlInput(form?.rsvpUrl).kind === 'invalid';
+  const canSave = isDirty && !rsvpInvalid;
 
   const bucket = useMemo(
     () => INTEREST_CATEGORIES.find((category) => category.id === form?.bucket) ?? null,
@@ -265,8 +280,8 @@ export default function EditEventOverlay({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Save changes"
-            accessibilityState={{ disabled: !isDirty || save.isPending }}
-            disabled={!isDirty || save.isPending}
+            accessibilityState={{ disabled: !canSave || save.isPending }}
+            disabled={!canSave || save.isPending}
             onPress={() => {
               setError(null);
               save.mutate();
@@ -278,7 +293,7 @@ export default function EditEventOverlay({
             ) : (
               <Text
                 className={`font-['Roboto-Flex'] text-[13px] font-semibold ${
-                  isDirty ? 'text-lhlAccent' : 'text-lhlMutedText'
+                  canSave ? 'text-lhlAccent' : 'text-lhlMutedText'
                 }`}
               >
                 Save
@@ -350,6 +365,21 @@ export default function EditEventOverlay({
               maxLength={LOCATION_MAX}
               className="rounded-[8px] border border-lhlMutedBorder bg-lhlSurface px-[16px] py-[12px] text-[14px] text-lhlInk"
             />
+
+            {/* LOOP-282: the one field a tester most needed to fix after
+                publishing, and the one the overlay didn't have. */}
+            <FieldLabel className="mt-[20px]">RSVP Link</FieldLabel>
+            <TextInput
+              value={form?.rsvpUrl ?? ''}
+              onChangeText={(text) => update({ rsvpUrl: text })}
+              placeholder="tickets.example.com/your-event"
+              placeholderTextColor={colors.inkMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              className="rounded-[8px] border border-lhlMutedBorder bg-lhlSurface px-[16px] py-[12px] text-[14px] text-lhlInk"
+            />
+            <UrlInputHint value={form?.rsvpUrl ?? ''} />
 
             <FieldLabel className="mt-[24px]">Category</FieldLabel>
             <View className="flex-row flex-wrap gap-[8px]">
@@ -443,6 +473,13 @@ export default function EditEventOverlay({
           onClose();
         }}
         onSave={() => {
+          // "Save" from the leave prompt bypasses the header button's disabled
+          // state, so the RSVP check has to be repeated here.
+          if (rsvpInvalid) {
+            setConfirmLeave(false);
+            setError('Fix the RSVP link before saving.');
+            return;
+          }
           setError(null);
           save.mutate();
         }}

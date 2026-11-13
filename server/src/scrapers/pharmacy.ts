@@ -17,12 +17,10 @@ import {
 import { fetchWithRetry } from '../events/polite-fetch';
 import type { ImageAspectRatio, NormalizedEvent } from '../events/types';
 import type { Env } from '../worker';
-import { inferVenueType } from './helpers';
+import { inferVenueType, localistEventsUrl } from './helpers';
 
-const API_BASE = 'https://calendar.utexas.edu/api/2/events';
 // Confirmed against https://calendar.utexas.edu/department/college-of-pharmacy.
 const GROUP_ID = 47748554254291;
-const PER_PAGE = 100;
 const DAYS_AHEAD = 365;
 export const SOURCE = 'pharmacy';
 const DEFAULT_ORG_NAME = 'College of Pharmacy';
@@ -245,8 +243,7 @@ async function hydrateImageMetadata(raw: LocalistRawEvent): Promise<void> {
 }
 
 async function fetchPage(page: number): Promise<LocalistApiResponse> {
-  const url =
-    `${API_BASE}?group_id=${GROUP_ID}&days=${DAYS_AHEAD}` + `&per_page=${PER_PAGE}&page=${page}`;
+  const url = localistEventsUrl({ groupId: GROUP_ID, days: DAYS_AHEAD, page });
   const response = await fetchWithRetry(url);
   return response.json() as Promise<LocalistApiResponse>;
 }

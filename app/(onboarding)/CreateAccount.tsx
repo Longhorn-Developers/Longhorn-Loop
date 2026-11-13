@@ -1,5 +1,6 @@
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
@@ -26,6 +27,7 @@ const ERROR_MESSAGES: Record<ErrorField, string> = {
 };
 
 export default function CreateAccount() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { update, reset } = useOnboarding();
 
@@ -122,7 +124,8 @@ export default function CreateAccount() {
       <View className="mt-[42px]">
         <SearchablePillDropdownField
           label="Major(s)"
-          leftIcon={<LhlSearchIcon />}
+          // The icon's own default is '#000', which vanished in dark mode.
+          leftIcon={<LhlSearchIcon color={colors.ink} />}
           placeholder="Search for your major..."
           options={MAJORS}
           selectedValues={selectedMajors}

@@ -173,6 +173,58 @@ describeOrSkip('GET /orgs/search -- pagination and validation (LOOP-264)', () =>
     expect(body.organizations.length).toBeGreaterThan(0);
   });
 
+  it('returns nothing for a blank or one-character q -- the registration form guard', async () => {
+    // Browse is an OMITTED q. A present-but-short one is the registration
+    // form's search field mid-typing (or empty on first paint), and must not
+    // dump the directory into its dropdown.
+    for (const q of ['?q=', '?q=%20%20', '?q=C']) {
+      const res = await search(q);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.organizations).toEqual([]);
+      expect(body.nextCursor).toBeNull();
+    }
+  });
+
+  it('returns bio and an all-time follower_count on each row (LOOP-293)', async () => {
+    db.exec(`UPDATE organizations SET bio = 'We row.' WHERE id = ${VERIFIED_ORG}`);
+    db.exec(
+      `INSERT INTO org_followers (org_id, user_id, created_at) VALUES (${VERIFIED_ORG}, ${ME}, datetime('now', '-30 days'))`,
+    );
+    const body = (await (await search('?limit=100')).json()) as any;
+    const row = body.organizations.find((o: any) => o.id === VERIFIED_ORG);
+    expect(row.bio).toBe('We row.');
+    // 30 days old: outside trending's window, still a follower.
+    expect(row.follower_count).toBe(1);
+    expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    expect(body.organizations.find((o: any) => o.id === UNVERIFIED_ORG).follower_count).toBe(0);
+  });
+
+  it('pages sort=newest by created_at with no repeats (LOOP-293)', async () => {
+    PAGE_ORG_IDS.forEach((id, i) =>
+      db.exec(
+        `UPDATE organizations SET created_at = '2026-0${i + 1}-01 00:00:00' WHERE id = ${id}`,
+      ),
+    );
+    const collected: number[] = [];
+    let cursor: string | null = null;
+    do {
+      const res = await search(
+        `?sort=newest&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      collected.push(...body.organizations.map((o: any) => o.id));
+      cursor = body.nextCursor;
+    } while (cursor);
+    // The fixtures without an explicit created_at default to now, so they
+    // sort ahead; the five dated ones follow newest-first.
+    expect(collected.filter((id) => PAGE_ORG_IDS.includes(id))).toEqual(
+      [...PAGE_ORG_IDS].reverse(),
+    );
+    expect(new Set(collected).size).toBe(collected.length);
+  });
+
   it('rejects an unknown sort', async () => {
     const res = await search('?sort=popularity');
     expect(res.status).toBe(400);

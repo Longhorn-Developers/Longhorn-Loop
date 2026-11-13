@@ -63,7 +63,19 @@ const ROWS: { key: SettingKey; label: string; hint: string }[] = [
   },
 ];
 
-export default function FollowedOrgNotificationsScreen() {
+export interface FollowedOrgNotificationsScreenProps {
+  /**
+   * Replaces router.back() on the arrow. Passed when this renders inside the
+   * org profile's side sheet (LOOP-312) rather than as the
+   * /settings/followed-orgs route -- the same arrangement SettingsEntryScreen
+   * has with SettingsDrawer, so the toggles stay one implementation.
+   */
+  onBack?: () => void;
+}
+
+export default function FollowedOrgNotificationsScreen({
+  onBack,
+}: FollowedOrgNotificationsScreenProps = {}) {
   const colors = useThemeColors();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -104,7 +116,9 @@ export default function FollowedOrgNotificationsScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back"
-          onPress={() => router.back()}
+          onPress={onBack ?? (() => router.back())}
+          // 22pt arrow; 11 each side brings it to the 44pt floor (LOOP-312).
+          hitSlop={11}
         >
           <ArrowLeftIcon width={22} height={22} color={colors.ink} />
         </Pressable>

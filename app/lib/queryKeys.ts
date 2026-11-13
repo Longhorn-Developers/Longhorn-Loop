@@ -45,6 +45,13 @@ export const user = {
   // makes the whole profile unreachable.
   publicEventsAll: (id: number | string) => [...user.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...user.publicEventsAll(id), tab] as const,
+  // Who follows a user / who they follow (LOOP-312 sheet, LOOP-307 endpoint).
+  // Hung off `user.all` so a follow or unfollow anywhere -- which already
+  // invalidates user queries for the counts -- refreshes the lists too. The
+  // debounced search is part of the key: each query is its own paged list.
+  followListAll: (id: number | string) => [...user.all, 'follow-list', String(id)] as const,
+  followList: (id: number | string, kind: 'followers' | 'following', q = '') =>
+    [...user.followListAll(id), kind, q] as const,
 };
 
 // User settings (/settings). One row per user; `mine` is the whole thing.
@@ -91,10 +98,25 @@ export const org = {
    * `{ pages, pageParams }`. Sharing the key would let each screen read the
    * other's shape — a crash on whichever mounted second, and a confusing one,
    * because the URL and the payload would both look right.
+   *
+   * Keyed on the whole request string (query, sort, filters — LOOP-293), not
+   * just the query: a keyset cursor is only valid for the sort and filters it
+   * came from, so two of them sharing a cache entry would feed one's cursor to
+   * the other and get INVALID_CURSOR back.
    */
-  directory: (query: string) => [...org.all, 'directory', query] as const,
+  directory: (request: string) => [...org.all, 'directory', request] as const,
+  // Home's "Orgs For You" row. Under org.all so anything that invalidates the
+  // org tree (a follow from a profile, say) refreshes it too.
+  forYou: () => [...org.all, 'for-you'] as const,
   publicEventsAll: (id: number | string) => [...org.all, 'public-events', String(id)] as const,
   publicEvents: (id: number | string, tab: string) => [...org.publicEventsAll(id), tab] as const,
+  // Who follows an org (LOOP-307). followersAll() is the prefix to drop after a
+  // follow changes it; the debounced search is part of the key.
+  followersAll: (id: number | string) => [...org.all, 'followers', String(id)] as const,
+  followers: (id: number | string, q = '') => [...org.followersAll(id), q] as const,
+  // Meeting times (LOOP-319). Members-only on the server; only ever fetched
+  // for a viewer the profile says is a member.
+  meetings: (id: number | string) => [...org.all, 'meetings', String(id)] as const,
   // "Find your organization" on the registration form (LOOP-141). The
   // DEBOUNCED query is part of the key, so each settled query caches on its
   // own and backspacing to a previous one is instant instead of a refetch.

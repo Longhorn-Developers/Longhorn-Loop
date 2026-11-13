@@ -1,8 +1,16 @@
 import BellFilledIcon from '@/assets/images/bell-filled.svg';
 import BellIcon from '@/assets/images/bell.svg';
-import HookemIcon from '@/assets/images/hookem.svg';
-import EventCard, { ApiEvent } from '@/app/components/EventCard';
+import MoonIcon from '@/assets/images/moon.svg';
+import SunIcon from '@/assets/images/sun.svg';
+import SunriseIcon from '@/assets/images/sunrise.svg';
+import { ApiEvent } from '@/app/components/EventCard';
+import CompactEventRow from '@/app/components/home/CompactEventRow';
+import FlyerCard from '@/app/components/home/FlyerCard';
 import EventPostedModal from '@/app/components/EventPostedModal';
+import { HEADER_GAP, SECTION_GAP } from '@/app/components/home/layout';
+import OrgsForYouRow from '@/app/components/home/OrgsForYouRow';
+import SectionHeader from '@/app/components/home/SectionHeader';
+import SpotlightMosaic from '@/app/components/home/SpotlightMosaic';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
 import { feed as feedKeys, notifications as notificationKeys } from '@/app/lib/queryKeys';
@@ -21,11 +29,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
 
-function getGreeting(): string {
+// Time-of-day greeting and the glyph that goes with it. Read from the DEVICE
+// clock on purpose: "good morning" is about where the person is, so the server's
+// timezone (UTC on Workers) would greet a student in Austin with "good evening"
+// all afternoon.
+function getGreeting(): { text: string; Icon: typeof SunIcon } {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning,';
-  if (hour < 17) return 'Good afternoon,';
-  return 'Good evening,';
+  if (hour < 12) return { text: 'Good morning,', Icon: SunriseIcon };
+  if (hour < 17) return { text: 'Good afternoon,', Icon: SunIcon };
+  return { text: 'Good evening,', Icon: MoonIcon };
 }
 
 // Shape of the /feed/home response. Each section is a carousel; the first is
@@ -43,51 +55,77 @@ type FeedHomeResponse = { sections: FeedSection[] };
 // shape (app/notifications.tsx).
 type NotificationsResponse = { notifications: { read_at: string | null }[] };
 
+// The two card treatments. Same data, two densities (see FlyerCard and
+// CompactEventRow), so a feed isn't one repeated large square.
+type SectionVariant = 'flyer' | 'compact';
+
+// How many rows a compact section shows. A flyer row scrolls sideways and can
+// carry a dozen cards; the same dozen as stacked rows would be a screen and a
+// half of one section. Three is what the design shows — "See all" has the rest.
+const COMPACT_ROWS = 3;
+
 function CarouselSection({
   section,
+  variant,
   savedIds,
   onToggleSave,
   onViewAll,
 }: {
   section: FeedSection;
+  variant: SectionVariant;
   savedIds: Set<number>;
   onToggleSave: (eventId: number) => void;
   onViewAll?: () => void;
 }) {
-  const colors = useThemeColors();
-
   if (section.events.length === 0) return null;
 
   return (
-    <View style={{ marginBottom: 28 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingHorizontal: 20,
-          marginBottom: 12,
-        }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.ink }}>{section.label}</Text>
-        {onViewAll && (
-          <TouchableOpacity onPress={onViewAll}>
-            <Text style={{ fontSize: 22, color: colors.inkMuted }}>›</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <FlatList
-        data={section.events}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20 }}
-        keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
-        renderItem={({ item }) => (
-          <EventCard item={item} isSaved={savedIds.has(item.id)} onToggleSave={onToggleSave} />
-        )}
+    <View style={{ marginBottom: SECTION_GAP }}>
+      <SectionHeader
+        // Bucket rows are there because the user picked that interest. Upcoming
+        // is not a pick, so it has no reason to give and carries no eyebrow.
+        eyebrow={section.bucketId ? 'Because You Picked' : undefined}
+        title={section.label}
+        onViewAll={onViewAll}
+        style={{ paddingHorizontal: 20, marginBottom: HEADER_GAP }}
       />
+      {variant === 'compact' ? (
+        <View style={{ paddingHorizontal: 20, gap: 10 }}>
+          {section.events.slice(0, COMPACT_ROWS).map((item) => (
+            <CompactEventRow
+              key={`${item.source}-${item.source_event_id}`}
+              item={item}
+              isSaved={savedIds.has(item.id)}
+              onToggleSave={onToggleSave}
+            />
+          ))}
+        </View>
+      ) : (
+        <FlatList
+          data={section.events}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+          keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
+          renderItem={({ item }) => (
+            <FlyerCard item={item} isSaved={savedIds.has(item.id)} onToggleSave={onToggleSave} />
+          )}
+        />
+      )}
     </View>
   );
+}
+
+// Which treatment a section gets. TEMPORARY: the design alternates, so the
+// interest-bucket rows alternate flyer / compact / flyer / ... in the order the
+// server sends them (CAREER flyer, ENTERTAINMENT compact, TECHNOLOGY flyer in the
+// Figma). Upcoming is not a bucket and is always flyer-led. Which bucket gets
+// which treatment is a feed-shape question for Kamsi, not a styling one — when it
+// is answered this is the one place to change.
+function variantFor(section: FeedSection, sections: FeedSection[]): SectionVariant {
+  if (!section.bucketId) return 'flyer';
+  const bucketIndex = sections.filter((s) => s.bucketId).findIndex((s) => s.key === section.key);
+  return bucketIndex % 2 === 0 ? 'flyer' : 'compact';
 }
 
 export default function HomeScreen() {
@@ -141,7 +179,18 @@ export default function HomeScreen() {
   ).length;
 
   const firstName = data.firstName || 'User';
-  const sections = feedQuery.data?.sections ?? [];
+  const greeting = getGreeting();
+  const feedSections = feedQuery.data?.sections ?? [];
+  // Personalized rows first (the user's own buckets), Upcoming last. The server
+  // sends Upcoming first; it is reordered here rather than there so it works
+  // against whichever Worker version the app is pointed at. Order within each
+  // group is the server's, and the flyer/compact alternation counts only the
+  // bucket rows, so moving Upcoming doesn't change which bucket gets which card.
+  const sections = [
+    ...feedSections.filter((s) => s.bucketId),
+    ...feedSections.filter((s) => !s.bucketId),
+  ];
+  const spotlightEvents = sections.find((s) => s.key === 'upcoming')?.events.slice(0, 3) ?? [];
 
   return (
     <SafeAreaView className="flex-1 bg-lhlBackgroundColor" edges={['left', 'right']}>
@@ -162,27 +211,57 @@ export default function HomeScreen() {
           style={{
             paddingHorizontal: 20,
             paddingTop: 90,
-            paddingBottom: 16,
+            paddingBottom: 24,
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
           <View>
-            <Text style={{ fontSize: 16, fontWeight: '400', color: colors.inkMuted }}>
-              {getGreeting()}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>
-                {firstName}
+            {/* Orange caps eyebrow with its time-of-day glyph, then the name large —
+                as in the redesign. (The Hook 'em hand that used to sit after the
+                name is not in the new frame and has been dropped.) */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <greeting.Icon width={16} height={16} color={colors.brand} />
+              <Text
+                style={{
+                  fontFamily: 'Roboto-Flex-SemiBold',
+                  fontSize: 13,
+                  letterSpacing: 0.4,
+                  color: colors.brand,
+                }}
+              >
+                {greeting.text.toUpperCase()}
               </Text>
-              <HookemIcon width={31} height={31} color={colors.ink} />
             </View>
+            <Text
+              style={{
+                fontFamily: 'Roboto-Flex-Bold',
+                fontSize: 32,
+                lineHeight: 38,
+                color: colors.ink,
+                marginTop: 2,
+              }}
+            >
+              {firstName}
+            </Text>
           </View>
 
           {/* Bell */}
           <TouchableOpacity
-            style={{ position: 'relative', padding: 4 }}
+            // A round white button, as in the redesign. The badge below hangs off
+            // its top-right edge, so this must not clip its children.
+            style={{
+              position: 'relative',
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.borderSoft,
+            }}
             onPress={() => router.push('/notifications')}
             accessibilityRole="button"
             accessibilityLabel={
@@ -209,8 +288,8 @@ export default function HomeScreen() {
               <View
                 style={{
                   position: 'absolute',
-                  top: 0,
-                  right: 0,
+                  top: -2,
+                  right: -2,
                   // Brand, not destructive. An unread notification is not an
                   // error, and red on this header read as an alert state — bug
                   // bash: "make notification symbol color burnt orange instead
@@ -239,15 +318,29 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Divider */}
-        <View
-          style={{
-            height: 1,
-            backgroundColor: colors.divider,
-            marginHorizontal: 20,
-            marginBottom: 24,
-          }}
-        />
+        {/* Spotlight: a fixed three-slot mosaic (tall card + two stacked).
+
+            PLACEHOLDER SOURCE: the first three Upcoming events. Which events
+            belong here — the "weekly top" ranking — is undecided (LOOP-273), so
+            this is deliberately the dumbest thing that fills the slots and is
+            the one line to replace once that lands. Until then these three also
+            appear in the Upcoming carousel below. Renders nothing with fewer
+            than three events. */}
+        {spotlightEvents.length >= 3 ? (
+          <View style={{ paddingHorizontal: 20, marginBottom: SECTION_GAP }}>
+            <SectionHeader
+              eyebrow="Your Top Picks"
+              title="Spotlight"
+              style={{ marginBottom: HEADER_GAP }}
+            />
+            <SpotlightMosaic events={spotlightEvents} />
+          </View>
+        ) : null}
+
+        {/* Orgs worth following, with a Follow button on each card. Renders
+            nothing signed out, while loading, or when there is nothing to
+            offer. */}
+        <OrgsForYouRow token={token} />
 
         {/* Server-driven carousels: Upcoming + one per interest bucket. */}
         {feedQuery.isPending ? (
@@ -259,18 +352,18 @@ export default function HomeScreen() {
             <CarouselSection
               key={section.key}
               section={section}
+              variant={variantFor(section, sections)}
               savedIds={savedIds}
               onToggleSave={handleToggleSave}
-              // "See all" only makes sense for bucket sections (Upcoming has no
-              // dedicated endpoint).
-              onViewAll={
-                section.bucketId
-                  ? () =>
-                      router.push({
-                        pathname: '/view-all' as any,
-                        params: { title: section.label, bucketId: section.bucketId },
-                      })
-                  : undefined
+              // Every section leads somewhere: a bucket to its ranked list,
+              // Upcoming to the same events from the home feed (see view-all.tsx).
+              onViewAll={() =>
+                router.push({
+                  pathname: '/view-all' as any,
+                  params: section.bucketId
+                    ? { title: section.label, bucketId: section.bucketId }
+                    : { title: section.label, section: section.key },
+                })
               }
             />
           ))

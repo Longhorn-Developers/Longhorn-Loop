@@ -10,7 +10,9 @@
 // callers fall back to their existing geocode path without crashing.
 
 import { Platform } from 'react-native';
-import { requireOptionalNativeModule } from 'expo-modules-core';
+// From 'expo', not 'expo-modules-core': SDK 58 stopped hoisting
+// expo-modules-core to the top of node_modules, and expo re-exports it.
+import { requireOptionalNativeModule } from 'expo';
 
 // UT Austin's approximate center. Passed as the search region so campus
 // buildings outrank identically-named places elsewhere in the world.

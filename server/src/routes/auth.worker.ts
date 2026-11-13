@@ -7,10 +7,24 @@ import {
   isAllowedUTEmail,
   normalizeUTEmail,
 } from '../../../shared/utEmail';
+import { RESEND_COOLDOWN_MS } from '../../../shared/verificationCode';
 import { DEFAULT_EMAIL_FROM, type EmailMessage, sendEmail } from '../email/send';
 
 const MAX_ATTEMPTS = 5;
-const RESEND_COOLDOWN_MS = 60 * 1000; // 1 minute
+
+/**
+ * Milliseconds left on the cooldown for a row, or 0 if it has expired.
+ *
+ * Both send-code and resend-code already computed this to make the decision
+ * and then threw the number away, so the client could say "please wait" but
+ * never "for how long". Returning it is what lets the screen render a real
+ * countdown instead of an indefinite instruction.
+ */
+function cooldownRemainingMs(lastSentAt: unknown): number {
+  const elapsed = Date.now() - Number(lastSentAt);
+  if (!Number.isFinite(elapsed)) return 0;
+  return Math.max(0, RESEND_COOLDOWN_MS - elapsed);
+}
 const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
@@ -243,8 +257,11 @@ authRoutes.post('/send-code', async (c) => {
     .bind(normalizedEmail)
     .first();
 
-  if (existing && Date.now() - (existing.last_sent_at as number) < RESEND_COOLDOWN_MS) {
-    return c.json({ error: 'RESEND_TOO_SOON' }, 429);
+  const remainingMs = existing ? cooldownRemainingMs(existing.last_sent_at) : 0;
+  if (remainingMs > 0) {
+    // retryAfterMs is the whole point: a 429 the client cannot turn into a
+    // countdown is indistinguishable from a dead button.
+    return c.json({ error: 'RESEND_TOO_SOON', retryAfterMs: remainingMs }, 429);
   }
 
   try {
@@ -358,8 +375,11 @@ authRoutes.post('/resend-code', async (c) => {
     .bind(normalizedEmail)
     .first();
 
-  if (existing && Date.now() - (existing.last_sent_at as number) < RESEND_COOLDOWN_MS) {
-    return c.json({ error: 'RESEND_TOO_SOON' }, 429);
+  const remainingMs = existing ? cooldownRemainingMs(existing.last_sent_at) : 0;
+  if (remainingMs > 0) {
+    // retryAfterMs is the whole point: a 429 the client cannot turn into a
+    // countdown is indistinguishable from a dead button.
+    return c.json({ error: 'RESEND_TOO_SOON', retryAfterMs: remainingMs }, 429);
   }
 
   try {

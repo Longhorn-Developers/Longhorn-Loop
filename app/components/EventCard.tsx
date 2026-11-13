@@ -33,6 +33,15 @@ export interface ApiEvent {
   rsvp_count: number;
   view_count: number;
   org_profile_picture: string | null;
+  // Detail endpoint only (GET /events/:id); list and feed rows omit them.
+  org_verified?: boolean;
+  is_following_org?: boolean;
+  // Whether the caller may PATCH this event: its creator, or an admin/editor
+  // of the host org (LOOP-282). Gates the event page's edit button.
+  can_edit?: boolean;
+  // 'in_person' | 'online' (shared/venueType.ts). Returned by the detail endpoint
+  // and the create flow; list rows may omit it, which reads as in person.
+  venue_type?: string;
   categories: { id: string; name: string }[];
   // Classifier-assigned taxonomy tags (Phase 2). Rendered as chips.
   tags: string[];

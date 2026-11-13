@@ -7,7 +7,7 @@ import TabHomeIcon from '@/assets/images/tab-home.svg';
 import ProfileTabIcon from '@/app/components/ProfileTabIcon';
 import { CreateEventProvider } from '@/app/context/CreateEventContext';
 import { useThemeColors } from '@/app/lib/themeColors';
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -46,6 +46,11 @@ export default function TabsLayout() {
 
   const bottomPadding = Math.max(insets.bottom, MIN_BOTTOM_PADDING);
 
+  // "See all" (/view-all) is a hidden tab so the bar stays on screen, but it is
+  // not one of the four items, so no icon would otherwise be lit. It is reached
+  // from Home, so Home is the one that reads as "you are here".
+  const onViewAll = usePathname() === '/view-all';
+
   return (
     <CreateEventProvider>
       <Tabs
@@ -79,7 +84,7 @@ export default function TabsLayout() {
           name="home"
           options={{
             tabBarIcon: ({ focused }) =>
-              focused ? (
+              focused || onViewAll ? (
                 <TabHomeActiveIcon width={42} height={39} color={active} />
               ) : (
                 <TabHomeIcon width={42} height={39} color={inactive} />
@@ -119,6 +124,11 @@ export default function TabsLayout() {
             ),
           }}
         />
+
+        {/* The See all grid. In the tabs so the bar stays visible, hidden from
+            them with href: null so it doesn't become a fifth item. Its URL is
+            still /view-all — the (tabs) group is not part of the path. */}
+        <Tabs.Screen name="view-all" options={{ href: null }} />
       </Tabs>
     </CreateEventProvider>
   );

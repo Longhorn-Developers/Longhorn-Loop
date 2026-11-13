@@ -44,16 +44,29 @@ export interface SettingsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  /**
+   * What the panel holds. Defaults to the settings hub; the org profile passes
+   * the followed-org notification toggles instead (LOOP-312, Figma
+   * "Notification Settings Sheet"). Takes `close` so the panel's own back
+   * arrow can run the same slide-out the scrim does.
+   */
+  renderPanel?: (close: () => void) => React.ReactNode;
 }
 
-export default function SettingsDrawer({ open, onOpenChange, children }: SettingsDrawerProps) {
+export default function SettingsDrawer({
+  open,
+  onOpenChange,
+  children,
+  renderPanel,
+}: SettingsDrawerProps) {
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
 
   // Wide enough to read a settings row, narrow enough that the profile stays
   // visible behind it — the sliver of page is what says this is a drawer over
-  // your profile rather than a new screen.
-  const panelWidth = Math.min(width * 0.86, 380);
+  // your profile rather than a new screen. Capped at 336, the Figma's side
+  // sheet width (LOOP-312); on the 402pt design phone 86% would be 346.
+  const panelWidth = Math.min(width * 0.86, 336);
 
   /**
    * ONE VALUE FOR EVERYTHING: 0 is fully open, panelWidth is closed.
@@ -77,6 +90,19 @@ export default function SettingsDrawer({ open, onOpenChange, children }: Setting
   }, [open, panelWidth, x]);
 
   const pan = Gesture.Pan()
+    // WHERE THE PAN MAY START, not just which starts it acts on. While the
+    // drawer is closed only the right-edge strip can begin a drag; open, the
+    // whole surface can (to push the panel back).
+    //
+    // onBegin below used to be the only filter, and it runs AFTER the pan has
+    // claimed the touch: any horizontal drag anywhere activated this gesture,
+    // which then ignored it -- but the touch was already taken. On a pushed
+    // screen that swallowed iOS's left-edge swipe-back, so the org landing
+    // page (which wraps itself in this drawer for its notification sheet,
+    // LOOP-319) was the one stack screen you couldn't swipe away. Limiting
+    // the hit area hands every other touch, left edge included, to whatever
+    // sits underneath.
+    .hitSlop(open ? {} : { right: 0, width: EDGE_WIDTH })
     .activeOffsetX([-DRAG_SLOP, DRAG_SLOP])
     .failOffsetY([-20, 20])
     .onBegin((e) => {
@@ -152,7 +178,7 @@ export default function SettingsDrawer({ open, onOpenChange, children }: Setting
               panelStyle,
             ]}
           >
-            <SettingsEntryScreen onBack={close} />
+            {renderPanel ? renderPanel(close) : <SettingsEntryScreen onBack={close} />}
           </Animated.View>
         </View>
       </GestureDetector>

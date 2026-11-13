@@ -82,6 +82,8 @@ export interface OrgEvent {
   location_full: string | null;
   image_url: string | null;
   theme: string | null;
+  /** Prefills the edit overlay's RSVP field (LOOP-282). */
+  rsvp_url: string | null;
   view_count: number;
   rsvp_count: number;
   save_count: number;

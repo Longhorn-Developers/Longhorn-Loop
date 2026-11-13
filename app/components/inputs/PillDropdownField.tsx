@@ -1,4 +1,5 @@
 import LhlCaretDownIcon from '@/assets/icons/LhlCaretDownIcon';
+import { useThemeColors } from '@/app/lib/themeColors';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import PillButton from '../buttons/PillButton';
@@ -28,6 +29,7 @@ export default function PillDropdownField({
   borderRadius = 4,
   maxPillTextLength = 50,
 }: PillDropdownFieldProps) {
+  const colors = useThemeColors();
   const handlePillPress = (option: string) => {
     if (selectedValues.includes(option)) {
       onSelect(selectedValues.filter((item) => item !== option));
@@ -104,7 +106,8 @@ export default function PillDropdownField({
         <View
           className={`ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
         >
-          <LhlCaretDownIcon color="#000" />
+          {/* ink, not '#000': black vanished on the dark-mode page. */}
+          <LhlCaretDownIcon color={colors.ink} />
         </View>
       </Pressable>
 

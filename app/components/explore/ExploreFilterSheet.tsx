@@ -584,12 +584,15 @@ export default function ExploreFilterSheet({
             justifyContent: 'center',
             borderRadius: 13,
             borderWidth: 1.5,
-            borderColor: colors.border,
-            backgroundColor: colors.surface,
+            // The tapped Filters button's outline and text colour, with no
+            // fill, so the two controls read as one family: orange means
+            // "this acts on your filters", solid orange means "filters are on".
+            borderColor: colors.brand,
+            backgroundColor: 'transparent',
             opacity: hasActiveFilters(filters) ? 1 : 0.5,
           }}
         >
-          <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>Reset</Text>
+          <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.accent }}>Reset</Text>
         </Pressable>
 
         {/* The count IS the button. At zero it is spent — there is nothing to
