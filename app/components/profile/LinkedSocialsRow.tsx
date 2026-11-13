@@ -15,6 +15,7 @@ import {
   getSocialPlatformUI,
   type LinkedSocial,
 } from '@/app/lib/socialPlatforms';
+import { useThemeColors } from '@/app/lib/themeColors';
 
 export interface LinkedSocialsRowProps {
   socials: LinkedSocial[];
@@ -33,6 +34,7 @@ export default function LinkedSocialsRow({
   onPreview,
   disabled = false,
 }: LinkedSocialsRowProps) {
+  const colors = useThemeColors();
   const isFull = socials.length >= MAX_LINKED_SOCIALS;
 
   return (
@@ -72,7 +74,7 @@ export default function LinkedSocialsRow({
                 hitSlop={10}
                 className="absolute right-0 top-0 h-[16px] w-[16px] items-center justify-center rounded-full bg-lhlInk"
               >
-                <LhlPillCross size={7} color="#FFFFFF" />
+                <LhlPillCross size={7} color={colors.surface} />
               </Pressable>
             </View>
           );

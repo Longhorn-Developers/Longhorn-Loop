@@ -70,7 +70,9 @@ const PRESSED_BY_VARIANT: Record<ModalActionVariant, string> = {
 
 const TEXT_BY_VARIANT: Record<ModalActionVariant, string> = {
   outline: 'text-lhlInk',
-  ink: 'text-white',
+  // Surface, not white: lhlInk is near-white in dark mode, and surface flips
+  // with it (same convention as the undo toast in app/notifications.tsx).
+  ink: 'text-lhlSurface',
   brand: 'text-white',
   destructive: 'text-white',
 };
