@@ -18,6 +18,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../lib/images';
 import { getAuthUser, getUserId } from '../lib/utils';
+import { isCronAuthorized } from '../lib/cronAuth';
 import { isNonPhysicalLocation, resolveBuilding } from '../lib/utBuildings';
 import { getManualScraper, SCRAPERS } from '../scrapers/registry';
 import type { Env } from '../worker';
@@ -2069,7 +2070,7 @@ eventRoutes.post('/:id/coordinates', async (c) => {
  * committing 200 rows to a coordinate.
  */
 eventRoutes.post('/backfill-coordinates', async (c) => {
-  if (c.req.header('Authorization') !== `Bearer ${c.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(c.req.header('Authorization'), c.env.CRON_SECRET)) {
     return c.json({ error: 'UNAUTHORIZED' }, 401);
   }
 
@@ -2235,12 +2236,23 @@ eventRoutes.post('/:id/report', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /events/scrape/:name -- manually trigger any registered scraper (for testing)
+// POST /events/scrape/:name -- run one scraper. The 6-hourly cron dispatches
+// here (see dispatchScrapers in worker.ts); people call it by hand for testing.
+//
+// EVERY path needs CRON_SECRET, the manual one included. Previously a caller
+// whose header did not match fell through to the `manual` scrapers, so anyone
+// on the internet could make the prod Worker scrape and write to D1. Body-less
+// POSTs run the full scraper (what the cron sends); a JSON body selects the
+// manual entry point so `{"dryRun":true}` etc. still work for operators.
 eventRoutes.post('/scrape/:name', async (c) => {
-  const scraperName = c.req.param('name');
-  const auth = c.req.header('Authorization');
+  if (!isCronAuthorized(c.req.header('Authorization'), c.env.CRON_SECRET)) {
+    return c.json({ error: 'UNAUTHORIZED' }, 401);
+  }
 
-  if (auth === `Bearer ${c.env.CRON_SECRET}`) {
+  const scraperName = c.req.param('name');
+  const hasBody = (c.req.header('Content-Type') ?? '').includes('application/json');
+
+  if (!hasBody) {
     const scraper = SCRAPERS.find((s) => s.name === scraperName);
     if (!scraper) {
       return c.json({ error: 'SCRAPER_NOT_FOUND' }, 404);
@@ -2275,7 +2287,14 @@ eventRoutes.post('/scrape/:name', async (c) => {
 // Keep bulk calls small: each Worker invocation performs Workers AI calls plus
 // D1 writes, so processing the entire event table at once can hit
 // per-invocation limits.
+//
+// Operator-only (CRON_SECRET). It had no auth at all: anyone could rewrite
+// every event's tags and spend the account's Workers AI quota doing it.
 eventRoutes.post('/reclassify', async (c) => {
+  if (!isCronAuthorized(c.req.header('Authorization'), c.env.CRON_SECRET)) {
+    return c.json({ error: 'UNAUTHORIZED' }, 401);
+  }
+
   const { writeEventTags } = await import('../lib/classifier');
   const { classifyEventsBatch } = await import('../lib/semanticTags');
 
