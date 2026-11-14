@@ -22,6 +22,7 @@ import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
 import { run as runMoody, scrapeMoody } from './moody';
+import { run as runNursing, scrapeNursing } from './nursing';
 import { run as runTexasGlobal, scrapeTexasGlobal } from './texasGlobal';
 import { run as runTexasToday } from './texasToday';
 
@@ -44,6 +45,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'cockrell', run: runCockrell, manual: scrapeCockrell },
   { name: 'education', run: runEducation, manual: scrapeEducation },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
+  { name: 'nursing', run: runNursing, manual: scrapeNursing },
   // cns and pharmacy are retired from the cron (LOOP-309), not deleted. Both
   // read calendar.utexas.edu scoped by group_id, and both groups are EMPTY:
   // 0 events over a 365-day window, re-checked with the corrected page size.
