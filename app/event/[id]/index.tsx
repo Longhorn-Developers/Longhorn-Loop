@@ -110,8 +110,10 @@ function InfoCard({
           <RowButton
             label="Add to GCal"
             accessibilityLabel="Add to Google Calendar"
-            icon={<CalendarAddIcon width={16} height={16} color={colors.brand} />}
+            // theme-exempt: the glyph sits on the filled blue button, white in both themes
+            icon={<CalendarAddIcon width={16} height={16} color="#FFFFFF" />}
             iconPosition="end"
+            tone="info"
             onPress={onAddToCalendar}
           />
         }
@@ -990,9 +992,8 @@ const makeStyles = (c: ThemeColors) => ({
     lineHeight: 21,
   },
   categoryLine: {
-    fontFamily: 'RobotoFlex_600SemiBold',
+    fontFamily: 'Roboto-Flex-SemiBold',
     fontSize: 12,
-    fontWeight: '600' as const,
     letterSpacing: 0.5,
     color: c.brand,
     marginBottom: 8,
