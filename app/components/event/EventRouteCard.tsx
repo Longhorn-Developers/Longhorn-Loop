@@ -147,13 +147,12 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 12,
     },
     venue: {
-      fontFamily: 'RobotoFlex_600SemiBold',
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 15,
-      fontWeight: '600',
       color: c.ink,
     },
     detail: {
-      fontFamily: 'RobotoFlex_400Regular',
+      fontFamily: 'Roboto-Flex',
       fontSize: 14,
       color: c.ink,
       marginTop: 2,

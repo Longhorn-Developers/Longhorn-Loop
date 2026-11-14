@@ -157,6 +157,12 @@ interface RowButtonProps {
   iconPosition?: 'start' | 'end';
   /** Unavailable rather than busy: not tappable, dimmed harder than `pending`. */
   disabled?: boolean;
+  /**
+   * 'info' is a solid blue button with a white label (Add to GCal); the default
+   * is the soft brand fill. `active` (the outline state) only applies to the
+   * default tone.
+   */
+  tone?: 'soft' | 'info';
 }
 
 /** The soft-brand action on the right of a row. */
@@ -170,6 +176,7 @@ export function RowButton({
   icon,
   iconPosition = 'start',
   disabled = false,
+  tone = 'soft',
 }: RowButtonProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -186,12 +193,21 @@ export function RowButton({
         // Soft brand fill while unset, outline once done: the same inversion
         // FollowControl uses for a completed toggle.
         active ? styles.buttonActive : null,
+        tone === 'info' ? styles.buttonInfo : null,
         pending ? { opacity: 0.6 } : null,
         disabled ? { opacity: 0.5 } : null,
       ]}
     >
       {iconPosition === 'start' ? icon : null}
-      <Text style={[styles.buttonText, active ? { color: colors.ink } : null]}>{label}</Text>
+      <Text
+        style={[
+          styles.buttonText,
+          active ? { color: colors.ink } : null,
+          tone === 'info' ? styles.buttonInfoText : null,
+        ]}
+      >
+        {label}
+      </Text>
       {iconPosition === 'end' ? icon : null}
     </Pressable>
   );
@@ -227,16 +243,14 @@ const makeStyles = (c: ThemeColors) =>
       gap: 6,
     },
     title: {
-      fontFamily: 'RobotoFlex_600SemiBold',
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 14,
-      fontWeight: '600',
       color: c.ink,
       flexShrink: 1,
     },
     subtitle: {
-      fontFamily: 'RobotoFlex_400Regular',
+      fontFamily: 'Roboto-Flex',
       fontSize: 14,
-      fontWeight: '400',
       color: c.ink,
       marginTop: 2,
     },
@@ -280,10 +294,16 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       backgroundColor: c.surface,
     },
+    buttonInfo: {
+      borderColor: c.infoFill,
+      backgroundColor: c.infoFill,
+    },
+    buttonInfoText: {
+      color: '#FFFFFF', // theme-exempt: label on the filled info button, white in both themes
+    },
     buttonText: {
-      fontFamily: 'RobotoFlex_600SemiBold',
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 13,
-      fontWeight: '600',
       color: c.brand,
     },
   });
