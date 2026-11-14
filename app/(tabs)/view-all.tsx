@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { trendingThisWeek } from '@/app/components/explore/ExploreTrendingHero';
 
 type EventsListResponse = { events: ApiEvent[] };
 type FeedHomeSections = { sections: { key: string; events: ApiEvent[] }[] };
@@ -44,6 +45,7 @@ export default function ViewAllScreen() {
     search?: string;
   }>();
   const upcoming = section === 'upcoming';
+  const trending = section === 'trending';
   const { data } = useOnboarding();
   const token = data.token || null;
   const { savedIds, toggleSave: handleToggleSave } = useSavedEvents(token);
@@ -61,6 +63,18 @@ export default function ViewAllScreen() {
     staleTime: 30_000,
   });
 
+    // Trending: Explore's own feed request (same key, same fetch), narrowed to
+  // this week's events the way the hero is.
+  const trendingQuery = useQuery({
+    queryKey: feedKeys.explore({ limit: '100' }),
+    queryFn: () => api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
+    select: (res): EventsListResponse => ({
+      events: trendingThisWeek(res.events, new Date()),
+    }),
+    enabled: trending,
+    staleTime: 30_000,
+  });
+
   // Everything else: one bucket's ranked list, or a raw /events query.
   const listQuery = useQuery({
     queryKey: bucketId
@@ -70,12 +84,11 @@ export default function ViewAllScreen() {
       bucketId
         ? api.get<EventsListResponse>(`/feed/bucket/${bucketId}?limit=50`, { token })
         : api.get<EventsListResponse>(`/events?${search}&limit=50`, { token }),
-    enabled: !upcoming,
+    enabled: !upcoming && !trending,
     staleTime: 30_000,
   });
 
-  const eventsQuery = upcoming ? upcomingQuery : listQuery;
-  const events = eventsQuery.data?.events ?? [];
+  const eventsQuery = upcoming ? upcomingQuery : trending ? trendingQuery : listQuery;  const events = eventsQuery.data?.events ?? [];
 
   // Two flyer cards across, the same card Home's rows use. Sized from the screen
   // rather than flex-filled so a lone card on an odd last row stays one column
@@ -130,10 +143,11 @@ export default function ViewAllScreen() {
       ) : events.length === 0 ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
           <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
-            {upcoming
+                        {upcoming
               ? 'No upcoming events right now.'
-              : 'No events found in this category right now.'}
-          </Text>
+              : trending
+                ? 'Nothing trending this week.'
+                : 'No events found in this category right now.'}          </Text>
         </View>
       ) : (
         <FlatList

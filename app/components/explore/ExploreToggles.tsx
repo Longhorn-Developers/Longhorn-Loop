@@ -1,7 +1,6 @@
 import { useThemeColors } from '@/app/lib/themeColors';
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 
 /**
  * The Explore feed selector (LOOP-177), narrowed to what it is actually for.
@@ -35,18 +34,14 @@ import Svg, { Path } from 'react-native-svg';
  * here. The endpoint still exists and still works; if the corpus outgrows one
  * feed page, the bucket route is the thing to route Interests back through.
  *
- * The Filters button sits at the head of the row rather than the tail so it is
- * reachable without scrolling, and carries a count of ACTIVE GROUPS (not
- * selected chips) — "3" means college, interests and time are all narrowing the
- * results, which is the number that explains why you are seeing what you see.
  *
- * The button stays on the org destinations too (LOOP-293), but opens the org
- * sheet and counts ORG filters only — the parent decides which count to pass,
- * because only it knows which sheet the button opens. An event filter left on
- * from Trending must not inflate the badge on a list it has no effect on.
  */
 
-export type ExploreSelection = { kind: 'trending' } | { kind: 'newOrgs' } | { kind: 'orgs' };
+/* The Filters button used to head this row. It moved into the search bar
+ * (ExploreFilterButton, LOOP-292), so this row is only the destinations. */
+
+export type ExploreSelection =
+  { kind: 'all' } | { kind: 'trending' } | { kind: 'newOrgs' } | { kind: 'orgs' };
 
 /** Both org destinations: list-only, org cards, org filters. */
 export function isOrgSelection(selection: ExploreSelection): boolean {
@@ -57,57 +52,73 @@ export function selectionKey(selection: ExploreSelection): string {
   return selection.kind;
 }
 
-function SliderGlyph({ color }: { color: string }) {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4 7h10M18 7h2M4 17h4M12 17h8"
-        stroke={color}
-        strokeWidth={1.9}
-        strokeLinecap="round"
-      />
-      <Path
-        d="M16 4.8a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4ZM10 14.8a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4Z"
-        stroke={color}
-        strokeWidth={1.9}
-      />
-    </Svg>
-  );
-}
-
 type Props = {
   selection: ExploreSelection;
+  /** The filter sheet's interests, which Social and Career write into. */
+  interests: string[];
   onSelect: (selection: ExploreSelection) => void;
-  /** Active filter groups for whichever sheet the button opens. */
-  activeCount: number;
-  onOpenFilters: () => void;
-  /** Whether that sheet is open, so the button stays lit while it is. */
-  filtersOpen: boolean;
+  onChangeInterests: (interests: string[]) => void;
 };
 
-type Entry = { key: string; label: string; selection: ExploreSelection };
+/** Bucket ids in shared/taxonomy.ts. "Career" is the Education & Career bucket. */
+const SOCIAL_BUCKET = 'social';
+const CAREER_BUCKET = 'education';
 
-const ENTRIES: Entry[] = [
-  { key: 'trending', label: 'Trending', selection: { kind: 'trending' } },
-  { key: 'newOrgs', label: 'New Orgs', selection: { kind: 'newOrgs' } },
-  { key: 'orgs', label: 'Orgs', selection: { kind: 'orgs' } },
-];
+type Chip = { key: string; label: string; active: boolean; onPress: () => void };
 
 export default function ExploreToggles({
   selection,
+  interests,
   onSelect,
-  activeCount,
-  onOpenFilters,
-  filtersOpen,
+  onChangeInterests,
 }: Props) {
   const colors = useThemeColors();
-  const activeKey = selectionKey(selection);
-  const [filtersPressed, setFiltersPressed] = useState(false);
 
-  const applied = activeCount > 0;
-  const engaged = filtersPressed || filtersOpen;
-  // Same foreground as a selected chip when solid; accent text on the tint.
-  const filtersFg = applied ? colors.surface : engaged ? colors.accent : colors.inkSecondary;
+  // Single-select, like the Figma row: a chip is lit only when it matches
+  // exactly, so a sheet selection of Tech + Food lights none of Social/Career.
+  const onlyInterest = (id: string) => interests.length === 1 && interests[0] === id;
+
+  const chips: Chip[] = [
+    {
+      key: 'all',
+      label: 'All Events',
+      active: selection.kind === 'all' && interests.length === 0,
+      onPress: () => {
+        onSelect({ kind: 'all' });
+        onChangeInterests([]);
+      },
+    },
+    {
+      key: 'orgs',
+      label: 'Orgs',
+      active: selection.kind === 'orgs',
+      onPress: () => onSelect({ kind: 'orgs' }),
+    },
+    {
+      key: 'trending',
+      label: 'Trending',
+      active: selection.kind === 'trending',
+      onPress: () => onSelect({ kind: 'trending' }),
+    },
+    {
+      key: 'social',
+      label: 'Social',
+      active: selection.kind === 'all' && onlyInterest(SOCIAL_BUCKET),
+      onPress: () => {
+        onSelect({ kind: 'all' });
+        onChangeInterests([SOCIAL_BUCKET]);
+      },
+    },
+    {
+      key: 'career',
+      label: 'Career',
+      active: selection.kind === 'all' && onlyInterest(CAREER_BUCKET),
+      onPress: () => {
+        onSelect({ kind: 'all' });
+        onChangeInterests([CAREER_BUCKET]);
+      },
+    },
+  ];
 
   return (
     <View>
@@ -122,108 +133,34 @@ export default function ExploreToggles({
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Filters. On the org destinations this opens the org sheet rather
-            than the event one — an org has no start time, no perks and no
-            taxonomy bucket, so the event sheet would offer four controls that
-            do nothing there (LOOP-293).
-
-            THREE LOOKS, so a tap visibly lands. It used to have two -- plain,
-            and a light-orange tint once a filter was applied -- so tapping it
-            looked like nothing happened until a filter was chosen:
-              idle                plain outline
-              pressed / sheet open light orange (brandSoft), orange outline
-              filters applied     solid orange, like a selected chip, with
-                                  the count badge inverted
-            Pressed state is tracked in React state, not a ({ pressed }) style
-            function: NativeWind's jsx runtime drops function-valued styles. */}
-        <Pressable
-          onPress={onOpenFilters}
-          onPressIn={() => setFiltersPressed(true)}
-          onPressOut={() => setFiltersPressed(false)}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: filtersOpen }}
-          accessibilityLabel={
-            activeCount === 0
-              ? 'Filters'
-              : `Filters, ${activeCount} active filter group${activeCount === 1 ? '' : 's'}`
-          }
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: applied || engaged ? colors.brand : colors.border,
-            backgroundColor: applied ? colors.brand : engaged ? colors.brandSoft : 'transparent',
-            // Already solid orange when applied, so dim slightly on press
-            // instead -- the tap still shows.
-            opacity: applied && filtersPressed ? 0.85 : 1,
-          }}
-        >
-          <SliderGlyph color={filtersFg} />
-          <Text
+        {chips.map((chip) => (
+          <Pressable
+            key={chip.key}
+            onPress={chip.onPress}
+            accessibilityRole="button"
+            accessibilityState={{ selected: chip.active }}
+            accessibilityLabel={chip.label}
             style={{
-              fontSize: 13,
-              fontWeight: '700',
-              color: filtersFg,
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: chip.active ? colors.brand : colors.border,
+              backgroundColor: chip.active ? colors.brand : 'transparent',
             }}
           >
-            Filters
-          </Text>
-          {applied ? (
-            <View
+            <Text
               style={{
-                minWidth: 18,
-                height: 18,
-                paddingHorizontal: 5,
-                borderRadius: 999,
-                alignItems: 'center',
-                justifyContent: 'center',
-                // Inverted on the solid button: a surface-coloured pill with
-                // the count in brand, instead of orange-on-orange.
-                backgroundColor: colors.surface,
+                fontSize: 13,
+                fontWeight: chip.active ? '700' : '500',
+                color: chip.active ? colors.surface : colors.inkSecondary,
               }}
+              numberOfLines={1}
             >
-              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent }}>
-                {activeCount}
-              </Text>
-            </View>
-          ) : null}
-        </Pressable>
-
-        {ENTRIES.map((entry) => {
-          const isActive = entry.key === activeKey;
-          return (
-            <Pressable
-              key={entry.key}
-              onPress={() => onSelect(entry.selection)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-              accessibilityLabel={entry.label}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 7,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: isActive ? colors.brand : colors.border,
-                backgroundColor: isActive ? colors.brand : 'transparent',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: isActive ? '700' : '500',
-                  color: isActive ? colors.surface : colors.inkSecondary,
-                }}
-                numberOfLines={1}
-              >
-                {entry.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+              {chip.label}
+            </Text>
+          </Pressable>
+        ))}
       </ScrollView>
     </View>
   );

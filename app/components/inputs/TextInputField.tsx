@@ -10,6 +10,7 @@ const DEFAULT_HEIGHT = 33;
 interface TextInputFieldProps extends TextInputProps {
   label?: string;
   leftIcon?: React.ReactNode;
+  rightAccessory?: React.ReactNode;
   clearable?: boolean;
   borderRadius?: number; // px
   forceFocusStyles?: boolean;
@@ -38,6 +39,7 @@ interface TextInputFieldProps extends TextInputProps {
 export default function TextInputField({
   label,
   leftIcon,
+  rightAccessory,
   clearable,
   borderRadius = 4,
   forceFocusStyles = false,
@@ -214,6 +216,7 @@ export default function TextInputField({
             <LhlPillCross size={11} color={colors.inkSecondary} />
           </Pressable>
         )}
+        {rightAccessory}
       </Pressable>
     </View>
   );

@@ -1,32 +1,33 @@
 import ResultsErrorBoundary from '@/app/components/ErrorBoundary';
-import EventCard, { ApiEvent } from '@/app/components/EventCard';
+import { ApiEvent } from '@/app/components/EventCard';
+import FlyerCard from '@/app/components/home/FlyerCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
 import ExploreFilterSheet from '@/app/components/explore/ExploreFilterSheet';
+import ExploreListPanel from '@/app/components/explore/ExploreListPanel';
 import ExploreOrgFilterSheet from '@/app/components/explore/ExploreOrgFilterSheet';
 import ExploreToggles, {
   ExploreSelection,
   isOrgSelection,
   selectionKey,
 } from '@/app/components/explore/ExploreToggles';
-import ExploreListPanel from '@/app/components/explore/ExploreListPanel';
 import OrgResultRow, { OrgSearchResult } from '@/app/components/explore/OrgResultRow';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
+import { type ClusterMarker } from '@/app/lib/mapClusters';
 import {
   EMPTY_ORG_FILTERS,
   activeOrgFilterCount,
   applyOrgFilterParams,
   type OrgFilters,
 } from '@/app/lib/orgFilters';
-import { feed as feedKeys, org as orgKeys } from '@/app/lib/queryKeys';
+import { feed as feedKeys, org as orgKeys, user as userKeys } from '@/app/lib/queryKeys';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { useDebounced } from '@/app/lib/useDebounced';
 import { useSavedEvents } from '@/app/lib/useSavedEvents';
-import { useThemeColors } from '@/app/lib/themeColors';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
-import { type ClusterMarker } from '@/app/lib/mapClusters';
-import { COLLEGES, collegeForSource, collegeById } from '@/shared/colleges';
+import { COLLEGES, collegeById, collegeForSource } from '@/shared/colleges';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
 import {
   EMPTY_FILTERS,
@@ -42,8 +43,9 @@ import { ORG_SEARCH_MIN_QUERY, type OrgSortOption } from '@/shared/orgRegistrati
 import { TAXONOMY_BUCKETS } from '@/shared/taxonomy';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from 'expo-router';
-import { BuildingsIcon, CompassIcon, ListIcon, MapPin } from 'phosphor-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BuildingsIcon, ListIcon, MapPin } from 'phosphor-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TextInputInstance } from 'react-native';
 import {
   ActivityIndicator,
   FlatList,
@@ -52,10 +54,19 @@ import {
   Pressable,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import type { TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ExploreFilterButton from '@/app/components/explore/ExploreFilterButton';
+import ExploreSortControl, { type EventSort } from '@/app/components/explore/ExploreSortControl';
+import ExploreTrendingHero, {
+  trendingThisWeek,
+} from '@/app/components/explore/ExploreTrendingHero';
+import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
+import ExploreInterestGrid, {
+  type InterestTile,
+} from '@/app/components/explore/ExploreInterestsGrid';
 
 type EventsListResponse = { events: ApiEvent[] };
 type OrgSearchResponse = {
@@ -118,6 +129,27 @@ function matchesEvent(event: ApiEvent, needle: string): boolean {
 }
 
 /**
+ * Engagement for the Trending chip (LOOP-292): RSVP 3, save 2, view 1, the
+ * weights popularityScore uses in server/src/lib/scoring.ts. Duplicated, not
+ * imported — server code can't be reached from the client — so keep the two in
+ * step. Counts only; the server's log squash doesn't change an ordering.
+ */
+function engagement(event: ApiEvent): number {
+  return event.rsvp_count * 3 + event.save_count * 2 + event.view_count;
+}
+
+/**
+ * created_at is D1's 'YYYY-MM-DD HH:MM:SS' in UTC. That space-separated form is
+ * not ISO 8601, and Hermes' Date.parse returns NaN for it, so it is rewritten
+ * to ISO first. Missing or unparseable sorts last.
+ */
+function createdAtMs(event: ApiEvent): number {
+  if (!event.created_at) return 0;
+  const ms = Date.parse(`${event.created_at.replace(' ', 'T')}Z`);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/**
  * Route-level backstop (LOOP-279). Expo Router renders this instead of the
  * screen when anything under `/explore` throws during render.
  *
@@ -165,22 +197,20 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
-/** The "Explore" title, and the list/map toggle measured against it. */
-const HEADER_TITLE_SIZE = 32;
-
-/**
- * Matches the title's line box (~1.2x its font size), so the toggle and the
- * word "Explore" occupy the same vertical band.
- */
-const TOGGLE_HEIGHT = Math.round(HEADER_TITLE_SIZE * 1.2);
+const TOGGLE_BUTTON_HEIGHT = 30;
+const TOGGLE_BUTTON_WIDTH = 34;
 const TOGGLE_INSET = 3;
-const TOGGLE_ICON_SIZE = 22;
+const TOGGLE_HEIGHT = TOGGLE_BUTTON_HEIGHT + TOGGLE_INSET * 2;
+const TOGGLE_ICON_SIZE = 19;
 
-/** Takes each 32x42 button to 44x50 — past the 44pt floor, same control height. */
-const TOGGLE_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 };
+const TOGGLE_HIT_SLOP = { top: 7, bottom: 7, left: 2, right: 2 };
 
 /** The 44pt tap-target floor, met with height rather than hitSlop. */
 const SEARCH_BAR_HEIGHT = 44;
+
+/** Figma: 20px page gutters, 18px between the two columns. */
+const GUTTER = 20;
+const COLUMN_GAP = 18;
 
 export default function ExploreScreen() {
   const colors = useThemeColors();
@@ -189,11 +219,17 @@ export default function ExploreScreen() {
   const token = data.token || null;
   const { savedIds, toggleSave: handleToggleSave } = useSavedEvents(token);
 
+  const { width: screenWidth } = useWindowDimensions();
+  // Sized from the screen, like View All, so a lone card on an odd last row
+  // stays one column wide instead of stretching across the page.
+  const cardWidth = Math.floor((screenWidth - GUTTER * 2 - COLUMN_GAP) / 2);
+
   // Default to map on native (the primary feature); web is locked to list.
   const [viewMode, setViewMode] = useState<ViewMode>(IS_WEB ? 'list' : 'map');
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
-  const [selection, setSelection] = useState<ExploreSelection>({ kind: 'trending' });
-
+  const [selection, setSelection] = useState<ExploreSelection>({ kind: 'all' });
+  const [eventSort, setEventSort] = useState<EventSort>('trending');
+  const [interestsExpanded, setInterestsExpanded] = useState(false);
   // Deep link from Home's "Orgs For You" → "See all": `?view=orgs` opens the org
   // directory instead of the events feed. Explore is a tab and stays mounted, so
   // the initial state above never sees the param on a second visit — it has to
@@ -262,6 +298,16 @@ export default function ExploreScreen() {
   const eventsQuery = useQuery({
     queryKey: feedKeys.explore({ limit: '100' }),
     queryFn: () => api.get<EventsListResponse>('/feed/explore?limit=100', { token }),
+    staleTime: 30_000,
+  });
+
+  // The user's own interests (LOOP-292), for Browse by Interest. Same key as the
+  // Profile tab, so it is usually already cached, and editing interests there
+  // invalidates it here too.
+  const meQuery = useQuery({
+    queryKey: userKeys.me(),
+    queryFn: () => api.get<{ user: { tags: string[] } }>('/users/me', { token }),
+    enabled: !!token,
     staleTime: 30_000,
   });
 
@@ -348,6 +394,44 @@ export default function ExploreScreen() {
     [searchedEvents, filters, filterContext],
   );
 
+  // Newest and A-Z override everything. "Trending" is the default order for
+  // whichever chip is selected: the feed's own ranking, or engagement on the
+  // Trending chip. The map keeps visibleEvents: pin order means nothing there.
+  const listEvents = useMemo(() => {
+    if (eventSort === 'newest') {
+      return [...visibleEvents].sort((a, b) => createdAtMs(b) - createdAtMs(a));
+    }
+    if (eventSort === 'az') {
+      return [...visibleEvents].sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return selection.kind === 'trending'
+      ? [...visibleEvents].sort((a, b) => engagement(b) - engagement(a))
+      : visibleEvents;
+  }, [eventSort, selection.kind, visibleEvents]);
+
+  const heroEvent = useMemo(() => {
+    const trending = trendingThisWeek(allEvents, now);
+    return trending.find((e) => e.image_url) ?? trending[0] ?? null;
+  }, [allEvents, now]);
+
+  // Only on the plain All Events view. With a search or any filter on, the
+  // hero would push the results the user asked for off the screen.
+  const showHero =
+    !orgMode &&
+    selection.kind === 'all' &&
+    !isSearching &&
+    !hasActiveFilters(filters) &&
+    heroEvent !== null;
+
+  const openTrending = useCallback(
+    () =>
+      router.push({
+        pathname: '/view-all' as any,
+        params: { title: 'Trending this week', section: 'trending' },
+      }),
+    [router],
+  );
+
   const counts = useMemo(
     () =>
       facetCounts(searchedEvents, filters, filterContext, {
@@ -358,6 +442,28 @@ export default function ExploreScreen() {
     [searchedEvents, filters, filterContext],
   );
 
+  // The user's own buckets first, busiest first, then everyone else's. The
+  // grid shows the first four, so a user with fewer than four interests gets
+  // the busiest other buckets to fill the row. Buckets come from tags the same
+  // way the feed derives them (feed.worker.ts loadUserInterest). Empty buckets
+  // are dropped: "0 active events" is a dead end, even for a bucket they picked.
+  const interestTiles: InterestTile[] = useMemo(() => {
+    const myTags = new Set(meQuery.data?.user?.tags ?? []);
+    const mine = new Set(
+      INTEREST_CATEGORIES.filter((c) => c.tags.some((t) => myTags.has(t))).map((c) => c.id),
+    );
+    const withCounts = INTEREST_CATEGORIES.map((c) => ({
+      ...c,
+      count: counts.interests[c.id] ?? 0,
+    }))
+      .filter((c) => c.count > 0)
+      .sort((a, b) => b.count - a.count);
+    return [
+      ...withCounts.filter((c) => mine.has(c.id)),
+      ...withCounts.filter((c) => !mine.has(c.id)),
+    ];
+  }, [counts, meQuery.data]);
+
   /** "47 events · Cockrell · this week" — the line above the results. */
   const resultSummary = useMemo(() => {
     const parts = describeFilters(filters, (id) => collegeById(id)?.short);
@@ -365,6 +471,12 @@ export default function ExploreScreen() {
     return [`${visibleEvents.length} ${noun}`, ...parts].join(' · ');
   }, [filters, visibleEvents.length]);
 
+  const showInterests =
+    !orgMode &&
+    selection.kind === 'all' &&
+    !isSearching &&
+    !hasActiveFilters(filters) &&
+    interestTiles.length > 0;
   /**
    * Every loaded page, flattened. Keyset pagination already guarantees no
    * overlap between pages, but the de-dupe by id stays as a backstop: a
@@ -421,7 +533,7 @@ export default function ExploreScreen() {
     filters.when,
     filters.perks.join('+'),
   ].join('|');
-  const gridKey = `explore-grid-${activeSelectionKey}-${isSearching ? needle : ''}-${
+  const gridKey = `explore-grid-${activeSelectionKey}-${eventSort}-${isSearching ? needle : ''}-${
     orgMode ? orgFilterKey : filterKey
   }`;
 
@@ -553,14 +665,14 @@ export default function ExploreScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ApiEvent }) => (
-      <EventCard
+      <FlyerCard
         item={item}
         isSaved={savedIds.has(item.id)}
         onToggleSave={handleToggleSave}
-        style={{ flex: 1, width: undefined, marginRight: 0 }}
+        width={cardWidth}
       />
     ),
-    [savedIds, handleToggleSave],
+    [savedIds, handleToggleSave, cardWidth],
   );
 
   const selectedEvent =
@@ -590,38 +702,33 @@ export default function ExploreScreen() {
       <View
         style={{
           paddingHorizontal: 20,
-          paddingTop: 90,
-          paddingBottom: 16,
+          paddingTop: 70,
+          paddingBottom: 12,
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <CompassIcon size={28} color={colors.ink} weight="bold" />
-          <Text style={{ fontSize: HEADER_TITLE_SIZE, fontWeight: '700', color: colors.ink }}>
+        <View style={{ gap: 2 }}>
+          <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
+            DISCOVER CAMPUS
+          </Text>
+          <Text className="font-roboto-medium" style={{ fontSize: 24, color: colors.ink }}>
             Explore
           </Text>
         </View>
 
         {/* Toggle hidden on web — react-native-maps has no web renderer — and on
-            the Orgs feed, which has nothing to map.
-
-            Sized against the title rather than by eye: the control is
-            TOGGLE_HEIGHT tall so its box matches the line box of "Explore"
-            beside it, which is what stops it reading as a small thing floating
-            next to a big one. The icons grew with it — 18px glyphs in a 38px
-            control were the smallest tap targets on the screen and the hardest
-            to see. hitSlop takes each button past the 44pt floor without
-            making the control any taller than the title. */}
+            the Orgs feed, which has nothing to map. */}
         {!IS_WEB && !orgMode && (
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              gap: 4,
               height: TOGGLE_HEIGHT,
-              backgroundColor: colors.surfaceMuted,
-              borderRadius: 10,
+              backgroundColor: colors.segmentTrack,
+              borderRadius: 8,
               padding: TOGGLE_INSET,
             }}
           >
@@ -635,11 +742,13 @@ export default function ExploreScreen() {
               accessibilityState={{ selected: viewMode === 'list' }}
               hitSlop={TOGGLE_HIT_SLOP}
               style={{
-                height: TOGGLE_HEIGHT - TOGGLE_INSET * 2,
-                paddingHorizontal: 10,
+                width: TOGGLE_BUTTON_WIDTH,
+                height: TOGGLE_BUTTON_HEIGHT,
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 8,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: viewMode === 'list' ? colors.brandSoft : 'transparent',
                 backgroundColor: viewMode === 'list' ? colors.surface : 'transparent',
               }}
             >
@@ -656,11 +765,13 @@ export default function ExploreScreen() {
               accessibilityState={{ selected: viewMode === 'map' }}
               hitSlop={TOGGLE_HIT_SLOP}
               style={{
-                height: TOGGLE_HEIGHT - TOGGLE_INSET * 2,
-                paddingHorizontal: 10,
+                width: TOGGLE_BUTTON_WIDTH,
+                height: TOGGLE_BUTTON_HEIGHT,
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 8,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: viewMode === 'map' ? colors.brandSoft : 'transparent',
                 backgroundColor: viewMode === 'map' ? colors.surface : 'transparent',
               }}
             >
@@ -692,7 +803,7 @@ export default function ExploreScreen() {
           ref={searchRef}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search events and orgs..."
+          placeholder="Search events or orgs..."
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
@@ -700,19 +811,25 @@ export default function ExploreScreen() {
           // one place on the screen with no way out.
           onSubmitEditing={dismissSearch}
           clearable
-          borderRadius={999}
+          borderRadius={8}
           height={SEARCH_BAR_HEIGHT}
           leftIcon={<LhlSearchIcon size={18} color={colors.inkSecondary} />}
+          rightAccessory={
+            <ExploreFilterButton
+              activeCount={orgMode ? orgFilterCount : activeFilterCount(filters)}
+              open={filtersOpen}
+              onPress={openFilters}
+            />
+          }
         />
       </View>
 
       {/* Feed selector (LOOP-177) + the Filters entry point */}
       <ExploreToggles
         selection={selection}
+        interests={filters.interests}
         onSelect={handleSelect}
-        activeCount={orgMode ? orgFilterCount : activeFilterCount(filters)}
-        onOpenFilters={openFilters}
-        filtersOpen={filtersOpen}
+        onChangeInterests={(interests) => setFilters((prev) => ({ ...prev, interests }))}
       />
 
       <View
@@ -874,6 +991,23 @@ export default function ExploreScreen() {
     </View>
   ) : undefined;
 
+  // "UPCOMING" and how many events are in it (LOOP-292). It scrolls with the
+  // list: it holds no text input, so the pinned-header rule doesn't apply.
+  const upcomingHeader = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
+      <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
+        UPCOMING
+      </Text>
+      <ExploreSortControl count={listEvents.length} sort={eventSort} onChange={setEventSort} />
+    </View>
+  );
+
   /**
    * The org destinations' list (LOOP-293). The orgs are the FlatList's own
    * rows here, not a header above an empty event grid, so the list is
@@ -956,14 +1090,13 @@ export default function ExploreScreen() {
       return (
         <FlatList
           key={gridKey}
-          data={showEventSection ? visibleEvents : []}
+          data={showEventSection ? listEvents : []}
           extraData={savedIds}
           keyExtractor={keyExtractor}
           numColumns={2}
-          columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}
+          columnWrapperStyle={{ gap: COLUMN_GAP }}
+          contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 32, gap: 14 }} // persistTaps "handled": a tap on dead space in the list dismisses
           showsVerticalScrollIndicator={false}
-          // persistTaps "handled": a tap on dead space in the list dismisses
           // the keyboard, but a tap on a card still opens the card instead of
           // being eaten as a dismiss. dismissMode "on-drag": starting a scroll
           // counts as leaving the field, which is what a scroll means.
@@ -974,7 +1107,23 @@ export default function ExploreScreen() {
           // way to end up reading a detached cell. Cheap to disable here: the
           // page is capped at ~100 events.
           removeClippedSubviews={false}
-          ListHeaderComponent={orgSection}
+          ListHeaderComponent={
+            <>
+              {orgSection}
+              {showHero && heroEvent ? (
+                <ExploreTrendingHero event={heroEvent} now={now} onSeeAll={openTrending} />
+              ) : null}
+              {showInterests ? (
+                <ExploreInterestGrid
+                  tiles={interestsExpanded ? interestTiles : interestTiles.slice(0, 4)}
+                  expanded={interestsExpanded}
+                  onToggleExpanded={() => setInterestsExpanded((prev) => !prev)}
+                  onSelect={(id) => setFilters((prev) => ({ ...prev, interests: [id] }))}
+                />
+              ) : null}
+              {showEventSection ? upcomingHeader : null}
+            </>
+          }
           ListEmptyComponent={
             showEventSection ? (
               <View style={{ marginTop: 40, alignItems: 'center', paddingHorizontal: 24 }}>

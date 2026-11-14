@@ -53,6 +53,7 @@ export interface ApiEvent {
   is_archived: number;
   archived_at: string | null;
   is_rsvped: boolean;
+  created_at?: string;
 }
 
 // Formats an ISO datetime as "Fri, 4/29 • 6:00 PM".
