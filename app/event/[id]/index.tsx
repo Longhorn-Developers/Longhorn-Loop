@@ -110,8 +110,10 @@ function InfoCard({
           <RowButton
             label="Add to GCal"
             accessibilityLabel="Add to Google Calendar"
-            icon={<CalendarAddIcon width={16} height={16} color={colors.brand} />}
+            // theme-exempt: the glyph sits on the filled blue button, white in both themes
+            icon={<CalendarAddIcon width={16} height={16} color="#FFFFFF" />}
             iconPosition="end"
+            tone="info"
             onPress={onAddToCalendar}
           />
         }
