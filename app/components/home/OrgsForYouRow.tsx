@@ -7,20 +7,22 @@
 // ahead of the data being able to back that up. When an interest-based source
 // exists, only `queryFn` below changes.
 //
-// The search response says nothing about whether the viewer already follows an
-// org, and no existing endpoint lists the orgs a user follows, so an org they
-// follow can show up here still reading "Follow". Tapping it is harmless — the
-// endpoint is idempotent and the button just settles on "Following" — and the
-// server is deliberately not extended for this.
+// FOLLOW STATE. /orgs/search returns `is_following` for the signed-in viewer,
+// so a card starts as "Following" for an org they already follow. A Worker
+// that predates that field leaves it undefined, which reads as "Follow".
 //
-// FOLLOW ONLY, AND OPTIMISTIC. The button flips to "Following" the moment it is
-// tapped and the request settles behind it. Tapping it again does NOT unfollow:
-// this row is for discovering orgs, and the ticket's check is that a second tap
-// leaves the org followed with no error. POST /orgs/:id/follow is idempotent, so
-// the repeat is harmless. Unfollowing lives on the org's own profile page. If a
-// write fails the button goes back to what the server last said. A followed card
-// stays in the row until the next refetch rather than vanishing under the user's
-// thumb.
+// A TOGGLE, OPTIMISTIC, AND KEPT IN THE QUERY CACHE. Tapping Follow follows;
+// tapping Following unfollows. This was follow-only at first (a second tap was
+// a no-op), but people expect the button to work both ways, and having to go
+// to the org's profile page to undo a mis-tap was the complaint.
+//
+// The new state is written into this row's cached search response, not into
+// component state. Component state reset whenever the card was recycled or Home
+// remounted, so a followed org could flip back to "Follow" on its own. The
+// cache survives both, and the server's `is_following` takes over on the next
+// refetch. The follower count moves with it. If a write fails, the card goes
+// back to its previous state. A followed card stays in the row until the next
+// refetch rather than vanishing under the user's thumb.
 
 import { HEADER_GAP, SECTION_GAP } from '@/app/components/home/layout';
 import SectionHeader from '@/app/components/home/SectionHeader';
@@ -29,9 +31,9 @@ import { org as orgKeys } from '@/app/lib/queryKeys';
 import { useThemeColors, type ThemeColors } from '@/app/lib/themeColors';
 import { useOrgFollow } from '@/app/lib/useOrgFollow';
 import FollowersIcon from '@/assets/images/followers.svg';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface OrgForYou {
@@ -40,6 +42,8 @@ interface OrgForYou {
   profile_picture: string | null;
   category: string | null;
   follower_count: number;
+  /** The viewer follows this org. Absent from older Workers. */
+  is_following?: boolean;
 }
 
 interface OrgsForYouResponse {
@@ -59,16 +63,33 @@ function OrgCard({ org, token }: { org: OrgForYou; token: string | null }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  // Whether this card has been followed from here. Local: the search response
-  // doesn't carry the viewer's follow state, so everything starts as "Follow".
-  const [following, setFollowing] = useState(false);
+  // Read from the cached row (see the header), so it survives remounts.
+  const following = org.is_following ?? false;
 
-  const follow = useOrgFollow(org.id, token, {
-    // Back to "Follow" if the write failed. The button was the only thing that
-    // moved, so reverting it is the whole reconciliation.
-    onError: () => setFollowing(false),
-  });
+  // Writes this org's follow state, and the matching follower count, into the
+  // cached row. Used for the optimistic flip and to undo it on failure.
+  const setCachedFollowing = (next: boolean) => {
+    queryClient.setQueryData<OrgsForYouResponse>(orgKeys.forYou(), (old) =>
+      old
+        ? {
+            ...old,
+            organizations: old.organizations.map((o) =>
+              o.id === org.id && (o.is_following ?? false) !== next
+                ? {
+                    ...o,
+                    is_following: next,
+                    follower_count: Math.max(0, o.follower_count + (next ? 1 : -1)),
+                  }
+                : o,
+            ),
+          }
+        : old,
+    );
+  };
+
+  const follow = useOrgFollow(org.id, token);
 
   // Most orgs have no category (every scraped row), so the line is often just
   // the follower count.
@@ -110,13 +131,22 @@ function OrgCard({ org, token }: { org: OrgForYou; token: string | null }) {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={following ? `Following ${org.name}` : `Follow ${org.name}`}
+        accessibilityLabel={following ? `Unfollow ${org.name}` : `Follow ${org.name}`}
         accessibilityState={{ selected: following, disabled: follow.isPending }}
+        // Disabled while a write is in flight so a quick double tap can't send
+        // follow and unfollow out of order.
         disabled={follow.isPending}
         onPress={() => {
-          // Always a follow, never a toggle — see the header.
-          setFollowing(true);
-          follow.mutate(true);
+          const next = !following;
+          setCachedFollowing(next);
+          // Per-call callbacks, not the hook's options: by the time either
+          // runs, `following` has already re-rendered as `next`, so the undo
+          // has to come from this tap's own value.
+          follow.mutate(next, {
+            // Settle on what the server says it did (normally `next` already).
+            onSuccess: ({ following: confirmed }) => setCachedFollowing(confirmed),
+            onError: () => setCachedFollowing(!next),
+          });
         }}
         // Soft brand fill while unfollowed, outline once followed.
         style={[styles.followButton, following ? styles.followButtonActive : null]}
@@ -194,12 +224,12 @@ const makeStyles = (c: ThemeColors) =>
     },
     name: {
       fontFamily: 'Roboto-Flex-SemiBold',
-      fontSize: 13,
-      lineHeight: 16,
+      fontSize: 14,
+      lineHeight: 18,
       color: c.ink,
       textAlign: 'center',
       marginTop: 10,
-      minHeight: 32,
+      minHeight: 36,
     },
     meta: {
       flexDirection: 'row',
@@ -211,7 +241,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     metaText: {
       fontFamily: 'Roboto-Flex',
-      fontSize: 12,
+      fontSize: 13,
       color: c.inkMuted,
       flexShrink: 1,
     },
@@ -230,7 +260,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     followText: {
       fontFamily: 'Roboto-Flex-SemiBold',
-      fontSize: 13,
+      fontSize: 14,
       color: c.brand,
     },
   });

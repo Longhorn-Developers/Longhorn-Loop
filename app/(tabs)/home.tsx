@@ -226,7 +226,7 @@ export default function HomeScreen() {
               <Text
                 style={{
                   fontFamily: 'Roboto-Flex-SemiBold',
-                  fontSize: 13,
+                  fontSize: 14,
                   letterSpacing: 0.4,
                   color: colors.brand,
                 }}

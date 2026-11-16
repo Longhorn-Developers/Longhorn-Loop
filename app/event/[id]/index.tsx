@@ -3,6 +3,7 @@ import EventRouteCard from '@/app/components/event/EventRouteCard';
 import FlyerFullscreenModal from '@/app/components/event/FlyerFullscreenModal';
 import InfoRow, { RowAvatar, RowBadge, RowButton } from '@/app/components/event/InfoRow';
 import ExpandableText from '@/app/components/ExpandableText';
+import FadingNotice from '@/app/components/FadingNotice';
 // Event detail screen at /event/[id]. RSVP button prefers `rsvp_url`,
 // falls back to `event_url`. Attendees come from GET /events/:id/attendees;
 // the share button opens the platform share sheet (app/lib/shareEvent.ts).
@@ -37,6 +38,7 @@ import type { ThemeColors } from '@/app/lib/themeColors';
 import { useThemeColors } from '@/app/lib/themeColors';
 import { useEventLocation, type EventLocation } from '@/app/lib/useEventLocation';
 import { useOrgFollow } from '@/app/lib/useOrgFollow';
+import { USER_VIEW_ENABLED, USER_VIEW_UNAVAILABLE_MESSAGE } from '@/app/lib/userView';
 import type { AvatarConfig } from '@/shared/avatar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -177,10 +179,13 @@ function AttendeesRow({
   eventId,
   token,
   onShare,
+  onNotice,
 }: {
   eventId: string;
   token: string | null;
   onShare: () => void;
+  /** Shows a message in the screen's FadingNotice. */
+  onNotice: (message: string) => void;
 }) {
   const colors = useThemeColors();
   // Each face opens that person's public profile (LOOP-180). The attendee list
@@ -220,7 +225,13 @@ function AttendeesRow({
               key={attendee.id}
               accessibilityRole="button"
               accessibilityLabel={`View ${attendee.first_name}’s profile`}
-              onPress={() => router.push(`/user/${attendee.id}`)}
+              // Profiles are switched off until their endpoint exists (see
+              // app/lib/userView.ts); opening one crashed the app.
+              onPress={() =>
+                USER_VIEW_ENABLED
+                  ? router.push(`/user/${attendee.id}`)
+                  : onNotice(USER_VIEW_UNAVAILABLE_MESSAGE)
+              }
               style={{
                 width: 28,
                 height: 28,
@@ -304,10 +315,12 @@ export default function EventDetailScreen() {
   // ignored -- half of what "the app freezes when you try to RSVP" (LOOP-278)
   // described. It also gates re-entry, so a second tap can't double-post.
   const [rsvpPending, setRsvpPending] = useState(false);
-  // Transient pill, shared by the share fallbacks and the RSVP error paths.
-  // Native share sheets report their own result, so the share side only ever
-  // fires on web (clipboard copy or failure).
+  // Transient pill, shared by the share fallbacks, the RSVP error paths and the
+  // attendee faces. Native share sheets report their own result, so the share
+  // side only ever fires on web (clipboard copy or failure). FadingNotice clears
+  // it through onHide once it has faded out.
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const clearShareNotice = useCallback(() => setShareNotice(null), []);
 
   // Fetch the event.
   const eventQuery = useQuery({
@@ -395,12 +408,6 @@ export default function EventDetailScreen() {
     if (outcome === 'copied') setShareNotice('Link copied');
     else if (outcome === 'failed') setShareNotice('Couldn\u2019t share this event');
   };
-
-  useEffect(() => {
-    if (!shareNotice) return;
-    const timer = setTimeout(() => setShareNotice(null), 2500);
-    return () => clearTimeout(timer);
-  }, [shareNotice]);
 
   // Seed isRsvped from the event response once it resolves.
   useEffect(() => {
@@ -763,7 +770,12 @@ export default function EventDetailScreen() {
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />
 
           <Text style={styles.sectionHeader}>Attendees</Text>
-          <AttendeesRow eventId={String(id)} token={token} onShare={handleShare} />
+          <AttendeesRow
+            eventId={String(id)}
+            token={token}
+            onShare={handleShare}
+            onNotice={setShareNotice}
+          />
 
           <TouchableOpacity
             onPress={() => router.push(`/event/${id}/report`)}
@@ -869,11 +881,8 @@ export default function EventDetailScreen() {
         onSecondary={() => setShowCancelModal(false)}
       />
 
-      {shareNotice ? (
-        <View pointerEvents="none" style={styles.sharePill}>
-          <Text style={styles.sharePillText}>{shareNotice}</Text>
-        </View>
-      ) : null}
+      {/* Sits above the bottom action bar. */}
+      <FadingNotice message={shareNotice} onHide={clearShareNotice} bottom={96} />
 
       {event.image_url ? (
         <FlyerFullscreenModal
@@ -1040,22 +1049,5 @@ const makeStyles = (c: ThemeColors) => ({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700' as const,
-  },
-  sharePill: {
-    position: 'absolute' as const,
-    left: 0,
-    right: 0,
-    bottom: 96,
-    alignItems: 'center' as const,
-  },
-  sharePillText: {
-    backgroundColor: c.ink,
-    color: c.surface,
-    fontSize: 13,
-    fontWeight: '600' as const,
-    borderRadius: 999,
-    overflow: 'hidden' as const,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
   },
 });

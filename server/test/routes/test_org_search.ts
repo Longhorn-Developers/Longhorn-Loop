@@ -200,6 +200,20 @@ describeOrSkip('GET /orgs/search -- pagination and validation (LOOP-264)', () =>
     expect(body.organizations.find((o: any) => o.id === UNVERIFIED_ORG).follower_count).toBe(0);
   });
 
+  // Home's "Orgs For You" Follow button starts from this. The ?q= case matters
+  // as much as browse: searching adds its own SELECT placeholders, and
+  // is_following's viewer id has to stay bound to the right one.
+  it('marks is_following for the caller only, in browse and search mode', async () => {
+    db.exec(`INSERT INTO org_followers (org_id, user_id) VALUES (${VERIFIED_ORG}, ${ME})`);
+
+    for (const query of ['?limit=100', '?limit=100&q=org']) {
+      const body = (await (await search(query)).json()) as any;
+      const byId = (id: number) => body.organizations.find((o: any) => o.id === id);
+      expect(byId(VERIFIED_ORG)?.is_following, query).toBe(true);
+      expect(byId(UNVERIFIED_ORG)?.is_following, query).toBe(false);
+    }
+  });
+
   it('pages sort=newest by created_at with no repeats (LOOP-293)', async () => {
     PAGE_ORG_IDS.forEach((id, i) =>
       db.exec(

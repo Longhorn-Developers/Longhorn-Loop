@@ -42,9 +42,12 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
           <Text
             style={{
               fontFamily: 'Roboto-Flex-Medium',
-              fontSize: 11,
+              // 15 (was 11, then 13). 11 is the smallest size iOS ships and read
+              // as fine print, and 13 was still small to read at a glance. 15 is
+              // iOS's subheadline size, the one used for a section's secondary line.
+              fontSize: 15,
               color: colors.brand,
-              marginBottom: 1,
+              marginBottom: 2,
             }}
           >
             {eyebrow}
@@ -57,7 +60,9 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
           numberOfLines={1}
           style={{
             fontFamily: 'Roboto-Flex-Bold',
-            fontSize: 18,
+            // 22 (was 18, then 20): iOS's title-2 size, so the section names
+            // read as headings at a glance while scrolling.
+            fontSize: 22,
             letterSpacing: 0.3,
             color: colors.ink,
           }}
@@ -86,7 +91,7 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
             paddingBottom: 2,
           }}
         >
-          <Text style={{ fontFamily: 'Roboto-Flex-Medium', fontSize: 14, color: colors.brand }}>
+          <Text style={{ fontFamily: 'Roboto-Flex-Medium', fontSize: 15, color: colors.brand }}>
             See all
           </Text>
           {/* One chevron asset, turned a quarter turn — same approach as
