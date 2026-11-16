@@ -141,7 +141,7 @@ const makeStyles = (c: ThemeColors) =>
     tagText: {
       color: OVERLAY_TEXT,
       fontFamily: 'Roboto-Flex-Medium',
-      fontSize: 9,
+      fontSize: 11,
       letterSpacing: 0.4,
     },
     caption: {
@@ -152,18 +152,21 @@ const makeStyles = (c: ThemeColors) =>
     },
     title: {
       color: OVERLAY_TEXT,
-      fontFamily: 'Roboto-Flex-SemiBold',
-      fontSize: 12,
-      lineHeight: 15,
+      // Bold, and 14 / 17 up from semibold 12 / 14, so the Spotlight titles
+      // match the weight of the carousel cards' titles below them rather than
+      // reading as captions.
+      fontFamily: 'Roboto-Flex-Bold',
+      fontSize: 14,
+      lineHeight: 18,
     },
     titleLarge: {
-      fontSize: 14,
-      lineHeight: 17,
+      fontSize: 17,
+      lineHeight: 21,
     },
     when: {
       color: OVERLAY_TEXT,
       fontFamily: 'Roboto-Flex-SemiBold',
-      fontSize: 11,
+      fontSize: 12,
       marginTop: 2,
     },
   });

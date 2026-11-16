@@ -138,6 +138,9 @@ export default function ViewAllScreen() {
       ) : (
         <FlatList
           data={events}
+          // Redraw cells when saved state changes, or a bookmark tap never
+          // fills the icon (see the same line in home.tsx).
+          extraData={savedIds}
           numColumns={2}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
