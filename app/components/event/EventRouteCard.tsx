@@ -108,7 +108,11 @@ export default function EventRouteCard({ event, location }: EventRouteCardProps)
         <RowButton
           label="Directions"
           accessibilityLabel="Get walking directions"
-          icon={<DirectionsIcon width={16} height={16} color={colors.brand} />}
+          // Same solid blue as Add to GCal: both hand off to another app, and
+          // matching them makes "this leaves Loop" read as one kind of action.
+          // theme-exempt: the glyph sits on the filled blue button, white in both themes
+          icon={<DirectionsIcon width={16} height={16} color="#FFFFFF" />}
+          tone="info"
           onPress={() => openInMaps('directions')}
         />
       </View>
