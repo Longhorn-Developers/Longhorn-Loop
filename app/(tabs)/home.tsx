@@ -107,6 +107,12 @@ function CarouselSection({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
           keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
+          // FlatList only redraws its cells when `data` or `extraData` changes.
+          // Saved state isn't in `data`, so without this a bookmark tap saved
+          // the event but the card's icon never filled. The compact rows below
+          // aren't in a FlatList, which is why they always updated. Explore's
+          // list has the same line for the same reason.
+          extraData={savedIds}
           renderItem={({ item }) => (
             <FlyerCard item={item} isSaved={savedIds.has(item.id)} onToggleSave={onToggleSave} />
           )}
@@ -226,7 +232,7 @@ export default function HomeScreen() {
               <Text
                 style={{
                   fontFamily: 'Roboto-Flex-SemiBold',
-                  fontSize: 13,
+                  fontSize: 14,
                   letterSpacing: 0.4,
                   color: colors.brand,
                 }}
