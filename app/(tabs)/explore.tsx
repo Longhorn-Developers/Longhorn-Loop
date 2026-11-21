@@ -251,6 +251,19 @@ export default function ExploreScreen() {
   const [filters, setFilters] = useState<ExploreFilters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  useEffect(() => {
+    if (!interest) return;
+
+    if (INTEREST_CATEGORIES.some((category) => category.id === interest)) {
+      setSelection({ kind: 'all' });
+      setViewMode('list');
+      setQuery('');
+      setFilters({ ...EMPTY_FILTERS, interests: [interest] });
+    }
+
+    router.setParams({ interest: undefined });
+  }, [interest, router]);
+
   /**
    * Org filters (LOOP-293) are their own state, not a field on `filters`:
    * they go to the server as query params, the event filters never leave the
