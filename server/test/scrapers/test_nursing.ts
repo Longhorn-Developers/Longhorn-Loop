@@ -2,15 +2,18 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  cleanTitle,
-  extractCalendarEvents,
   parseCalendarEvent,
   parseDetailPage,
-  resolveTiming,
   scrapeNursing,
-  type CalendarEvent,
   type EventDetail,
 } from '../../src/scrapers/nursing';
+// Shared with every UT Drupal Kit site; exercised here against Nursing's data.
+import {
+  cleanTitle,
+  extractCalendarEvents,
+  resolveTiming,
+  type CalendarEvent,
+} from '../../src/scrapers/utDrupalEvents';
 import { isNonPhysicalLocation, resolveBuilding } from '../../src/lib/utBuildings';
 import type { Env } from '../../src/worker';
 

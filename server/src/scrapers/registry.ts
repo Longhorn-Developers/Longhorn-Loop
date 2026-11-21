@@ -19,6 +19,7 @@ import { run as runFineArts, scrapeFineArts } from './finearts';
 // daily cron, not the 6-hour event sweep, so it is absent from SCRAPERS.
 import { run as runHornsLinkOrgs, manual as manualHornsLinkOrgs } from './hornslinkOrgs';
 import { run as runLawSchool, scrapeLawSchool } from './lawSchool';
+import { run as runLbj, scrapeLbj } from './lbj';
 import { run as runLiberalArts, scrapeLiberalArts } from './liberalArts';
 import { run as runMccombs, scrapeMccombs } from './mccombs';
 import { run as runMoody, scrapeMoody } from './moody';
@@ -46,6 +47,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'education', run: runEducation, manual: scrapeEducation },
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'nursing', run: runNursing, manual: scrapeNursing },
+  { name: 'lbj', run: runLbj, manual: scrapeLbj },
   // cns and pharmacy are retired from the cron (LOOP-309), not deleted. Both
   // read calendar.utexas.edu scoped by group_id, and both groups are EMPTY:
   // 0 events over a 365-day window, re-checked with the corrected page size.

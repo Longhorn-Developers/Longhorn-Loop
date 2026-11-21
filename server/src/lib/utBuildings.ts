@@ -83,6 +83,17 @@ export const LOCATION_ALIASES: Record<string, string> = {
   // of its own and no listing ever writes SRH.
   'BENSON LATIN AMERICAN COLLECTION': 'SRH',
   'BENSON COLLECTION': 'SRH',
+  // The LBJ School of Public Affairs is IN Sid Richardson Hall, and so is its
+  // Bass Lecture Hall. "LBJ" on its own is a real code, though: the LBJ
+  // Presidential Library next door. So every School location ("LBJ School of
+  // Public Affairs, SRH 3.122", "LBJ Bass Lecture Hall") used to resolve on its
+  // leading LBJ token and pin to the Library, even "Bass Lecture Hall, LBJ
+  // School of Public Affairs (Sid Richardson Hall)", which says SRH outright.
+  // From lbj.utexas.edu's own listings (LOOP-275).
+  'LBJ SCHOOL': 'SRH',
+  'BASS LECTURE HALL': 'SRH',
+  // The Library's auditorium, which listings write out and never code.
+  'LADY BIRD JOHNSON AUDITORIUM': 'LBJ',
 };
 
 /**
@@ -306,7 +317,8 @@ export function isNonPhysicalLocation(location: string | null | undefined): bool
  *   1. the whole string is an alias  ("Student Activity Center")
  *   2. the whole string is a code    ("GSB", "utc")
  *   3. an alias appears in the string
- *   4. a code appears as its own word ("GSB 2.126", "Welch Hall (WEL)")
+ *   4. a code appears as its own word ("GSB 2.126", "Welch Hall (WEL)"),
+ *      preferring one with a room number after it
  *   5. an official building name appears in the string
  *
  * Codes are matched as WORDS, never as substrings. Substring matching finds
@@ -328,7 +340,13 @@ export function resolveBuilding(location: string | null | undefined): UtBuilding
     if (normalized.includes(key)) return building;
   }
 
+  // When a string holds two codes, the one followed by a room number wins:
+  // "LBJ - SRH 3.122" is room 3.122 of SRH, and the leading LBJ is the LBJ
+  // School naming itself, not the LBJ Library. This is the same room-reference
+  // reading the surname index below relies on. Without a room anywhere, the
+  // first code still wins, as before.
   const tokens = normalized.split(' ');
+  let firstCode: UtBuilding | null = null;
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     const building = BY_CODE.get(token) ?? ALIAS_TOKENS.get(token);
@@ -336,8 +354,10 @@ export function resolveBuilding(location: string | null | undefined): UtBuilding
     // An ambiguous code only counts when it leads, which is how a room
     // reference reads. Anywhere else it is probably just the English word.
     if (AMBIGUOUS_CODES.has(token) && i !== 0) continue;
-    return building;
+    if (/^\d/.test(tokens[i + 1] ?? '')) return building;
+    firstCode ??= building;
   }
+  if (firstCode) return firstCode;
 
   for (const { key, building } of BY_NAME) {
     if (normalized.includes(key)) return building;

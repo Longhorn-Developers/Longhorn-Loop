@@ -142,6 +142,43 @@ describe('UT building resolver', () => {
     });
   });
 
+  describe('the LBJ School and the LBJ Library', () => {
+    // Real Location values from lbj.utexas.edu. The School is in Sid Richardson
+    // Hall; LBJ is the code of the Presidential Library next door, and every one
+    // of the School strings below used to resolve to it on the leading "LBJ".
+    it.each([
+      'LBJ School of Public Affairs, SRH 3, Room 3.124',
+      'LBJ School of Public Affairs, SRH 3.122',
+      'LBJ School - SRH 3.122',
+      'LBJ - SRH 3.122',
+      'SRH 3.122, The LBJ School of Public Affairs',
+      'LBJ School - 1st Floor Lobby',
+      'LBJ School of Public Affairs - 2315 Red River Street, Austin, TX 78713',
+      'LBJ Bass Lecture Hall',
+      'Bass Lecture Hall, LBJ School of Public Affairs (Sid Richardson Hall)',
+      'Bass Lecture Hall',
+    ])('resolves %j to Sid Richardson Hall', (location) => {
+      expect(resolveBuilding(location)?.code).toBe('SRH');
+    });
+
+    it.each(['LBJ Presidential Library, 10th Floor', 'Lady Bird Johnson Auditorium'])(
+      'still resolves %j to the Library',
+      (location) => {
+        expect(resolveBuilding(location)?.code).toBe('LBJ');
+      },
+    );
+
+    it('prefers the code with a room number when a string names two buildings', () => {
+      // "LBJ - SRH 3.122" has no alias to catch it: only the room says which
+      // building the event is in.
+      expect(resolveBuilding('LBJ - SRH 3.122')?.code).toBe('SRH');
+      // With no room on either, the first code still wins.
+      expect(resolveBuilding('GSB near UTC')?.code).toBe('GSB');
+      // And a room on the first code keeps it.
+      expect(resolveBuilding('GSB 2.126, then UTC 1.104')?.code).toBe('GSB');
+    });
+  });
+
   describe('surname and room number, with no building type', () => {
     // "Gearing 114" is how listings write it; UT calls it GEARING HALL, and
     // the short-name index needs the type word to fire.
