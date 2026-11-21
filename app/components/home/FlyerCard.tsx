@@ -9,7 +9,6 @@
 
 import type { ApiEvent } from '@/app/components/EventCard';
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
-import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import {
   DIM,
   OVERLAY_TEXT,
@@ -18,12 +17,13 @@ import {
   SCRIM_DARK,
 } from '@/app/components/home/overlay';
 import { formatDay, formatMonthDay, formatTimeCompact } from '@/app/components/home/when';
+import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import { useThemeColors } from '@/app/lib/themeColors';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Home's carousel width. The card keeps this shape (164 x 236) at any width, so
@@ -31,12 +31,14 @@ import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'reac
 export const FLYER_CARD_WIDTH = 164;
 const FLYER_CARD_ASPECT = 236 / 164;
 
+
 interface FlyerCardProps {
   item: ApiEvent;
   isSaved: boolean;
   onToggleSave: (eventId: number) => void;
   /** Card width; the height follows from the card's fixed proportions. */
   width?: number;
+  placeholderVariant?: 'tower' | 'fractalGlass';
 }
 
 export default function FlyerCard({
@@ -44,16 +46,21 @@ export default function FlyerCard({
   isSaved,
   onToggleSave,
   width = FLYER_CARD_WIDTH,
+  placeholderVariant,
 }: FlyerCardProps) {
   const colors = useThemeColors();
   const router = useRouter();
-
+  
+  const flyerUri = item.image_url?.trim();
+  const [failedFlyerUri, setFailedFlyerUri] = useState<string>();
+  
   // "Sat 8/21 · 1 PM". Dropped entirely for an unparseable date rather than
   // showing a pill that says " · ".
   const day = formatDay(item.start_datetime);
   const when = day
     ? `${day} ${formatMonthDay(item.start_datetime)} · ${formatTimeCompact(item.start_datetime)}`
     : '';
+
 
   return (
     <Pressable
@@ -68,14 +75,15 @@ export default function FlyerCard({
         backgroundColor: colors.placeholder,
       }}
     >
-      {item.image_url ? (
+      {flyerUri && flyerUri !== failedFlyerUri ? (
         <Image
-          source={{ uri: item.image_url }}
+          source={{ uri: flyerUri }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
+          onError={() => setFailedFlyerUri(flyerUri)}
         />
       ) : (
-        <EventFlyerPlaceholder seed={item.id} />
+        <EventFlyerPlaceholder seed={item.id} variant={placeholderVariant} />
       )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: DIM }]} pointerEvents="none" />
       <LinearGradient

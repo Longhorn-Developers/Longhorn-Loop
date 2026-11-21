@@ -1,6 +1,6 @@
-import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import React, { useId } from 'react';
 import { View, ViewStyle } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Pattern, RadialGradient, Rect, Stop, } from 'react-native-svg';
 
 /**
  * What an event shows instead of a flyer when it has no image.
@@ -99,6 +99,53 @@ const PENNANT_PATH =
 const MAST_PATH =
   'M22.0486 101.011C22.9472 100.975 23.2021 101.335 23.2166 102.184C23.2428 103.728 23.236 105.273 23.236 106.818L23.2394 115.521L23.233 142.122L22.3045 142.375L21.3995 142.617L21.3798 111.912L21.3822 105.019C21.3789 103.981 21.3295 102.691 21.4299 101.665C21.4573 101.385 21.82 101.145 22.0486 101.011Z';
 
+function FractalGlass({ base, tint }: { base: string; tint: string }) {
+  const id = `glass-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const glowId = `${id}-glow`;
+  const shadowId = `${id}-shadow`;
+  const ribId = `${id}-rib`;
+  const patternId = `${id}-pattern`;
+
+  return (
+    <Svg width="100%" height="100%">
+      <Defs>
+        <RadialGradient id={glowId} cx="26%" cy="24%" rx="68%" ry="63%">
+          <Stop offset="0%" stopColor="#FFF4DE" stopOpacity={0.9} />
+          <Stop offset="45%" stopColor="#FFF4DE" stopOpacity={0.35} />
+          <Stop offset="100%" stopColor="#FFF4DE" stopOpacity={0} />
+        </RadialGradient>
+
+        <RadialGradient id={shadowId} cx="82%" cy="74%" rx="68%" ry="65%">
+          <Stop offset="0%" stopColor="#302340" stopOpacity={0.65} />
+          <Stop offset="50%" stopColor={tint} stopOpacity={0.45} />
+          <Stop offset="100%" stopColor={tint} stopOpacity={0} />
+        </RadialGradient>
+
+        <LinearGradient id={ribId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <Stop offset="0%" stopColor="#21152C" stopOpacity={0.28} />
+          <Stop offset="24%" stopColor="#21152C" stopOpacity={0.05} />
+          <Stop offset="62%" stopColor="#FFFFFF" stopOpacity={0.03} />
+          <Stop offset="87%" stopColor="#FFFFFF" stopOpacity={0.27} />
+          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.08} />
+        </LinearGradient>
+
+        <Pattern
+          id={patternId}
+          width={10}
+          height={1}
+          patternUnits="userSpaceOnUse"
+        >
+          <Rect width={10} height={1} fill={`url(#${ribId})`} />
+        </Pattern>
+      </Defs>
+
+      <Rect width="100%" height="100%" fill={base} />
+      <Rect width="100%" height="100%" fill={`url(#${glowId})`} />
+      <Rect width="100%" height="100%" fill={`url(#${shadowId})`} />
+      <Rect width="100%" height="100%" fill={`url(#${patternId})`} />
+    </Svg>
+  );
+}
 type Props = {
   /** Where the artwork anchors when it has to crop. Bottom-left keeps the tower. */
   anchor?: 'xMinYMax' | 'xMidYMid';
@@ -107,6 +154,7 @@ type Props = {
   /** Overrides the card fill outright, ignoring the seed. */
   background?: string;
   style?: ViewStyle;
+  variant?: 'tower' | 'fractalGlass';
 };
 
 export default function EventFlyerPlaceholder({
@@ -114,9 +162,11 @@ export default function EventFlyerPlaceholder({
   seed,
   background,
   style,
+  variant = 'tower',
 }: Props) {
   const colorway = colorwayFor(seed);
   const fill = background ?? colorway.bg;
+  const gradientId = `flyer-glass-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <View
       style={[{ width: '100%', height: '100%', backgroundColor: fill }, style]}
@@ -131,14 +181,41 @@ export default function EventFlyerPlaceholder({
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio={`${anchor} slice`}
       >
-        {TILE_YS.map((y) =>
-          TILE_XS.map((x) => (
-            <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
-          )),
+        {variant === 'fractalGlass' ? (
+          <>
+            <Defs>
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor={fill} />
+                <Stop offset="55%" stopColor={colorway.tile} />
+                <Stop offset="100%" stopColor={fill} />
+              </LinearGradient>
+            </Defs>
+
+            <Rect width={VB_W} height={VB_H} fill={`url(#${gradientId})`} />
+
+            {Array.from({ length: Math.ceil(VB_W / 12) }, (_, index) => {
+              const x = index * 12;
+
+              return (
+                <React.Fragment key={x}>
+                  <Rect x={x} width={4} height={VB_H} fill="#FFFFFF" opacity={0.22} />
+                  <Rect x={x + 4} width={8} height={VB_H} fill={colorway.tile} opacity={0.35} />
+                </React.Fragment>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {TILE_YS.map((y) =>
+              TILE_XS.map((x) => (
+                <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
+              )),
+            )}
+            <Path d={TOWER_PATH} fill={FLYER_INK} />
+            <Path d={PENNANT_PATH} fill={colorway.tile} />
+            <Path d={MAST_PATH} fill={FLYER_INK} />
+          </>
         )}
-        <Path d={TOWER_PATH} fill={FLYER_INK} />
-        <Path d={PENNANT_PATH} fill={colorway.tile} />
-        <Path d={MAST_PATH} fill={FLYER_INK} />
       </Svg>
     </View>
   );

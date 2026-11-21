@@ -5,7 +5,7 @@ import { formatDay, formatMonthDay, formatTime } from '@/app/components/home/whe
 import { useThemeColors } from '@/app/lib/themeColors';
 import { useRouter } from 'expo-router';
 import { CaretRightIcon } from 'phosphor-react-native';
-import React from 'react';
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 /**
@@ -66,6 +66,9 @@ type Props = {
 export default function ExploreTrendingHero({ event, now, onSeeAll }: Props) {
   const colors = useThemeColors();
   const router = useRouter();
+
+  const flyerUri = event.image_url?.trim();
+  const [failedFlyerUri, setFailedFlyerUri] = useState<string>();
 
   const when = [
     dayLabel(event.start_datetime, now),
@@ -130,14 +133,15 @@ export default function ExploreTrendingHero({ event, now, onSeeAll }: Props) {
             paddingBottom: 20,
           }}
         >
-          {event.image_url ? (
+          {flyerUri && flyerUri !== failedFlyerUri ? (
             <Image
-              source={{ uri: event.image_url }}
+              source={{ uri: flyerUri }}
               style={StyleSheet.absoluteFill}
               resizeMode="cover"
+              onError={() => setFailedFlyerUri(flyerUri)}
             />
           ) : (
-            <EventFlyerPlaceholder seed={event.id} />
+            <EventFlyerPlaceholder seed={event.id} variant="fractalGlass" />
           )}
           <View
             style={[StyleSheet.absoluteFill, { backgroundColor: HERO_SCRIM }]}

@@ -1,20 +1,29 @@
 import ResultsErrorBoundary from '@/app/components/ErrorBoundary';
 import { ApiEvent } from '@/app/components/EventCard';
-import FlyerCard from '@/app/components/home/FlyerCard';
 import EventMiniCard from '@/app/components/EventMiniCard';
 import MapViewWrapper, { LocatedEvent, MapRegion } from '@/app/components/MapViewWrapper';
+import ExploreFilterButton from '@/app/components/explore/ExploreFilterButton';
 import ExploreFilterSheet from '@/app/components/explore/ExploreFilterSheet';
+import ExploreInterestGrid, {
+  type InterestTile,
+} from '@/app/components/explore/ExploreInterestsGrid';
 import ExploreListPanel from '@/app/components/explore/ExploreListPanel';
 import ExploreOrgFilterSheet from '@/app/components/explore/ExploreOrgFilterSheet';
+import ExploreSortControl, { type EventSort } from '@/app/components/explore/ExploreSortControl';
 import ExploreToggles, {
   ExploreSelection,
   isOrgSelection,
   selectionKey,
 } from '@/app/components/explore/ExploreToggles';
+import ExploreTrendingHero, {
+  trendingThisWeek,
+} from '@/app/components/explore/ExploreTrendingHero';
 import OrgResultRow, { OrgSearchResult } from '@/app/components/explore/OrgResultRow';
+import FlyerCard from '@/app/components/home/FlyerCard';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import { useOnboarding } from '@/app/context/OnboardingContext';
 import { api } from '@/app/lib/api';
+import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
 import { type ClusterMarker } from '@/app/lib/mapClusters';
 import {
   EMPTY_ORG_FILTERS,
@@ -54,19 +63,10 @@ import {
   Pressable,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ExploreFilterButton from '@/app/components/explore/ExploreFilterButton';
-import ExploreSortControl, { type EventSort } from '@/app/components/explore/ExploreSortControl';
-import ExploreTrendingHero, {
-  trendingThisWeek,
-} from '@/app/components/explore/ExploreTrendingHero';
-import { INTEREST_CATEGORIES } from '@/app/lib/interestCategories';
-import ExploreInterestGrid, {
-  type InterestTile,
-} from '@/app/components/explore/ExploreInterestsGrid';
 
 type EventsListResponse = { events: ApiEvent[] };
 type OrgSearchResponse = {
@@ -533,9 +533,8 @@ export default function ExploreScreen() {
     filters.when,
     filters.perks.join('+'),
   ].join('|');
-  const gridKey = `explore-grid-${activeSelectionKey}-${eventSort}-${isSearching ? needle : ''}-${
-    orgMode ? orgFilterKey : filterKey
-  }`;
+  const gridKey = `explore-grid-${activeSelectionKey}-${eventSort}-${isSearching ? needle : ''}-${orgMode ? orgFilterKey : filterKey
+    }`;
 
   // Type-narrowed subset: only events with non-null coordinates go on the map.
   // Driven by visibleEvents so the pins honour the search and the filters too.
@@ -670,6 +669,7 @@ export default function ExploreScreen() {
         isSaved={savedIds.has(item.id)}
         onToggleSave={handleToggleSave}
         width={cardWidth}
+        placeholderVariant="fractalGlass"
       />
     ),
     [savedIds, handleToggleSave, cardWidth],
@@ -991,9 +991,21 @@ export default function ExploreScreen() {
     </View>
   ) : undefined;
 
+  let resultsHeading = 'UPCOMING';
+
+  if (selection.kind === 'trending') {
+    resultsHeading = 'TRENDING';
+  } else if (selection.kind === 'all' && filters.interests.length === 1) {
+    if (filters.interests[0] === 'social') {
+      resultsHeading = 'SOCIAL';
+    } else if (filters.interests[0] === 'education') {
+      resultsHeading = 'CAREER';
+    }
+  }
+
   // "UPCOMING" and how many events are in it (LOOP-292). It scrolls with the
   // list: it holds no text input, so the pinned-header rule doesn't apply.
-  const upcomingHeader = (
+  const resultsHeader = (
     <View
       style={{
         flexDirection: 'row',
@@ -1002,10 +1014,20 @@ export default function ExploreScreen() {
       }}
     >
       <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
-        UPCOMING
+        {resultsHeading}
       </Text>
-      <ExploreSortControl count={listEvents.length} sort={eventSort} onChange={setEventSort} />
-    </View>
+      <ExploreSortControl
+        count={listEvents.length}
+        sort={eventSort}
+        onChange={setEventSort}
+        categoryLabel={
+          resultsHeading === 'SOCIAL'
+            ? 'Social'
+            : resultsHeading === 'CAREER'
+              ? 'Career'
+              : undefined
+        }
+      />    </View>
   );
 
   /**
@@ -1121,7 +1143,7 @@ export default function ExploreScreen() {
                   onSelect={(id) => setFilters((prev) => ({ ...prev, interests: [id] }))}
                 />
               ) : null}
-              {showEventSection ? upcomingHeader : null}
+              {showEventSection ? resultsHeader : null}
             </>
           }
           ListEmptyComponent={

@@ -1,6 +1,6 @@
 import { useThemeColors } from '@/app/lib/themeColors';
 import { CaretDownIcon, CheckIcon } from 'phosphor-react-native';
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 /**
@@ -26,9 +26,10 @@ type Props = {
   count: number;
   sort: EventSort;
   onChange: (sort: EventSort) => void;
+  categoryLabel?: string;
 };
 
-export default function ExploreSortControl({ count, sort, onChange }: Props) {
+export default function ExploreSortControl({ count, sort, categoryLabel, onChange }: Props) {
   const colors = useThemeColors();
   const { width: screenWidth } = useWindowDimensions();
   const triggerRef = useRef<View>(null);
@@ -43,6 +44,9 @@ export default function ExploreSortControl({ count, sort, onChange }: Props) {
 
   const current = OPTIONS.find((o) => o.id === sort) ?? OPTIONS[0];
 
+  const triggerLabel =
+    sort === 'trending' && categoryLabel ? categoryLabel : current.label;
+
   return (
     <>
       <Pressable
@@ -54,7 +58,7 @@ export default function ExploreSortControl({ count, sort, onChange }: Props) {
         style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
       >
         <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
-          {count} · {current.label}
+          {count} · {triggerLabel}
         </Text>
         <CaretDownIcon size={14} color={colors.accent} weight="bold" />
       </Pressable>

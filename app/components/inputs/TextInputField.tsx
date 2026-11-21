@@ -1,8 +1,8 @@
-import LhlPillCross from '@/assets/icons/LhlPillCross';
 import { useThemeColors } from '@/app/lib/themeColors';
+import LhlPillCross from '@/assets/icons/LhlPillCross';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 import type { TextInputInstance } from 'react-native';
+import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native';
 
 /** Form-field default. Deliberately unchanged — see the `height` prop. */
 const DEFAULT_HEIGHT = 33;
