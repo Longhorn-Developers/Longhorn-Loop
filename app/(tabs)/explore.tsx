@@ -76,6 +76,7 @@ type OrgSearchResponse = {
   nextCursor: string | null;
 };
 
+
 /**
  * Orgs per page.
  *
@@ -229,13 +230,15 @@ export default function ExploreScreen() {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [selection, setSelection] = useState<ExploreSelection>({ kind: 'all' });
   const [eventSort, setEventSort] = useState<EventSort>('trending');
-  const [interestsExpanded, setInterestsExpanded] = useState(false);
   // Deep link from Home's "Orgs For You" → "See all": `?view=orgs` opens the org
   // directory instead of the events feed. Explore is a tab and stays mounted, so
   // the initial state above never sees the param on a second visit — it has to
   // be applied here, then cleared so switching tabs doesn't re-apply it and pin
   // the user to Orgs.
-  const { view } = useLocalSearchParams<{ view?: string }>();
+  const { view, interest } = useLocalSearchParams<{
+    view?: string;
+    interest?: string;
+  }>();
   useEffect(() => {
     if (view === 'orgs') {
       setSelection({ kind: 'orgs' });
@@ -1138,9 +1141,19 @@ export default function ExploreScreen() {
               ) : null}
               {showInterests ? (
                 <ExploreInterestGrid
-                  tiles={interestsExpanded ? interestTiles : interestTiles.slice(0, 4)}
-                  expanded={interestsExpanded}
-                  onToggleExpanded={() => setInterestsExpanded((prev) => !prev)}
+                  tiles={interestTiles.slice(0, 4)}
+                  onSeeAll={() =>
+                    router.push({
+                      pathname: '/view-all' as any,
+                      params: {
+                        section: 'interests',
+                        title: 'Browse by Interest',
+                        interestCounts: JSON.stringify(
+                          interestTiles.map(({ id, count }) => [id, count]),
+                        ),
+                      },
+                    })
+                  }
                   onSelect={(id) => setFilters((prev) => ({ ...prev, interests: [id] }))}
                 />
               ) : null}

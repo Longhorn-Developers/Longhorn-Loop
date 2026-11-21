@@ -1,7 +1,6 @@
-import { useThemeColors } from '@/app/lib/themeColors';
 import type { InterestCategory } from '@/app/lib/interestCategories';
+import { useThemeColors } from '@/app/lib/themeColors';
 import { CaretRightIcon } from 'phosphor-react-native';
-import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 /**
@@ -19,15 +18,13 @@ const ICON_SIZE = 16;
 
 type Props = {
   tiles: InterestTile[];
-  expanded: boolean;
-  onToggleExpanded: () => void;
+  onSeeAll?: () => void;
   onSelect: (bucketId: string) => void;
 };
 
 export default function ExploreInterestGrid({
   tiles,
-  expanded,
-  onToggleExpanded,
+  onSeeAll,
   onSelect,
 }: Props) {
   const colors = useThemeColors();
@@ -39,31 +36,32 @@ export default function ExploreInterestGrid({
 
   return (
     <View style={{ marginBottom: 20 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 12,
-        }}
-      >
-        <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
-          BROWSE BY INTEREST
-        </Text>
-        <Pressable
-          onPress={onToggleExpanded}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          accessibilityLabel={expanded ? 'Show fewer interests' : 'See all interests'}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+      {onSeeAll ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
         >
-          <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
-            {expanded ? 'Show less' : 'See all'}
+          <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
+            BROWSE BY INTEREST
           </Text>
-          {expanded ? null : <CaretRightIcon size={14} color={colors.accent} weight="bold" />}
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={onSeeAll}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="See all interests"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+          >
+            <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
+              See all
+            </Text>
+            <CaretRightIcon size={14} color={colors.accent} weight="bold" />
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={{ gap: 8 }}>
         {rows.map((row) => (
