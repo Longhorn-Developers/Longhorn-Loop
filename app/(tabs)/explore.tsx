@@ -1027,7 +1027,8 @@ export default function ExploreScreen() {
               ? 'Career'
               : undefined
         }
-      />    </View>
+      />
+    </View>
   );
 
   /**

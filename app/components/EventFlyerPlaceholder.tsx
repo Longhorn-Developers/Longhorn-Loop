@@ -1,6 +1,6 @@
-import React, { useId } from 'react';
+import { useId, useState } from 'react';
 import { View, ViewStyle } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Pattern, RadialGradient, Rect, Stop, } from 'react-native-svg';
+import Svg, { ClipPath, G, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 /**
  * What an event shows instead of a flyer when it has no image.
@@ -101,49 +101,77 @@ const MAST_PATH =
 
 function FractalGlass({ base, tint }: { base: string; tint: string }) {
   const id = `glass-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const [width, setWidth] = useState(0);
+  const ribWidth = 16;
+  const shift = 6;
+  const ribs = Array.from(
+    { length: Math.ceil(width / ribWidth) },
+    (_, index) => index * ribWidth,
+  );
+
   const glowId = `${id}-glow`;
-  const shadowId = `${id}-shadow`;
-  const ribId = `${id}-rib`;
-  const patternId = `${id}-pattern`;
+  const depthId = `${id}-depth`;
+  const clipId = `${id}-clip`;
+  const edgeId = `${id}-edge`;
+
+  const colorField = (
+    <>
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={base} />
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={`url(#${depthId})`} />
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={`url(#${glowId})`} />
+    </>
+  );
 
   return (
-    <Svg width="100%" height="100%">
-      <Defs>
-        <RadialGradient id={glowId} cx="26%" cy="24%" rx="68%" ry="63%">
-          <Stop offset="0%" stopColor="#FFF4DE" stopOpacity={0.9} />
-          <Stop offset="45%" stopColor="#FFF4DE" stopOpacity={0.35} />
-          <Stop offset="100%" stopColor="#FFF4DE" stopOpacity={0} />
-        </RadialGradient>
+    <View
+      style={{ width: '100%', height: '100%' }}
+      onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
+    >
+      {width > 0 ? (
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id={depthId} cx="78%" cy="66%" rx="67%" ry="65%">
+              <Stop offset="0%" stopColor={tint} stopOpacity={1} />
+              <Stop offset="55%" stopColor={tint} stopOpacity={0.65} />
+              <Stop offset="100%" stopColor={tint} stopOpacity={0} />
+            </RadialGradient>
 
-        <RadialGradient id={shadowId} cx="82%" cy="74%" rx="68%" ry="65%">
-          <Stop offset="0%" stopColor="#302340" stopOpacity={0.65} />
-          <Stop offset="50%" stopColor={tint} stopOpacity={0.45} />
-          <Stop offset="100%" stopColor={tint} stopOpacity={0} />
-        </RadialGradient>
+            <RadialGradient id={glowId} cx="24%" cy="20%" rx="40%" ry="45%">
+              <Stop offset="0%" stopColor="#FFF5E6" stopOpacity={0.45} />
+              <Stop offset="100%" stopColor="#FFF5E6" stopOpacity={0} />
+            </RadialGradient>
 
-        <LinearGradient id={ribId} x1="0%" y1="0%" x2="100%" y2="0%">
-          <Stop offset="0%" stopColor="#21152C" stopOpacity={0.28} />
-          <Stop offset="24%" stopColor="#21152C" stopOpacity={0.05} />
-          <Stop offset="62%" stopColor="#FFFFFF" stopOpacity={0.03} />
-          <Stop offset="87%" stopColor="#FFFFFF" stopOpacity={0.27} />
-          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.08} />
-        </LinearGradient>
+            <ClipPath id={clipId}>
+              {ribs.map((x) => (
+                <Rect key={x} x={x} width={ribWidth * 0.65} height="100%" />
+              ))}
+            </ClipPath>
 
-        <Pattern
-          id={patternId}
-          width={10}
-          height={1}
-          patternUnits="userSpaceOnUse"
-        >
-          <Rect width={10} height={1} fill={`url(#${ribId})`} />
-        </Pattern>
-      </Defs>
+            <LinearGradient id={edgeId} x1="0%" y1="0%" x2="100%" y2="0%">
+              <Stop offset="0%" stopColor="#21152C" stopOpacity={0.14} />
+              <Stop offset="22%" stopColor="#21152C" stopOpacity={0} />
+              <Stop offset="80%" stopColor="#FFFFFF" stopOpacity={0} />
+              <Stop offset="94%" stopColor="#FFFFFF" stopOpacity={0.13} />
+              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.04} />
+            </LinearGradient>
+          </Defs>
 
-      <Rect width="100%" height="100%" fill={base} />
-      <Rect width="100%" height="100%" fill={`url(#${glowId})`} />
-      <Rect width="100%" height="100%" fill={`url(#${shadowId})`} />
-      <Rect width="100%" height="100%" fill={`url(#${patternId})`} />
-    </Svg>
+          {colorField}
+          <G clipPath={`url(#${clipId})`}>
+            <G transform={`translate(${shift}, 0)`}>{colorField}</G>
+          </G>
+          {ribs.map((x) => (
+            <Rect
+              key={x}
+              x={x}
+              width={ribWidth}
+              height="100%"
+              fill={`url(#${edgeId})`}
+            />
+          ))}
+        </Svg>
+      ) : null}
+    </View>
   );
 }
 type Props = {
@@ -166,7 +194,6 @@ export default function EventFlyerPlaceholder({
 }: Props) {
   const colorway = colorwayFor(seed);
   const fill = background ?? colorway.bg;
-  const gradientId = `flyer-glass-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   return (
     <View
       style={[{ width: '100%', height: '100%', backgroundColor: fill }, style]}
@@ -175,48 +202,25 @@ export default function EventFlyerPlaceholder({
       accessibilityRole="image"
       accessibilityLabel="No flyer provided for this event"
     >
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        preserveAspectRatio={`${anchor} slice`}
-      >
-        {variant === 'fractalGlass' ? (
-          <>
-            <Defs>
-              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={fill} />
-                <Stop offset="55%" stopColor={colorway.tile} />
-                <Stop offset="100%" stopColor={fill} />
-              </LinearGradient>
-            </Defs>
-
-            <Rect width={VB_W} height={VB_H} fill={`url(#${gradientId})`} />
-
-            {Array.from({ length: Math.ceil(VB_W / 12) }, (_, index) => {
-              const x = index * 12;
-
-              return (
-                <React.Fragment key={x}>
-                  <Rect x={x} width={4} height={VB_H} fill="#FFFFFF" opacity={0.22} />
-                  <Rect x={x + 4} width={8} height={VB_H} fill={colorway.tile} opacity={0.35} />
-                </React.Fragment>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            {TILE_YS.map((y) =>
-              TILE_XS.map((x) => (
-                <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
-              )),
-            )}
-            <Path d={TOWER_PATH} fill={FLYER_INK} />
-            <Path d={PENNANT_PATH} fill={colorway.tile} />
-            <Path d={MAST_PATH} fill={FLYER_INK} />
-          </>
-        )}
-      </Svg>
+      {variant === 'fractalGlass' ? (
+        <FractalGlass base={fill} tint={colorway.tile} />
+      ) : (
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          preserveAspectRatio={`${anchor} slice`}
+        >
+          {TILE_YS.map((y) =>
+            TILE_XS.map((x) => (
+              <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
+            )),
+          )}
+          <Path d={TOWER_PATH} fill={FLYER_INK} />
+          <Path d={PENNANT_PATH} fill={colorway.tile} />
+          <Path d={MAST_PATH} fill={FLYER_INK} />
+        </Svg>
+      )}
     </View>
   );
 }
