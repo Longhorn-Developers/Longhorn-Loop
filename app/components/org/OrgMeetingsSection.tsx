@@ -10,6 +10,12 @@
 //
 // Weekly recurring only. A one-off gathering is an event. See
 // shared/orgMeetings.ts for the rules and the display format.
+//
+// LOOP-333 restyled the list as the org page's "Weekly meeting" cards and
+// dropped the section's own "Meetings" heading: in the redesign the cards sit
+// in the header stack, between the actions and the bio, where a 20pt heading
+// would outrank the org's name. The members-only note and the admin's add
+// control moved under the cards.
 
 import TextInputField from '@/app/components/inputs/TextInputField';
 import DragDismissSheet from '@/app/components/modals/DragDismissSheet';
@@ -18,6 +24,7 @@ import { ApiError, api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
 import { MIN_TAP_TARGET, hitSlopFor } from '@/app/lib/tapTarget';
 import { useThemeColors } from '@/app/lib/themeColors';
+import CalendarIcon from '@/assets/images/calendar.svg';
 import PencilIcon from '@/assets/images/pencil.svg';
 import {
   DAY_SHORT,
@@ -54,85 +61,48 @@ export default function OrgMeetingsSection({ orgId, role, token }: OrgMeetingsSe
   const canAdd = isAdmin && list.length < MAX_MEETINGS_PER_ORG;
 
   return (
-    <View className="mt-[24px] px-[20px]">
-      <View className="flex-row items-center justify-between">
-        <Text className="font-roboto-semibold text-[20px] leading-[24px] text-lhlInk">
-          Meetings
-        </Text>
-        {canAdd ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add a meeting time"
-            onPress={() => setEditing('new')}
-            hitSlop={hitSlopFor(32)}
-            className="items-center justify-center rounded-[8px] bg-lhlBurntOrange px-[12px]"
-            style={{ height: 32 }}
-          >
-            {/* theme-exempt: white on the filled brand button. */}
-            <Text className="font-roboto-semibold text-[12px] text-white">Add</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <Text className="font-roboto mt-[4px] text-[12px] leading-[14px] text-lhlSecondaryTextGrey">
-        Only members of this organization can see these.
-      </Text>
+    <View className="gap-[8px]">
+      {meetings.isLoading ? (
+        <ActivityIndicator color={colors.brand} />
+      ) : meetings.isError ? (
+        <Pressable accessibilityRole="button" onPress={() => meetings.refetch()}>
+          <Text className="font-roboto text-[14px] text-lhlSecondaryTextGrey">
+            Couldn’t load meeting times. Tap to try again.
+          </Text>
+        </Pressable>
+      ) : list.length === 0 ? (
+        // Editors and members have nothing to act on, so an empty list is
+        // simply absent for them; only an admin sees the prompt to add one.
+        isAdmin ? (
+          <View className="rounded-[16px] border border-lhlBorderSoft bg-lhlSurface px-[12px] py-[14px]">
+            <Text className="font-roboto text-[13px] leading-[18px] text-lhlSecondaryTextGrey">
+              No meeting times yet. Add when and where the org meets.
+            </Text>
+          </View>
+        ) : null
+      ) : (
+        list.map((m) => (
+          <MeetingCard key={m.id} meeting={m} onEdit={isAdmin ? () => setEditing(m) : undefined} />
+        ))
+      )}
 
-      <View className="mt-[12px]">
-        {meetings.isLoading ? (
-          <ActivityIndicator color={colors.brand} />
-        ) : meetings.isError ? (
-          <Pressable accessibilityRole="button" onPress={() => meetings.refetch()}>
-            <Text className="font-roboto text-[14px] text-lhlSecondaryTextGrey">
-              Couldn’t load meeting times. Tap to try again.
-            </Text>
-          </Pressable>
-        ) : list.length === 0 ? (
-          <View className="rounded-[20px] border border-lhlBorderSoft bg-lhlSurface px-[16px] py-[18px]">
-            <Text className="font-roboto text-[14px] leading-[18px] text-lhlSecondaryTextGrey">
-              {isAdmin
-                ? 'No meeting times yet. Add when and where the org meets.'
-                : 'No meeting times yet.'}
-            </Text>
-          </View>
-        ) : (
-          <View className="gap-[12px]">
-            {list.map((m) => (
-              <View
-                key={m.id}
-                className="flex-row items-start rounded-[20px] border border-lhlBorderSoft bg-lhlSurface px-[16px] py-[14px]"
-              >
-                <View className="flex-1">
-                  <Text className="font-roboto-medium text-[14px] leading-[18px] text-lhlInk">
-                    {m.label}
-                  </Text>
-                  <Text className="font-roboto-medium mt-[4px] text-[12px] leading-[16px] text-lhlInk">
-                    {formatMeetingWhen(m)}
-                  </Text>
-                  <Text className="font-roboto mt-[2px] text-[12px] leading-[16px] text-lhlSecondaryTextGrey">
-                    {m.location}
-                  </Text>
-                  {m.notes ? (
-                    <Text className="font-roboto mt-[6px] text-[12px] leading-[16px] text-lhlSecondaryTextGrey">
-                      {m.notes}
-                    </Text>
-                  ) : null}
-                </View>
-                {isAdmin ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Edit ${m.label}`}
-                    onPress={() => setEditing(m)}
-                    className="items-center justify-center"
-                    style={{ width: MIN_TAP_TARGET, height: MIN_TAP_TARGET, marginRight: -12 }}
-                  >
-                    <PencilIcon width={14} height={14} color={colors.ink} />
-                  </Pressable>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
+      {canAdd || list.length > 0 ? (
+        <View className="flex-row items-center justify-between">
+          <Text className="font-roboto shrink text-[11px] leading-[14px] text-lhlMutedText">
+            Only members of this organization can see meeting times.
+          </Text>
+          {canAdd ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a meeting time"
+              onPress={() => setEditing('new')}
+              hitSlop={hitSlopFor(20)}
+            >
+              <Text className="font-roboto-semibold text-[12px] text-lhlAccent">+ Add time</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {isAdmin ? (
         <MeetingFormSheet
@@ -142,6 +112,79 @@ export default function OrgMeetingsSection({ orgId, role, token }: OrgMeetingsSe
           visible={editing !== null}
           onClose={() => setEditing(null)}
         />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Days until the next occurrence of a weekly meeting, in Austin wall-clock
+ * terms approximated by the device clock (the app is campus-only, so the two
+ * agree for everyone who uses it). 0 = later today; a meeting whose start time
+ * has already passed today counts as next week's.
+ */
+function daysUntilNext(
+  m: Pick<OrgMeeting, 'day_of_week' | 'start_time'>,
+  now = new Date(),
+): number {
+  let diff = (m.day_of_week - now.getDay() + 7) % 7;
+  if (diff === 0) {
+    const [h, min] = m.start_time.split(':').map(Number);
+    if (now.getHours() * 60 + now.getMinutes() >= h * 60 + min) diff = 7;
+  }
+  return diff;
+}
+
+function nextMeetingLabel(days: number): string {
+  if (days === 0) return 'Next meeting today';
+  if (days === 1) return 'Next meeting tomorrow';
+  return `Next meeting in ${days} days`;
+}
+
+/**
+ * One weekly meeting, as the org page's "Weekly meeting" card (LOOP-333,
+ * Figma "Org Page"): a calendar tile, "Meets Thursdays · 6:00 PM", and
+ * "BLT 2.503 · Next meeting in 3 days".
+ *
+ * The frame's right-hand button is "Add" (to calendar). Here it is the admin's
+ * edit pencil instead, and absent for everyone else: there is no recurring
+ * calendar export (addToCalendar.ts builds one-off Google links), and an Add
+ * that quietly adds a single Thursday would be wrong every week after.
+ */
+function MeetingCard({ meeting: m, onEdit }: { meeting: OrgMeeting; onEdit?: () => void }) {
+  const colors = useThemeColors();
+  const label = m.label?.trim();
+  return (
+    <View className="min-h-[68px] flex-row items-center gap-[12px] rounded-[16px] border border-lhlBorderSoft bg-lhlSurface p-[12px]">
+      <View className="h-[40px] w-[40px] items-center justify-center rounded-[8px] border border-lhlBorderSoft bg-lhlBrandTint">
+        <CalendarIcon width={20} height={20} color={colors.accent} />
+      </View>
+      <View className="flex-1 gap-[4px]">
+        <Text className="font-roboto-semibold text-[14px] leading-[17px] text-lhlInk">
+          {`Meets ${formatMeetingWhen(m)}`}
+        </Text>
+        <Text className="font-roboto text-[12px] leading-[14px] text-lhlSecondaryTextGrey">
+          {[m.location, nextMeetingLabel(daysUntilNext(m))].filter(Boolean).join(' · ')}
+        </Text>
+        {label || m.notes ? (
+          <Text
+            numberOfLines={2}
+            className="font-roboto text-[12px] leading-[14px] text-lhlSecondaryTextGrey"
+          >
+            {[label, m.notes].filter(Boolean).join(' — ')}
+          </Text>
+        ) : null}
+      </View>
+      {onEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${label || 'meeting'}`}
+          onPress={onEdit}
+          className="items-center justify-center"
+          style={{ width: MIN_TAP_TARGET, height: MIN_TAP_TARGET, marginRight: -12 }}
+        >
+          <PencilIcon width={14} height={14} color={colors.ink} />
+        </Pressable>
       ) : null}
     </View>
   );

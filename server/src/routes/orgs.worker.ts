@@ -143,6 +143,46 @@ orgRoutes.get('/mine', async (c) => {
   });
 });
 
+// GET /orgs/following -- every org the caller follows (LOOP-331).
+//
+// The Orgs tab's "Your Orgs" list is two sets: orgs the caller is ON (/mine,
+// the management team) and orgs they FOLLOW. Nothing listed the second set --
+// /settings/followed-orgs is the notification toggles, not the orgs -- and
+// paging /orgs/search for is_following rows would mean walking the whole
+// directory to find a handful.
+//
+// Orgs the caller also belongs to are left in: the client merges the two lists
+// and lets membership win, which keeps this route a plain read with no opinion
+// about how the tab presents the overlap.
+//
+// MUST stay above /:orgId, like /mine.
+orgRoutes.get('/following', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const userId = await getUserId(c.env.DB, auth.email);
+  if (!userId) return c.json({ error: 'USER_NOT_FOUND' }, 404);
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT o.id, o.name, o.profile_picture, o.verified, o.category,
+            (SELECT COUNT(*) FROM org_followers f2 WHERE f2.org_id = o.id) AS follower_count
+       FROM org_followers f
+       JOIN organizations o ON o.id = f.org_id
+      WHERE f.user_id = ?
+      ORDER BY o.name COLLATE NOCASE ASC`,
+  )
+    .bind(userId)
+    .all();
+
+  return c.json({
+    organizations: (results as Record<string, unknown>[]).map((o) => ({
+      ...o,
+      verified: Number(o.verified) === 1,
+      follower_count: Number(o.follower_count ?? 0),
+    })),
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Organization registration — search + claim (LOOP-141), verification tail
 // (LOOP-185)
@@ -455,6 +495,10 @@ orgRoutes.get('/search', async (c) => {
         // All-time, for the Explore card's meta line (LOOP-293). Distinct
         // from trending_score, which only counts the past 7 days.
         follower_count: Number(o.follower_count ?? 0),
+        // The 7-day follow count `trending` already ranks by, exposed for the
+        // Orgs tab's "+142 this week" chip (LOOP-332). The same number, so the
+        // chip can never disagree with the order the cards came back in.
+        followers_this_week: Number(o.trending_score ?? 0),
         // Whether the caller follows this org, so a Follow button can start in
         // the right state instead of always reading "Follow".
         is_following: Number(o.is_following) === 1,
@@ -1587,13 +1631,36 @@ orgRoutes.get('/:orgId/profile', async (c) => {
     .bind(orgId, viewerId)
     .first();
 
+  // The People tab (LOOP-334): who runs the org, and how many of them there
+  // are. org_members is the management team -- admins and editors -- so that is
+  // what both of these count; there is no regular-member role yet (LOOP-336).
+  //
+  // Names and role only. No email, no user id: the console's /members route
+  // carries those and stays members-only, while this page is readable by any
+  // signed-in student, and "who are the officers" is the public half of that.
+  const { results: leaders } = await c.env.DB.prepare(
+    `SELECT u.first_name, u.last_name, m.role
+       FROM org_members m
+       JOIN users u ON u.id = m.user_id
+      WHERE m.org_id = ?
+      ORDER BY CASE m.role WHEN 'admin' THEN 0 ELSE 1 END, u.first_name ASC, u.last_name ASC`,
+  )
+    .bind(orgId)
+    .all();
+
   return c.json({
     org: {
       ...org,
       verified: Number(org.verified) === 1,
       follower_count: (followers?.c as number) ?? 0,
       following_count: (following?.c as number) ?? 0,
+      member_count: leaders.length,
     },
+    leadership: (leaders as Record<string, unknown>[]).map((l) => ({
+      first_name: String(l.first_name ?? ''),
+      last_name: String(l.last_name ?? ''),
+      role: l.role as OrgRole,
+    })),
     is_following: !!isFollowing,
     is_member: !!membership,
     role: (membership?.role as string) ?? null,

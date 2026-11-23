@@ -4,6 +4,7 @@ import TabExploreActiveIcon from '@/assets/images/tab-explore-active.svg';
 import TabExploreIcon from '@/assets/images/tab-explore.svg';
 import TabHomeActiveIcon from '@/assets/images/tab-home-active.svg';
 import TabHomeIcon from '@/assets/images/tab-home.svg';
+import OrgsTabIcon from '@/app/components/OrgsTabIcon';
 import ProfileTabIcon from '@/app/components/ProfileTabIcon';
 import { CreateEventProvider } from '@/app/context/CreateEventContext';
 import { useThemeColors } from '@/app/lib/themeColors';
@@ -101,6 +102,17 @@ export default function TabsLayout() {
               ) : (
                 <TabExploreIcon width={42} height={38} color={inactive} />
               ),
+          }}
+        />
+
+        {/* Orgs (LOOP-330), between Explore and Create per the design's
+            Home · Explore · Orgs · Create · Profile order. */}
+        <Tabs.Screen
+          name="orgs"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <OrgsTabIcon focused={focused} color={focused ? active : inactive} />
+            ),
           }}
         />
 

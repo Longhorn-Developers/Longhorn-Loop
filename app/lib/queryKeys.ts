@@ -69,6 +69,10 @@ export const settings = {
 export const org = {
   all: ['org'] as const,
   mine: () => [...org.all, 'mine'] as const,
+  // Orgs the caller follows (GET /orgs/following) -- the Orgs tab's "Your
+  // Orgs" list merges it with mine(). Under org.all so a follow from anywhere
+  // (which invalidates the tree via useOrgFollow) refreshes the list.
+  following: () => [...org.all, 'following'] as const,
   detail: (id: number | string) => [...org.all, 'detail', String(id)] as const,
   members: (id: number | string) => [...org.all, 'members', String(id)] as const,
   // Events tab (LOOP-136). Search/filter/sort are part of the key so each
