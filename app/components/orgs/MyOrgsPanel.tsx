@@ -38,6 +38,7 @@ import { api } from '@/app/lib/api';
 import { org as orgKeys } from '@/app/lib/queryKeys';
 import { useGoingEventIds } from '@/app/lib/useGoingEventIds';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { TYPE } from '@/app/lib/typography';
 import { ChevronRightIcon } from '@/assets/icons/LhlOrgsIcons';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
@@ -139,7 +140,9 @@ function RelationBadge({ relation }: { relation: MyOrgRow['relation'] }) {
   if (relation === 'admin' || relation === 'editor') {
     return (
       <View className="rounded-full border-[0.5px] border-lhlBurntOrange bg-lhlBrandTint px-[5px] py-[2px]">
-        <Text className="font-roboto-medium text-[10px] text-lhlAccent">
+        {/* Badge text, not a TYPE role: Medium at 11 (Home's smallest step) so it
+            stays a tag beside a 16pt name. Accent because it sits on the tint. */}
+        <Text className="font-roboto-medium text-[11px] text-lhlAccent">
           {relation === 'admin' ? 'ADMIN' : 'EDITOR'}
         </Text>
       </View>
@@ -147,7 +150,7 @@ function RelationBadge({ relation }: { relation: MyOrgRow['relation'] }) {
   }
   return (
     <View className="rounded-full bg-lhlSegmentTrack px-[5px] py-[2px]">
-      <Text className="font-roboto-medium text-[10px] text-lhlSecondaryTextGrey">FOLLOWING</Text>
+      <Text className="font-roboto-medium text-[11px] text-lhlSecondaryTextGrey">FOLLOWING</Text>
     </View>
   );
 }
@@ -199,12 +202,14 @@ function UpNextCard({ event }: { event: ApiEvent }) {
   const canDirect = (event.latitude != null && event.longitude != null) || !!where;
   return (
     <View className="mx-[20px] gap-[10px] rounded-[10px] border border-lhlBrandTint bg-lhlSurface px-[12px] py-[14px]">
-      <Text className="font-roboto-semibold text-[12px] text-lhlAccent">
+      {/* The card's own small-caps eyebrow reads as Home's page eyebrow, brand
+          on the white surface (accent is kept for text on the tint fill). */}
+      <Text style={TYPE.pageEyebrow} className="text-lhlAccent">
         {upNextEyebrow(event.start_datetime)}
       </Text>
       <View className="gap-[4px]">
         <View className="flex-row items-center gap-[6px]">
-          <Text numberOfLines={1} className="font-roboto-semibold shrink text-[16px] text-lhlInk">
+          <Text numberOfLines={1} style={TYPE.cardTitle} className="shrink text-lhlInk">
             {event.title}
           </Text>
           {event.org_verified ? (
@@ -214,12 +219,12 @@ function UpNextCard({ event }: { event: ApiEvent }) {
         {where ? (
           <View className="flex-row items-center gap-[4px]">
             <LocationIcon width={13} height={13} color={colors.ink} />
-            <Text numberOfLines={1} className="font-roboto shrink text-[12px] text-lhlInk">
+            <Text numberOfLines={1} style={TYPE.body} className="shrink text-lhlSecondaryTextGrey">
               {where}
             </Text>
           </View>
         ) : null}
-        <Text className="font-roboto-medium text-[12px] text-lhlInk">
+        <Text style={TYPE.body} className="text-lhlSecondaryTextGrey">
           {[event.host_organization_name, `${(event.rsvp_count ?? 0).toLocaleString()} going`]
             .filter(Boolean)
             .join(' · ')}
@@ -231,7 +236,9 @@ function UpNextCard({ event }: { event: ApiEvent }) {
           onPress={() => router.push(`/event/${event.id}`)}
           className="flex-1 items-center justify-center rounded-[8px] bg-lhlBurntOrange"
         >
-          <Text className="font-roboto-semibold text-[12px] text-white">View event</Text>
+          <Text style={TYPE.button} className="text-white">
+            View event
+          </Text>
         </Pressable>
         {canDirect ? (
           <Pressable
@@ -240,7 +247,9 @@ function UpNextCard({ event }: { event: ApiEvent }) {
             onPress={() => openDirections(event)}
             className="flex-1 items-center justify-center rounded-[8px] bg-lhlBrandTint"
           >
-            <Text className="font-roboto-semibold text-[12px] text-lhlAccent">Directions</Text>
+            <Text style={TYPE.button} className="text-lhlAccent">
+              Directions
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -306,10 +315,14 @@ export default function MyOrgsPanel({
   if (rows.length === 0) {
     return (
       <View className="mx-[20px] mt-[32px] items-center rounded-[16px] border border-lhlBorderSoft bg-lhlSurface px-[20px] py-[28px]">
-        <Text className="font-roboto-semibold text-center text-[16px] text-lhlInk">
+        <Text style={TYPE.cardTitle} className="text-center text-lhlInk">
           No orgs yet
         </Text>
-        <Text className="font-roboto mt-[6px] text-center text-[13px] leading-[18px] text-lhlSecondaryTextGrey">
+        {/* lineHeight kept: a centred paragraph that wraps needs the air. */}
+        <Text
+          style={[TYPE.body, { lineHeight: 18 }]}
+          className="mt-[6px] text-center text-lhlSecondaryTextGrey"
+        >
           Follow organizations to see their events and meetings here.
         </Text>
         <Pressable
@@ -317,7 +330,9 @@ export default function MyOrgsPanel({
           onPress={onDiscover}
           className="mt-[14px] h-[36px] items-center justify-center rounded-[8px] bg-lhlBurntOrange px-[20px]"
         >
-          <Text className="font-roboto-semibold text-[12px] text-white">Discover orgs</Text>
+          <Text style={TYPE.button} className="text-white">
+            Discover orgs
+          </Text>
         </Pressable>
       </View>
     );
@@ -354,7 +369,7 @@ export default function MyOrgsPanel({
           }
         />
         {visibleRows.length === 0 ? (
-          <Text className="font-roboto text-[13px] text-lhlSecondaryTextGrey">
+          <Text style={TYPE.body} className="text-lhlSecondaryTextGrey">
             {filter === 'joined'
               ? 'You’re not on any org’s team yet.'
               : 'You’re not following any orgs yet.'}
@@ -369,19 +384,13 @@ export default function MyOrgsPanel({
               <OrgLogo name={row.name} uri={row.profile_picture} size={44} />
               <View className="flex-1 gap-[2px]">
                 <View className="flex-row items-center gap-[8px]">
-                  <Text
-                    numberOfLines={1}
-                    className="font-roboto-semibold shrink text-[16px] leading-[19px] text-lhlInk"
-                  >
+                  <Text numberOfLines={1} style={TYPE.cardTitle} className="shrink text-lhlInk">
                     {row.name}
                   </Text>
                   <RelationBadge relation={row.relation} />
                 </View>
                 {row.subtitle ? (
-                  <Text
-                    numberOfLines={1}
-                    className="font-roboto text-[12px] text-lhlSecondaryTextGrey"
-                  >
+                  <Text numberOfLines={1} style={TYPE.body} className="text-lhlSecondaryTextGrey">
                     {row.subtitle}
                   </Text>
                 ) : null}
@@ -402,7 +411,7 @@ export default function MyOrgsPanel({
           }
         />
         {upcoming.length === 0 ? (
-          <Text className="font-roboto text-[13px] text-lhlSecondaryTextGrey">
+          <Text style={TYPE.body} className="text-lhlSecondaryTextGrey">
             No upcoming events from your orgs.
           </Text>
         ) : (

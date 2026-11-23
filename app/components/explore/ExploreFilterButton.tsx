@@ -1,4 +1,5 @@
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT } from '@/app/lib/typography';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -89,7 +90,11 @@ export default function ExploreFilterButton({ activeCount, open, onPress }: Prop
             backgroundColor: colors.brand,
           }}
         >
-          <Text style={{ fontSize: BADGE_DIGIT_SIZE, fontWeight: '700', color: colors.surface }}>
+          {/* FONT.bold, not fontWeight '700': a bare weight renders in the system
+              font. The digit stays at Figma's 7 to fit the 9.5px badge. */}
+          <Text
+            style={{ fontFamily: FONT.bold, fontSize: BADGE_DIGIT_SIZE, color: colors.surface }}
+          >
             {activeCount}
           </Text>
         </View>

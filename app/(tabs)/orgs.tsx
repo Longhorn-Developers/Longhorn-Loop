@@ -14,6 +14,7 @@ import ProfileTabRow from '@/app/components/profile/ProfileTabRow';
 import DiscoverPanel from '@/app/components/orgs/DiscoverPanel';
 import MyOrgsPanel, { useMyOrgs } from '@/app/components/orgs/MyOrgsPanel';
 import { useOnboarding } from '@/app/context/OnboardingContext';
+import { TYPE } from '@/app/lib/typography';
 import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,8 +44,12 @@ export default function OrgsScreen() {
       >
         <View className="px-[20px]">
           <View className="gap-[4px] pb-[8px] pt-[12px]">
-            <Text className="font-roboto-semibold text-[12px] text-lhlAccent">FIND YOUR PLACE</Text>
-            <Text accessibilityRole="header" className="font-roboto-medium text-[24px] text-lhlInk">
+            {/* Home's page header (app/lib/typography.ts): brand, not accent, for
+                the eyebrow, and the 32pt Bold title, so every tab opens the same. */}
+            <Text style={TYPE.pageEyebrow} className="text-lhlAccent">
+              FIND YOUR PLACE
+            </Text>
+            <Text accessibilityRole="header" style={TYPE.pageTitle} className="text-lhlInk">
               Organizations
             </Text>
           </View>

@@ -14,16 +14,10 @@
 
 import type { ApiEvent } from '@/app/components/EventCard';
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
-import {
-  DIM,
-  OVERLAY_TEXT,
-  PILL_FILL,
-  SCRIM_CLEAR,
-  SCRIM_DARK,
-} from '@/app/components/home/overlay';
+import CaptionScrim from '@/app/components/home/CaptionScrim';
+import { DIM, OVERLAY_TEXT, PILL_FILL } from '@/app/components/home/overlay';
 import { formatDay, formatTime } from '@/app/components/home/when';
 import { useThemeColors, type ThemeColors } from '@/app/lib/themeColors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -69,12 +63,7 @@ function SpotlightCard({ event, large }: { event: ApiEvent; large: boolean }) {
         <EventFlyerPlaceholder seed={event.id} />
       )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: DIM }]} pointerEvents="none" />
-      <LinearGradient
-        colors={[SCRIM_CLEAR, SCRIM_DARK]}
-        locations={[0.35, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <CaptionScrim />
 
       {tag ? (
         <View style={styles.tag}>
@@ -144,18 +133,20 @@ const makeStyles = (c: ThemeColors) =>
       fontSize: 11,
       letterSpacing: 0.4,
     },
+    // Same 12pt inset as FlyerCard's caption, so titles line up the same way
+    // on every image card on Home.
     caption: {
       position: 'absolute',
-      left: 10,
-      right: 10,
-      bottom: 9,
+      left: 12,
+      right: 12,
+      bottom: 12,
     },
     title: {
       color: OVERLAY_TEXT,
-      // Bold, and 14 / 17 up from semibold 12 / 14, so the Spotlight titles
-      // match the weight of the carousel cards' titles below them rather than
-      // reading as captions.
-      fontFamily: 'Roboto-Flex-Bold',
+      // 14 / 17 up from 12 / 14 so these read as titles, not captions. SemiBold
+      // (it was Bold for a while) to match the carousel cards' titles below; the
+      // CaptionScrim is what keeps them readable on a bright photo now.
+      fontFamily: 'Roboto-Flex-SemiBold',
       fontSize: 14,
       lineHeight: 18,
     },

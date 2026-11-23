@@ -1,4 +1,5 @@
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { useRouter } from 'expo-router';
 import { SealCheckIcon } from 'phosphor-react-native';
 import React from 'react';
@@ -143,7 +144,8 @@ export default function OrgResultRow({ org }: Props) {
             justifyContent: 'center',
           }}
         >
-          <Text className="font-roboto-bold" style={{ fontSize: 22, color: colors.accent }}>
+          {/* A logo stand-in, not a text role, so it keeps its size and accent. */}
+          <Text style={{ fontFamily: FONT.bold, fontSize: 22, color: colors.accent }}>
             {initials}
           </Text>
         </View>
@@ -151,11 +153,7 @@ export default function OrgResultRow({ org }: Props) {
 
       <View style={{ flex: 1, gap: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text
-            className="font-roboto-semibold"
-            style={{ fontSize: 16, color: colors.ink, flexShrink: 1 }}
-            numberOfLines={1}
-          >
+          <Text style={[TYPE.cardTitle, { color: colors.ink, flexShrink: 1 }]} numberOfLines={1}>
             {name}
           </Text>
           {org.verified ? (
@@ -169,8 +167,7 @@ export default function OrgResultRow({ org }: Props) {
             NULL — inventing a description is worse than a shorter card. */}
         {bio ? (
           <Text
-            className="font-roboto"
-            style={{ fontSize: 12.5, lineHeight: 18, color: colors.inkSecondary }}
+            style={[TYPE.body, { lineHeight: 18, color: colors.inkSecondary }]}
             numberOfLines={2}
           >
             {bio}
@@ -178,11 +175,7 @@ export default function OrgResultRow({ org }: Props) {
         ) : null}
 
         {meta.length > 0 ? (
-          <Text
-            className="font-roboto-medium"
-            style={{ fontSize: 12, color: colors.ink }}
-            numberOfLines={1}
-          >
+          <Text style={[TYPE.caption, { color: colors.inkMuted }]} numberOfLines={1}>
             {meta.join(' · ')}
           </Text>
         ) : null}

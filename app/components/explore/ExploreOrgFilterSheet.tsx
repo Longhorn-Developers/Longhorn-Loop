@@ -27,6 +27,7 @@
 import DragDismissSheet from '@/app/components/modals/DragDismissSheet';
 import { EMPTY_ORG_FILTERS, activeOrgFilterCount, type OrgFilters } from '@/app/lib/orgFilters';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { ORG_CATEGORIES, type OrgCategory } from '@/shared/orgRegistration';
 import { toggleInArray } from '@/shared/exploreFilters';
 import { CalendarCheckIcon, SealCheckIcon, type IconProps } from 'phosphor-react-native';
@@ -67,12 +68,8 @@ function ToggleRow({
     >
       <Icon size={20} color={colors.accent} weight="fill" />
       <View style={{ flex: 1 }}>
-        <Text className="font-roboto-semibold" style={{ fontSize: 15, color: colors.ink }}>
-          {label}
-        </Text>
-        <Text className="font-roboto" style={{ fontSize: 12, color: colors.inkMuted }}>
-          {caption}
-        </Text>
+        <Text style={[TYPE.cardTitle, { color: colors.ink }]}>{label}</Text>
+        <Text style={[TYPE.caption, { color: colors.inkMuted }]}>{caption}</Text>
       </View>
       <Switch
         value={value}
@@ -100,7 +97,10 @@ export default function ExploreOrgFilterSheet({
 
   const header = (
     <View style={{ paddingHorizontal: 20, paddingBottom: 6 }}>
-      <Text className="font-roboto-semibold" style={{ fontSize: 20, color: colors.ink }}>
+      {/* Bold 18 is the sheet-title size shared with the event Filters sheet;
+          styles come from app/lib/typography.ts rather than font-roboto-* classes
+          so the tabs have one way of naming a text style. */}
+      <Text style={{ fontFamily: FONT.bold, fontSize: 18, color: colors.ink }}>
         Organization Filters
       </Text>
     </View>
@@ -136,8 +136,8 @@ export default function ExploreOrgFilterSheet({
           />
 
           <Text
-            className="font-roboto-bold"
             style={{
+              fontFamily: FONT.bold,
               fontSize: 14,
               color: colors.inkSecondary,
               textTransform: 'uppercase',
@@ -175,8 +175,11 @@ export default function ExploreOrgFilterSheet({
                   }}
                 >
                   <Text
-                    className="font-roboto-medium"
-                    style={{ fontSize: 14, color: selected ? colors.accent : colors.inkSecondary }}
+                    style={{
+                      fontFamily: FONT.medium,
+                      fontSize: 14,
+                      color: selected ? colors.accent : colors.inkSecondary,
+                    }}
                   >
                     {category}
                   </Text>
@@ -220,7 +223,7 @@ export default function ExploreOrgFilterSheet({
             opacity: active ? 1 : 0.5,
           }}
         >
-          <Text className="font-roboto-semibold" style={{ fontSize: 16, color: colors.accent }}>
+          <Text style={{ fontFamily: FONT.semibold, fontSize: 16, color: colors.accent }}>
             Clear All Filters
           </Text>
         </Pressable>
@@ -237,7 +240,7 @@ export default function ExploreOrgFilterSheet({
             backgroundColor: colors.brand,
           }}
         >
-          <Text className="font-roboto-semibold" style={{ fontSize: 16, color: colors.surface }}>
+          <Text style={{ fontFamily: FONT.semibold, fontSize: 16, color: colors.surface }}>
             Show orgs
           </Text>
         </Pressable>

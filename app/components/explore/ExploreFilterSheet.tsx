@@ -47,6 +47,7 @@
 // a third control that does nothing.
 
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { COLLEGES } from '@/shared/colleges';
 import { EVENT_BENEFIT_OPTIONS } from '@/shared/eventBenefits';
 import {
@@ -168,10 +169,12 @@ function Crest({
             borderColor: selected ? 'transparent' : colors.border,
           }}
         >
+          {/* Families, not fontWeight, throughout this file: a bare weight with no
+              fontFamily renders in the system font rather than Roboto Flex. */}
           <Text
             style={{
+              fontFamily: FONT.bold,
               fontSize: 13,
-              fontWeight: '800',
               color: selected ? '#FFFFFF' : colors.inkSecondary,
             }}
           >
@@ -200,7 +203,7 @@ function Crest({
               backgroundColor: colors.ink,
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.background }}>
+            <Text style={{ fontFamily: FONT.bold, fontSize: 10, color: colors.background }}>
               {count}
             </Text>
           </View>
@@ -230,10 +233,10 @@ function Crest({
       <Text
         numberOfLines={2}
         style={{
-          fontSize: 10.5,
+          fontFamily: selected ? FONT.bold : FONT.semibold,
+          fontSize: 11,
           lineHeight: 13,
           textAlign: 'center',
-          fontWeight: selected ? '800' : '600',
           color: selected ? colors.accent : colors.inkMuted,
         }}
       >
@@ -250,8 +253,8 @@ function GroupLabel({ text, context }: { text: string; context?: string }) {
     <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 16, marginBottom: 8 }}>
       <Text
         style={{
-          fontSize: 11.5,
-          fontWeight: '800',
+          fontFamily: FONT.bold,
+          fontSize: 12,
           letterSpacing: 1.2,
           textTransform: 'uppercase',
           color: colors.inkSecondary,
@@ -260,7 +263,9 @@ function GroupLabel({ text, context }: { text: string; context?: string }) {
         {text}
       </Text>
       {context ? (
-        <Text style={{ fontSize: 12, fontWeight: '600', color: colors.inkMuted, marginLeft: 6 }}>
+        <Text
+          style={{ fontFamily: FONT.semibold, fontSize: 12, color: colors.inkMuted, marginLeft: 6 }}
+        >
           {context}
         </Text>
       ) : null}
@@ -317,8 +322,8 @@ function Chip({
       {selected ? <CheckGlyph size={12} color={colors.accent} /> : null}
       <Text
         style={{
+          fontFamily: selected ? FONT.bold : FONT.semibold,
           fontSize: 13,
-          fontWeight: selected ? '700' : '600',
           color: selected ? colors.accent : colors.inkSecondary,
         }}
       >
@@ -328,7 +333,9 @@ function Chip({
           on a selected chip, where it would be counting the set you are already
           looking at. */}
       {!selected && count !== undefined ? (
-        <Text style={{ fontSize: 11, fontWeight: '600', color: colors.inkMuted }}>{count}</Text>
+        <Text style={{ fontFamily: FONT.semibold, fontSize: 11, color: colors.inkMuted }}>
+          {count}
+        </Text>
       ) : null}
     </Pressable>
   );
@@ -388,13 +395,13 @@ export default function ExploreFilterSheet({
         paddingBottom: 10,
       }}
     >
-      <Text style={{ fontSize: 17, fontWeight: '700', color: colors.ink }}>Filters</Text>
+      <Text style={{ fontFamily: FONT.bold, fontSize: 18, color: colors.ink }}>Filters</Text>
 
       {/* On the map the header carries the denominator, because "47 of 214
           pins" is the only way to see the shape of what you excluded. */}
       {unit === 'pins' ? (
-        <Text style={{ fontSize: 12, color: colors.inkMuted, fontWeight: '600' }}>
-          <Text style={{ color: colors.accent, fontWeight: '700' }}>{counts.total}</Text> of{' '}
+        <Text style={{ fontFamily: FONT.semibold, fontSize: 12, color: colors.inkMuted }}>
+          <Text style={{ fontFamily: FONT.bold, color: colors.accent }}>{counts.total}</Text> of{' '}
           {totalEvents} pins
         </Text>
       ) : (
@@ -406,7 +413,7 @@ export default function ExploreFilterSheet({
           hitSlop={8}
           style={{ opacity: hasActiveFilters(filters) ? 1 : 0.4, paddingHorizontal: 4 }}
         >
-          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.accent }}>Clear all</Text>
+          <Text style={[TYPE.sectionLink, { color: colors.accent }]}>Clear all</Text>
         </Pressable>
       )}
     </View>
@@ -592,7 +599,7 @@ export default function ExploreFilterSheet({
             opacity: hasActiveFilters(filters) ? 1 : 0.5,
           }}
         >
-          <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.accent }}>Reset</Text>
+          <Text style={{ fontFamily: FONT.bold, fontSize: 15, color: colors.accent }}>Reset</Text>
         </Pressable>
 
         {/* The count IS the button. At zero it is spent — there is nothing to
@@ -614,8 +621,8 @@ export default function ExploreFilterSheet({
         >
           <Text
             style={{
-              fontSize: 15.5,
-              fontWeight: '700',
+              fontFamily: FONT.bold,
+              fontSize: 16,
               color: counts.total === 0 ? colors.inkMuted : '#FFFFFF',
             }}
           >
@@ -655,12 +662,14 @@ function SummaryRow({
         minHeight: 48,
       }}
     >
-      <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.ink }}>{label}</Text>
+      <Text style={{ flex: 1, fontFamily: FONT.semibold, fontSize: 14, color: colors.ink }}>
+        {label}
+      </Text>
       <Text
         numberOfLines={1}
         style={{
+          fontFamily: highlighted ? FONT.bold : FONT.medium,
           fontSize: 13,
-          fontWeight: highlighted ? '700' : '500',
           color: highlighted ? colors.accent : colors.inkMuted,
           maxWidth: 150,
         }}

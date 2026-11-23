@@ -1,4 +1,5 @@
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { CaretDownIcon, CheckIcon } from 'phosphor-react-native';
 import { type ComponentRef, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -59,10 +60,11 @@ export default function ExploreSortControl({ count, sort, categoryLabel, onChang
         accessibilityLabel={`${count} events, sorted by ${current.label}. Change sort`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
       >
-        <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
+        {/* The header row's text link, so it takes Home's "See all" role. */}
+        <Text style={[TYPE.sectionLink, { color: colors.accent }]}>
           {count} · {triggerLabel}
         </Text>
-        <CaretDownIcon size={14} color={colors.accent} weight="bold" />
+        <CaretDownIcon size={14} color={colors.brand} weight="bold" />
       </Pressable>
 
       {/* statusBarTranslucent keeps measureInWindow's y in the same coordinate
@@ -120,8 +122,8 @@ export default function ExploreSortControl({ count, sort, categoryLabel, onChang
                 }}
               >
                 <Text
-                  className={selected ? 'font-roboto-semibold' : 'font-roboto'}
                   style={{
+                    fontFamily: selected ? FONT.semibold : FONT.regular,
                     fontSize: 14,
                     color: selected ? colors.accent : colors.inkSecondary,
                   }}

@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { TYPE } from '@/app/lib/typography';
 
 // Time-of-day greeting and the glyph that goes with it. Read from the DEVICE
 // clock on purpose: "good morning" is about where the person is, so the server's
@@ -229,28 +230,11 @@ export default function HomeScreen() {
                 name is not in the new frame and has been dropped.) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <greeting.Icon width={16} height={16} color={colors.brand} />
-              <Text
-                style={{
-                  fontFamily: 'Roboto-Flex-SemiBold',
-                  fontSize: 14,
-                  letterSpacing: 0.4,
-                  color: colors.brand,
-                }}
-              >
+              <Text style={[TYPE.pageEyebrow, { color: colors.accent }]}>
                 {greeting.text.toUpperCase()}
               </Text>
             </View>
-            <Text
-              style={{
-                fontFamily: 'Roboto-Flex-Bold',
-                fontSize: 32,
-                lineHeight: 38,
-                color: colors.ink,
-                marginTop: 2,
-              }}
-            >
-              {firstName}
-            </Text>
+            <Text style={[TYPE.pageTitle, { color: colors.ink, marginTop: 2 }]}>{firstName}</Text>
           </View>
 
           {/* Bell */}

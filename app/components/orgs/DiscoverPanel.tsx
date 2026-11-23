@@ -18,9 +18,10 @@
 //   * The search placeholder says "Search orgs...", not "Search events or
 //     orgs...". This field searches orgs only; events are Explore's job, and a
 //     placeholder that promises events would be a lie on the first keystroke.
-//   * Category tiles show no "12 orgs" count. The search endpoint returns pages,
-//     not totals, and counting would mean walking every page of every
-//     category on each visit.
+//   * Category tiles' "12 orgs" comes from GET /orgs/category-counts, not
+//     /orgs/search: search is paged and never totals. The line is simply left
+//     off while the counts load, or against an older Worker without the
+//     endpoint, rather than showing a placeholder number.
 //   * The chips are ORG_CATEGORIES (shared/orgRegistration.ts) -- the taxonomy
 //     orgs are actually filed under -- not the frame's Tech / Arts / Social,
 //     which no org row carries.
@@ -38,6 +39,10 @@ import { org as orgKeys } from '@/app/lib/queryKeys';
 import { useDebounced } from '@/app/lib/useDebounced';
 import { useOrgFollow } from '@/app/lib/useOrgFollow';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
+import AcademicArt from '@/assets/images/org-categories/academic.svg';
+import CreativeArtsArt from '@/assets/images/org-categories/creative-arts.svg';
+import TechnologyArt from '@/assets/images/org-categories/technology.svg';
 import { TrendUpIcon } from '@/assets/icons/LhlOrgsIcons';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import VerifiedIcon from '@/assets/images/verified.svg';
@@ -45,7 +50,8 @@ import { ORG_CATEGORIES, ORG_SEARCH_MIN_QUERY, type OrgCategory } from '@/shared
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import type { SvgProps } from 'react-native-svg';
 
 const PAGE_SIZE = 20;
 
@@ -99,7 +105,7 @@ function TrendingCard({ org, token }: { org: DiscoverOrg; token: string | null }
           </View>
 
           <View className="mt-[8px] flex-row items-center gap-[6px]">
-            <Text numberOfLines={1} className="font-roboto-semibold shrink text-[16px] text-lhlInk">
+            <Text numberOfLines={1} style={TYPE.cardTitle} className="shrink text-lhlInk">
               {org.name}
             </Text>
             {org.verified ? (
@@ -109,19 +115,24 @@ function TrendingCard({ org, token }: { org: DiscoverOrg; token: string | null }
           {org.bio?.trim() ? (
             <Text
               numberOfLines={2}
-              className="font-roboto mt-[4px] text-[12px] leading-[17px] text-lhlInk"
+              style={TYPE.body}
+              className="mt-[4px] text-lhlSecondaryTextGrey"
             >
               {org.bio.trim()}
             </Text>
           ) : null}
           <View className="mt-[6px] flex-row items-center gap-[8px]">
             {followers ? (
-              <Text className="font-roboto-medium text-[12px] text-lhlInk">{followers}</Text>
+              <Text style={TYPE.caption} className="text-lhlMutedText">
+                {followers}
+              </Text>
             ) : null}
             {weekly > 0 ? (
               <View className="flex-row items-center gap-[3px] rounded-full border-[0.5px] border-lhlBurntOrange bg-lhlBrandTint px-[6px] py-[2px]">
                 <TrendUpIcon size={10} color={colors.accent} />
-                <Text className="font-roboto-medium text-[10px] text-lhlAccent">
+                {/* A tag, not running text: Medium at 11 (the smallest Home step)
+                    rather than a TYPE role, and accent because it sits on the tint. */}
+                <Text className="font-roboto-medium text-[11px] text-lhlAccent">
                   +{weekly.toLocaleString()} this week
                 </Text>
               </View>
@@ -140,9 +151,8 @@ function TrendingCard({ org, token }: { org: DiscoverOrg; token: string | null }
         }`}
       >
         <Text
-          className={`font-roboto-semibold text-[12px] ${
-            following ? 'text-lhlSecondaryTextGrey' : 'text-white'
-          }`}
+          style={TYPE.button}
+          className={following ? 'text-lhlSecondaryTextGrey' : 'text-white'}
         >
           {following ? 'Following' : 'Follow'}
         </Text>
@@ -151,20 +161,102 @@ function TrendingCard({ org, token }: { org: DiscoverOrg; token: string | null }
   );
 }
 
-function CategoryTile({ label, onPress }: { label: string; onPress: () => void }) {
+// Category art from the "Orgs - Discover Toggle" frame (Interest Card, 5140:1334).
+// The frame's four tiles are Creative Arts / Athletics / Technology / Academic;
+// our categories are ORG_CATEGORIES, so each borrows the closest picture.
+// Professional takes the tech chip (the frame's stand-in for career-ish orgs).
+// Media has no art in the frame yet and falls back to its initial on the brand
+// tint — swap in a picture here when design draws one.
+//
+// The three SVGs are Figma's own exports: a 32pt circle filled with an embedded
+// image. Athletics came out of Figma as a PNG, hence the one <Image>.
+const CATEGORY_ART: Partial<Record<OrgCategory, React.ComponentType<SvgProps> | number>> = {
+  Cultural: CreativeArtsArt,
+  Sports: require('@/assets/images/org-categories/athletics.png'),
+  Academic: AcademicArt,
+  Professional: TechnologyArt,
+};
+
+const CATEGORY_ART_SIZE = 32;
+
+function CategoryArt({ category, label }: { category: OrgCategory; label: string }) {
+  const Art = CATEGORY_ART[category];
+  if (typeof Art === 'number') {
+    return (
+      <Image
+        source={Art}
+        style={{
+          width: CATEGORY_ART_SIZE,
+          height: CATEGORY_ART_SIZE,
+          borderRadius: CATEGORY_ART_SIZE / 2,
+        }}
+      />
+    );
+  }
+  if (Art) return <Art width={CATEGORY_ART_SIZE} height={CATEGORY_ART_SIZE} />;
+  return (
+    <View className="h-[32px] w-[32px] items-center justify-center rounded-full bg-lhlBrandTint">
+      <Text style={{ fontFamily: FONT.bold, fontSize: 14 }} className="text-lhlAccent">
+        {label.charAt(0)}
+      </Text>
+    </View>
+  );
+}
+
+// The frame's Interest Card: a 50pt white card with a soft shadow, the art on
+// the left, the name over a grey count. No border; the shadow separates it from
+// the page as on Home's compact rows.
+function CategoryTile({
+  category,
+  label,
+  count,
+  onPress,
+}: {
+  category: OrgCategory;
+  label: string;
+  /** Orgs filed under this category; undefined while unknown, which hides the line. */
+  count?: number;
+  onPress: () => void;
+}) {
+  const colors = useThemeColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Browse ${label} orgs`}
       onPress={onPress}
-      className="h-[44px] flex-1 flex-row items-center gap-[10px] rounded-[10px] border border-lhlBorderSoft bg-lhlSurface px-[10px]"
+      style={{
+        flex: 1,
+        // minHeight, not height: name + count at Roboto's default line height is
+        // ~52pt with the padding, a hair over the frame's 50.
+        minHeight: 50,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        padding: 10,
+        borderRadius: 16,
+        backgroundColor: colors.surface,
+        // Figma "Card Drop Shadow": 0 1 4 at 10% black.
+        shadowColor: '#000', // theme-exempt: a shadow is black in both themes
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 1,
+      }}
     >
-      <View className="h-[28px] w-[28px] items-center justify-center rounded-full bg-lhlBrandTint">
-        <Text className="font-roboto-bold text-[12px] text-lhlAccent">{label.charAt(0)}</Text>
+      <CategoryArt category={category} label={label} />
+      <View style={{ flexShrink: 1, gap: 2 }}>
+        <Text
+          numberOfLines={1}
+          style={{ fontFamily: FONT.semibold, fontSize: 14, color: colors.ink }}
+        >
+          {label}
+        </Text>
+        {count !== undefined ? (
+          <Text style={[TYPE.caption, { color: colors.inkMuted }]}>
+            {count === 1 ? '1 org' : `${count} orgs`}
+          </Text>
+        ) : null}
       </View>
-      <Text numberOfLines={1} className="font-roboto-medium shrink text-[14px] text-lhlInk">
-        {label}
-      </Text>
     </Pressable>
   );
 }
@@ -205,6 +297,18 @@ export default function DiscoverPanel({ token }: { token: string | null }) {
     enabled: !!token,
   });
   const orgs = list.data?.pages.flatMap((p) => p.organizations) ?? [];
+
+  // Only needed while the tiles are on screen. A failed or missing endpoint
+  // (an older Worker) leaves `counts` undefined and the tiles drop the line.
+  const categoryCounts = useQuery({
+    queryKey: orgKeys.categoryCounts(),
+    queryFn: () =>
+      api.get<{ counts: Partial<Record<OrgCategory, number>> }>('/orgs/category-counts', {
+        token,
+      }),
+    enabled: !!token && browsing,
+  });
+  const counts = categoryCounts.data?.counts;
   const hero = trending.data?.organizations[0];
 
   const pairs: OrgCategory[][] = [];
@@ -256,13 +360,19 @@ export default function DiscoverPanel({ token }: { token: string | null }) {
       ) : null}
 
       {browsing ? (
-        <View className="gap-[10px] px-[20px]">
+        <View className="gap-[12px] px-[20px]">
           <SectionHeading eyebrow="Find Your Thing" title="Browse by Category" />
           <View className="gap-[8px]">
             {pairs.map((pair) => (
               <View key={pair.join()} className="flex-row gap-[8px]">
                 {pair.map((c) => (
-                  <CategoryTile key={c} label={CATEGORY_LABEL[c]} onPress={() => setCategory(c)} />
+                  <CategoryTile
+                    key={c}
+                    category={c}
+                    label={CATEGORY_LABEL[c]}
+                    count={counts?.[c]}
+                    onPress={() => setCategory(c)}
+                  />
                 ))}
                 {/* Odd count: a spacer keeps the last tile half-width. */}
                 {pair.length === 1 ? <View className="flex-1" /> : null}
@@ -281,12 +391,12 @@ export default function DiscoverPanel({ token }: { token: string | null }) {
           <ActivityIndicator className="mt-[12px]" color={colors.brand} />
         ) : list.isError ? (
           <Pressable accessibilityRole="button" onPress={() => list.refetch()}>
-            <Text className="font-roboto text-[13px] text-lhlSecondaryTextGrey">
+            <Text style={TYPE.body} className="text-lhlSecondaryTextGrey">
               Couldn’t load organizations. Tap to try again.
             </Text>
           </Pressable>
         ) : orgs.length === 0 ? (
-          <Text className="font-roboto text-[13px] text-lhlSecondaryTextGrey">
+          <Text style={TYPE.body} className="text-lhlSecondaryTextGrey">
             {searching ? `No orgs match “${debounced}”.` : 'No orgs here yet.'}
           </Text>
         ) : (
@@ -304,7 +414,7 @@ export default function DiscoverPanel({ token }: { token: string | null }) {
                 {list.isFetchingNextPage ? (
                   <ActivityIndicator color={colors.brand} />
                 ) : (
-                  <Text className="font-roboto-semibold text-[12px] text-lhlSecondaryTextGrey">
+                  <Text style={TYPE.button} className="text-lhlSecondaryTextGrey">
                     Show more
                   </Text>
                 )}
