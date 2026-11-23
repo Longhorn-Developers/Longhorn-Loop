@@ -1,6 +1,15 @@
-import React from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
+import { useId, useState } from 'react';
 import { View, ViewStyle } from 'react-native';
+import Svg, {
+  ClipPath,
+  G,
+  Defs,
+  LinearGradient,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 
 /**
  * What an event shows instead of a flyer when it has no image.
@@ -99,6 +108,72 @@ const PENNANT_PATH =
 const MAST_PATH =
   'M22.0486 101.011C22.9472 100.975 23.2021 101.335 23.2166 102.184C23.2428 103.728 23.236 105.273 23.236 106.818L23.2394 115.521L23.233 142.122L22.3045 142.375L21.3995 142.617L21.3798 111.912L21.3822 105.019C21.3789 103.981 21.3295 102.691 21.4299 101.665C21.4573 101.385 21.82 101.145 22.0486 101.011Z';
 
+function FractalGlass({ base, tint }: { base: string; tint: string }) {
+  const id = `glass-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const [width, setWidth] = useState(0);
+  const ribWidth = 16;
+  const shift = 6;
+  const ribs = Array.from({ length: Math.ceil(width / ribWidth) }, (_, index) => index * ribWidth);
+
+  const glowId = `${id}-glow`;
+  const depthId = `${id}-depth`;
+  const clipId = `${id}-clip`;
+  const edgeId = `${id}-edge`;
+
+  const colorField = (
+    <>
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={base} />
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={`url(#${depthId})`} />
+      <Rect x={-shift} width={width + shift * 2} height="100%" fill={`url(#${glowId})`} />
+    </>
+  );
+
+  return (
+    <View
+      style={{ width: '100%', height: '100%' }}
+      onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
+    >
+      {width > 0 ? (
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id={depthId} cx="78%" cy="66%" rx="67%" ry="65%">
+              <Stop offset="0%" stopColor={tint} stopOpacity={1} />
+              <Stop offset="55%" stopColor={tint} stopOpacity={0.65} />
+              <Stop offset="100%" stopColor={tint} stopOpacity={0} />
+            </RadialGradient>
+
+            <RadialGradient id={glowId} cx="24%" cy="20%" rx="40%" ry="45%">
+              <Stop offset="0%" stopColor="#FFF5E6" stopOpacity={0.45} />
+              <Stop offset="100%" stopColor="#FFF5E6" stopOpacity={0} />
+            </RadialGradient>
+
+            <ClipPath id={clipId}>
+              {ribs.map((x) => (
+                <Rect key={x} x={x} width={ribWidth * 0.65} height="100%" />
+              ))}
+            </ClipPath>
+
+            <LinearGradient id={edgeId} x1="0%" y1="0%" x2="100%" y2="0%">
+              <Stop offset="0%" stopColor="#21152C" stopOpacity={0.14} />
+              <Stop offset="22%" stopColor="#21152C" stopOpacity={0} />
+              <Stop offset="80%" stopColor="#FFFFFF" stopOpacity={0} />
+              <Stop offset="94%" stopColor="#FFFFFF" stopOpacity={0.13} />
+              <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.04} />
+            </LinearGradient>
+          </Defs>
+
+          {colorField}
+          <G clipPath={`url(#${clipId})`}>
+            <G transform={`translate(${shift}, 0)`}>{colorField}</G>
+          </G>
+          {ribs.map((x) => (
+            <Rect key={x} x={x} width={ribWidth} height="100%" fill={`url(#${edgeId})`} />
+          ))}
+        </Svg>
+      ) : null}
+    </View>
+  );
+}
 type Props = {
   /** Where the artwork anchors when it has to crop. Bottom-left keeps the tower. */
   anchor?: 'xMinYMax' | 'xMidYMid';
@@ -107,6 +182,7 @@ type Props = {
   /** Overrides the card fill outright, ignoring the seed. */
   background?: string;
   style?: ViewStyle;
+  variant?: 'tower' | 'fractalGlass';
 };
 
 export default function EventFlyerPlaceholder({
@@ -114,6 +190,7 @@ export default function EventFlyerPlaceholder({
   seed,
   background,
   style,
+  variant = 'tower',
 }: Props) {
   const colorway = colorwayFor(seed);
   const fill = background ?? colorway.bg;
@@ -125,21 +202,32 @@ export default function EventFlyerPlaceholder({
       accessibilityRole="image"
       accessibilityLabel="No flyer provided for this event"
     >
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        preserveAspectRatio={`${anchor} slice`}
-      >
-        {TILE_YS.map((y) =>
-          TILE_XS.map((x) => (
-            <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
-          )),
-        )}
-        <Path d={TOWER_PATH} fill={FLYER_INK} />
-        <Path d={PENNANT_PATH} fill={colorway.tile} />
-        <Path d={MAST_PATH} fill={FLYER_INK} />
-      </Svg>
+      {variant === 'fractalGlass' ? (
+        <FractalGlass base={fill} tint={colorway.tile} />
+      ) : (
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          preserveAspectRatio={`${anchor} slice`}
+        >
+          {TILE_YS.map((y) =>
+            TILE_XS.map((x) => (
+              <Rect
+                key={`t-${x}-${y}`}
+                x={x}
+                y={y}
+                width={TILE}
+                height={TILE}
+                fill={colorway.tile}
+              />
+            )),
+          )}
+          <Path d={TOWER_PATH} fill={FLYER_INK} />
+          <Path d={PENNANT_PATH} fill={colorway.tile} />
+          <Path d={MAST_PATH} fill={FLYER_INK} />
+        </Svg>
+      )}
     </View>
   );
 }
