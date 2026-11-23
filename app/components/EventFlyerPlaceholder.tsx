@@ -1,6 +1,15 @@
 import { useId, useState } from 'react';
 import { View, ViewStyle } from 'react-native';
-import Svg, { ClipPath, G, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, {
+  ClipPath,
+  G,
+  Defs,
+  LinearGradient,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 
 /**
  * What an event shows instead of a flyer when it has no image.
@@ -104,10 +113,7 @@ function FractalGlass({ base, tint }: { base: string; tint: string }) {
   const [width, setWidth] = useState(0);
   const ribWidth = 16;
   const shift = 6;
-  const ribs = Array.from(
-    { length: Math.ceil(width / ribWidth) },
-    (_, index) => index * ribWidth,
-  );
+  const ribs = Array.from({ length: Math.ceil(width / ribWidth) }, (_, index) => index * ribWidth);
 
   const glowId = `${id}-glow`;
   const depthId = `${id}-depth`;
@@ -161,13 +167,7 @@ function FractalGlass({ base, tint }: { base: string; tint: string }) {
             <G transform={`translate(${shift}, 0)`}>{colorField}</G>
           </G>
           {ribs.map((x) => (
-            <Rect
-              key={x}
-              x={x}
-              width={ribWidth}
-              height="100%"
-              fill={`url(#${edgeId})`}
-            />
+            <Rect key={x} x={x} width={ribWidth} height="100%" fill={`url(#${edgeId})`} />
           ))}
         </Svg>
       ) : null}
@@ -213,7 +213,14 @@ export default function EventFlyerPlaceholder({
         >
           {TILE_YS.map((y) =>
             TILE_XS.map((x) => (
-              <Rect key={`t-${x}-${y}`} x={x} y={y} width={TILE} height={TILE} fill={colorway.tile} />
+              <Rect
+                key={`t-${x}-${y}`}
+                x={x}
+                y={y}
+                width={TILE}
+                height={TILE}
+                fill={colorway.tile}
+              />
             )),
           )}
           <Path d={TOWER_PATH} fill={FLYER_INK} />

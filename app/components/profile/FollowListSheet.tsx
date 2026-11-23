@@ -17,6 +17,7 @@
 // and a pan over the whole surface would fight it for every vertical gesture
 // (the same call ExploreFilterSheet made, for the same reason).
 
+import FadingNotice from '@/app/components/FadingNotice';
 import TextInputField from '@/app/components/inputs/TextInputField';
 import DragDismissSheet from '@/app/components/modals/DragDismissSheet';
 import { AvatarDisplay, hasAvatar } from '@/app/components/profile/AvatarDisplay';
@@ -31,12 +32,13 @@ import {
 import { org as orgKeys, user as userKeys } from '@/app/lib/queryKeys';
 import { hitSlopFor } from '@/app/lib/tapTarget';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { USER_VIEW_ENABLED, USER_VIEW_UNAVAILABLE_MESSAGE } from '@/app/lib/userView';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
 import SegmentCheckIcon from '@/assets/images/segment-check.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -95,6 +97,8 @@ export default function FollowListSheet({
    * while a request is in flight; dropped again if it fails.
    */
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
 
   // Re-aim the sheet each time it opens: tapping Following should land on
   // Following even if Followers was the last tab looked at. Done on the
@@ -157,6 +161,13 @@ export default function FollowListSheet({
   };
 
   const open = (entry: FollowListEntry) => {
+    // Other people's profiles are switched off until their endpoint exists
+    // (see app/lib/userView.ts). The sheet stays open so the notice shows in
+    // it and the user can carry on browsing the list.
+    if (entry.kind === 'user' && !entry.is_self && !USER_VIEW_ENABLED) {
+      setNotice(USER_VIEW_UNAVAILABLE_MESSAGE);
+      return;
+    }
     onClose();
     if (entry.kind === 'org') router.push(`/org/${entry.id}/profile`);
     else if (entry.is_self) router.push('/(tabs)/profile');
@@ -223,33 +234,38 @@ export default function FollowListSheet({
       header={header}
       sheetStyle={{ height: Math.min(SHEET_HEIGHT, windowHeight * 0.85) }}
     >
-      <FlatList
-        style={{ flex: 1 }}
-        data={rows}
-        keyExtractor={rowKey}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 }}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={empty}
-        onEndReachedThreshold={0.5}
-        onEndReached={() => {
-          if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
-        }}
-        ListFooterComponent={
-          list.isFetchingNextPage ? (
-            <ActivityIndicator className="mt-[12px]" color={colors.brand} />
-          ) : undefined
-        }
-        renderItem={({ item, index }) => (
-          <FollowRow
-            entry={item}
-            followBack={ownProfile && kind === 'followers'}
-            isFollowing={overrides[rowKey(item)] ?? item.is_following}
-            last={index === rows.length - 1}
-            onToggle={() => toggle(item)}
-            onOpen={() => open(item)}
-          />
-        )}
-      />
+      {/* The sheet is its own Modal, so a notice from the screen behind it
+          would be hidden. It has to render in here. */}
+      <View style={{ flex: 1 }}>
+        <FlatList
+          style={{ flex: 1 }}
+          data={rows}
+          keyExtractor={rowKey}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={empty}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+          }}
+          ListFooterComponent={
+            list.isFetchingNextPage ? (
+              <ActivityIndicator className="mt-[12px]" color={colors.brand} />
+            ) : undefined
+          }
+          renderItem={({ item, index }) => (
+            <FollowRow
+              entry={item}
+              followBack={ownProfile && kind === 'followers'}
+              isFollowing={overrides[rowKey(item)] ?? item.is_following}
+              last={index === rows.length - 1}
+              onToggle={() => toggle(item)}
+              onOpen={() => open(item)}
+            />
+          )}
+        />
+        <FadingNotice message={notice} onHide={clearNotice} bottom={32} />
+      </View>
     </DragDismissSheet>
   );
 }

@@ -77,7 +77,7 @@ export default function CompactEventRow({ item, isSaved, onToggleSave }: Compact
 
       <View style={{ flex: 1 }}>
         <Text
-          style={{ fontFamily: 'Roboto-Flex-SemiBold', fontSize: 14, color: colors.ink }}
+          style={{ fontFamily: 'Roboto-Flex-SemiBold', fontSize: 16, color: colors.ink }}
           numberOfLines={1}
         >
           {item.title}
@@ -87,7 +87,7 @@ export default function CompactEventRow({ item, isSaved, onToggleSave }: Compact
             <Text
               style={{
                 fontFamily: 'Roboto-Flex',
-                fontSize: 12,
+                fontSize: 13,
                 color: colors.inkSecondary,
                 flexShrink: 1,
               }}
@@ -104,7 +104,7 @@ export default function CompactEventRow({ item, isSaved, onToggleSave }: Compact
           <Text
             style={{
               fontFamily: 'Roboto-Flex',
-              fontSize: 11,
+              fontSize: 12,
               color: colors.inkMuted,
               marginTop: 4,
             }}
@@ -123,10 +123,13 @@ export default function CompactEventRow({ item, isSaved, onToggleSave }: Compact
           e.stopPropagation();
           onToggleSave(item.id);
         }}
+        // Glyph a notch larger (16 x 20, was 14 x 18) and padding 6 (was 4), so
+        // the visible target is ~28 x 32 and, with the slop, about 44pt: the
+        // minimum comfortable tap size.
         hitSlop={8}
-        style={{ padding: 4 }}
+        style={{ padding: 6 }}
       >
-        <BookmarkGlyph saved={isSaved} width={14} height={18} />
+        <BookmarkGlyph saved={isSaved} width={16} height={20} />
       </TouchableOpacity>
     </Pressable>
   );

@@ -1,6 +1,6 @@
 import { useThemeColors } from '@/app/lib/themeColors';
 import { CaretDownIcon, CheckIcon } from 'phosphor-react-native';
-import { useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 /**
@@ -32,7 +32,10 @@ type Props = {
 export default function ExploreSortControl({ count, sort, categoryLabel, onChange }: Props) {
   const colors = useThemeColors();
   const { width: screenWidth } = useWindowDimensions();
-  const triggerRef = useRef<View>(null);
+  // RN 0.8x types: `View` is a function component now, so `useRef<View>` no longer
+  // types the host instance (no measureInWindow). ComponentRef reads the real
+  // ref type off the Pressable this is attached to.
+  const triggerRef = useRef<ComponentRef<typeof Pressable>>(null);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
 
   const open = () => {
@@ -44,8 +47,7 @@ export default function ExploreSortControl({ count, sort, categoryLabel, onChang
 
   const current = OPTIONS.find((o) => o.id === sort) ?? OPTIONS[0];
 
-  const triggerLabel =
-    sort === 'trending' && categoryLabel ? categoryLabel : current.label;
+  const triggerLabel = sort === 'trending' && categoryLabel ? categoryLabel : current.label;
 
   return (
     <>

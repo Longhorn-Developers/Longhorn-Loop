@@ -292,6 +292,11 @@ orgRoutes.get('/search', async (c) => {
   const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
   if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
 
+  // For `is_following` on each row (Home's "Orgs For You" Follow toggle). A
+  // token whose user row is gone gets false everywhere rather than a 404:
+  // search never depended on the user row before, and shouldn't start now.
+  const viewerId = (await getUserId(c.env.DB, auth.email)) ?? 0;
+
   const rawSort = c.req.query('sort') ?? ORG_SEARCH_DEFAULT_SORT;
   if (!isOrgSort(rawSort)) return c.json({ error: 'INVALID_SORT', valid: ORG_SORT_OPTIONS }, 400);
   const sort: OrgSortOption = rawSort;
@@ -402,7 +407,10 @@ orgRoutes.get('/search', async (c) => {
               (SELECT COUNT(*) FROM org_members m
                 WHERE m.org_id = o.id AND m.role = 'admin') AS admin_count,
               (SELECT COUNT(*) FROM org_followers f
-                WHERE f.org_id = o.id AND f.created_at >= datetime('now', '-7 days')) AS trending_score
+                WHERE f.org_id = o.id AND f.created_at >= datetime('now', '-7 days')) AS trending_score,
+              -- Primary-key lookup on (org_id, user_id), so one cheap probe per row.
+              EXISTS (SELECT 1 FROM org_followers f
+                       WHERE f.org_id = o.id AND f.user_id = ?) AS is_following
               ${selectExtra.join('')}
          FROM organizations o
          ${whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : ''}
@@ -412,7 +420,8 @@ orgRoutes.get('/search', async (c) => {
      ORDER BY ${keys.map((k) => `${k.expr} ${k.dir}`).join(', ')}
      LIMIT ?`,
   )
-    .bind(...selectBinds, ...whereBinds, ...(keyset ? keyset.binds : []), limit + 1)
+    // viewerId first: its placeholder (is_following) comes before selectExtra's.
+    .bind(viewerId, ...selectBinds, ...whereBinds, ...(keyset ? keyset.binds : []), limit + 1)
     .all();
 
   // Fetching one extra row is the standard way to know whether a next page
@@ -446,6 +455,9 @@ orgRoutes.get('/search', async (c) => {
         // All-time, for the Explore card's meta line (LOOP-293). Distinct
         // from trending_score, which only counts the past 7 days.
         follower_count: Number(o.follower_count ?? 0),
+        // Whether the caller follows this org, so a Follow button can start in
+        // the right state instead of always reading "Follow".
+        is_following: Number(o.is_following) === 1,
         // "Joined <Mon YYYY>" on the Explore card (LOOP-293). This is when
         // Loop first saw the org, not when it was founded -- for scraped orgs
         // that's the scrape that found them. Agreed with Matthew as the

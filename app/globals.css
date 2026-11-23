@@ -77,6 +77,10 @@
 
   /* Informational, non-brand: the "Going" badge. */
   --lhl-info: 37 145 212; /* #2591D4 */
+  /* Fill behind a solid info button carrying a white label. Pinned to the same
+     blue in both themes, like --lhl-destructive-fill: white on --lhl-info is
+     3.45:1 in light and 2.2:1 in dark, white on this is 5.05:1. */
+  --lhl-info-fill: 26 115 181; /* #1A73B5 */
 
   /* Scrim behind modals. */
   --lhl-scrim: 9 9 11;
@@ -127,6 +131,10 @@
   --lhl-destructive-soft: 66 32 30; /* #42201E */
 
   --lhl-info: 90 180 238; /* #5AB4EE  lightened; the light blue is too dark here */
+  /* Fill behind a solid info button carrying a white label. Pinned to the same
+     blue in both themes, like --lhl-destructive-fill: white on --lhl-info is
+     3.45:1 in light and 2.2:1 in dark, white on this is 5.05:1. */
+  --lhl-info-fill: 26 115 181; /* #1A73B5 */
 
   --lhl-scrim: 0 0 0;
 

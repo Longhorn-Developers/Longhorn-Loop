@@ -76,7 +76,6 @@ type OrgSearchResponse = {
   nextCursor: string | null;
 };
 
-
 /**
  * Orgs per page.
  *
@@ -549,8 +548,9 @@ export default function ExploreScreen() {
     filters.when,
     filters.perks.join('+'),
   ].join('|');
-  const gridKey = `explore-grid-${activeSelectionKey}-${eventSort}-${isSearching ? needle : ''}-${orgMode ? orgFilterKey : filterKey
-    }`;
+  const gridKey = `explore-grid-${activeSelectionKey}-${eventSort}-${isSearching ? needle : ''}-${
+    orgMode ? orgFilterKey : filterKey
+  }`;
 
   // Type-narrowed subset: only events with non-null coordinates go on the map.
   // Driven by visibleEvents so the pins honour the search and the filters too.

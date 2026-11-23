@@ -47,6 +47,14 @@ export interface ThemeColors {
   destructiveSoft: string;
   /** Informational, non-brand: the "Going" badge. */
   info: string;
+  /**
+   * Fill behind a solid info BUTTON that carries a white label. Separate from
+   * `info` for the reason `destructiveFill` is separate from `destructive`: that
+   * token is tuned to read as an icon or text colour and lightens in dark, so
+   * white on it is only 3.45:1 (light) and 2.2:1 (dark). Pinned to one blue in
+   * both themes, where white is 5.05:1.
+   */
+  infoFill: string;
   /** Modal scrim, already carrying its alpha. */
   scrim: string;
   /** The band behind the avatar at the top of a profile (LOOP-312). Fill only. */
@@ -72,6 +80,7 @@ export const LIGHT_COLORS: ThemeColors = {
   destructiveFill: '#B30404',
   destructiveSoft: '#FCE4E4',
   info: '#2591D4',
+  infoFill: '#1A73B5',
   scrim: 'rgba(9, 9, 11, 0.5)',
   cover: '#F1B387',
 };
@@ -99,6 +108,7 @@ export const DARK_COLORS: ThemeColors = {
   destructiveFill: '#D32F2F',
   destructiveSoft: '#42201E',
   info: '#5AB4EE',
+  infoFill: '#1A73B5',
   // Heavier in dark: a 50% scrim over an already-dark page doesn't separate
   // the modal from what's behind it.
   scrim: 'rgba(0, 0, 0, 0.7)',

@@ -22,11 +22,7 @@ type Props = {
   onSelect: (bucketId: string) => void;
 };
 
-export default function ExploreInterestGrid({
-  tiles,
-  onSeeAll,
-  onSelect,
-}: Props) {
+export default function ExploreInterestGrid({ tiles, onSeeAll, onSelect }: Props) {
   const colors = useThemeColors();
 
   // Pairs rather than a wrapping row, so a lone last tile stays half width

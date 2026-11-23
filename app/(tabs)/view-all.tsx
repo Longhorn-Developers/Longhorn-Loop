@@ -117,7 +117,8 @@ export default function ViewAllScreen() {
     staleTime: 30_000,
   });
 
-  const eventsQuery = upcoming ? upcomingQuery : trending ? trendingQuery : listQuery; const events = eventsQuery.data?.events ?? [];
+  const eventsQuery = upcoming ? upcomingQuery : trending ? trendingQuery : listQuery;
+  const events = eventsQuery.data?.events ?? [];
 
   // Two flyer cards across, the same card Home's rows use. Sized from the screen
   // rather than flex-filled so a lone card on an odd last row stays one column
@@ -151,9 +152,7 @@ export default function ViewAllScreen() {
       </View>
 
       {interests ? (
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 32 }}
-        >
+        <ScrollView contentContainerStyle={{ paddingHorizontal: GUTTER, paddingBottom: 32 }}>
           <Text
             accessibilityRole="header"
             style={{
@@ -177,70 +176,73 @@ export default function ViewAllScreen() {
           />
         </ScrollView>
       ) : eventsQuery.isPending ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-          ) : eventsQuery.isError ? (
-            // A failed request is not "no events". This used to fall through to the
-            // empty message, so a server error read as an empty category.
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-              <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
-                Something went wrong loading events.
-              </Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={() => eventsQuery.refetch()}
-                style={{ marginTop: 12, padding: 8 }}
-              >
-                <Text style={{ fontSize: 16, color: colors.accent }}>Try again</Text>
-              </TouchableOpacity>
-            </View>
-          ) : events.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-              <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
-                {upcoming
-                  ? 'No upcoming events right now.'
-                  : trending
-                    ? 'Nothing trending this week.'
-                    : 'No events found in this category right now.'}          </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={events}
-              numColumns={2}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{
-                paddingHorizontal: GUTTER,
-                paddingBottom: 32,
-                gap: COLUMN_GAP,
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      ) : eventsQuery.isError ? (
+        // A failed request is not "no events". This used to fall through to the
+        // empty message, so a server error read as an empty category.
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
+            Something went wrong loading events.
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => eventsQuery.refetch()}
+            style={{ marginTop: 12, padding: 8 }}
+          >
+            <Text style={{ fontSize: 16, color: colors.accent }}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : events.length === 0 ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
+            {upcoming
+              ? 'No upcoming events right now.'
+              : trending
+                ? 'Nothing trending this week.'
+                : 'No events found in this category right now.'}{' '}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={events}
+          // Redraw cells when saved state changes, or a bookmark tap never
+          // fills the icon (see the same line in home.tsx).
+          extraData={savedIds}
+          numColumns={2}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: GUTTER,
+            paddingBottom: 32,
+            gap: COLUMN_GAP,
+          }}
+          columnWrapperStyle={{ gap: COLUMN_GAP }}
+          keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
+          ListHeaderComponent={
+            <Text
+              accessibilityRole="header"
+              style={{
+                fontFamily: 'Roboto-Flex-Bold',
+                fontSize: 28,
+                color: colors.ink,
+                marginTop: 8,
+                marginBottom: 8,
               }}
-              columnWrapperStyle={{ gap: COLUMN_GAP }}
-              keyExtractor={(item) => `${item.source}-${item.source_event_id}`}
-              ListHeaderComponent={
-                <Text
-                  accessibilityRole="header"
-                  style={{
-                    fontFamily: 'Roboto-Flex-Bold',
-                    fontSize: 28,
-                    color: colors.ink,
-                    marginTop: 8,
-                    marginBottom: 8,
-                  }}
-                >
-                  {title || 'Events'}
-                </Text>
-              }
-              renderItem={({ item }) => (
-                <FlyerCard
-                  item={item}
-                  width={cardWidth}
-                  isSaved={savedIds.has(item.id)}
-                  onToggleSave={handleToggleSave}
-                />
-              )}
+            >
+              {title || 'Events'}
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <FlyerCard
+              item={item}
+              width={cardWidth}
+              isSaved={savedIds.has(item.id)}
+              onToggleSave={handleToggleSave}
             />
-          )
-        }
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }

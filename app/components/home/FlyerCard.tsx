@@ -31,6 +31,20 @@ import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'reac
 export const FLYER_CARD_WIDTH = 164;
 const FLYER_CARD_ASPECT = 236 / 164;
 
+// The date pill and the save button share the top edge of a 164pt card. At the
+// old 10 / 8 insets a long label ("Wed 12/31 · 12:30 PM") ran into the button.
+// Both now sit close to their corners: the pill's ~12pt radius against the
+// card's 16 is nearly concentric at this inset, so it reads as tucked into the
+// curve, not floating near it. The pill's maxWidth also stops short of the
+// button (single line, ellipsized) so the two can never overlap, whatever the
+// label length or card width.
+const CORNER_INSET = 6;
+// 36, up from 32: the save button is the one control on the card you aim for
+// rather than tap anywhere, and 32 was easy to miss and open the event instead.
+// Any bigger and it starts crowding the date pill on a 164pt card.
+const SAVE_BUTTON_SIZE = 36;
+// Minimum space kept between the pill's right end and the save button.
+const PILL_SAVE_GAP = 6;
 
 interface FlyerCardProps {
   item: ApiEvent;
@@ -50,17 +64,16 @@ export default function FlyerCard({
 }: FlyerCardProps) {
   const colors = useThemeColors();
   const router = useRouter();
-  
+
   const flyerUri = item.image_url?.trim();
   const [failedFlyerUri, setFailedFlyerUri] = useState<string>();
-  
+
   // "Sat 8/21 · 1 PM". Dropped entirely for an unparseable date rather than
   // showing a pill that says " · ".
   const day = formatDay(item.start_datetime);
   const when = day
     ? `${day} ${formatMonthDay(item.start_datetime)} · ${formatTimeCompact(item.start_datetime)}`
     : '';
-
 
   return (
     <Pressable
@@ -97,15 +110,19 @@ export default function FlyerCard({
         <View
           style={{
             position: 'absolute',
-            top: 10,
-            left: 10,
+            top: CORNER_INSET,
+            left: CORNER_INSET,
+            maxWidth: width - CORNER_INSET * 2 - SAVE_BUTTON_SIZE - PILL_SAVE_GAP,
             borderRadius: 12,
             backgroundColor: PILL_FILL,
             paddingHorizontal: 9,
             paddingVertical: 4,
           }}
         >
-          <Text style={{ color: OVERLAY_TEXT, fontFamily: 'Roboto-Flex-Medium', fontSize: 11 }}>
+          <Text
+            style={{ color: OVERLAY_TEXT, fontFamily: 'Roboto-Flex-Medium', fontSize: 11 }}
+            numberOfLines={1}
+          >
             {when}
           </Text>
         </View>
@@ -121,17 +138,17 @@ export default function FlyerCard({
         }}
         style={{
           position: 'absolute',
-          top: 8,
-          right: 8,
+          top: CORNER_INSET,
+          right: CORNER_INSET,
           backgroundColor: colors.surface,
           borderRadius: 999,
-          width: 32,
-          height: 32,
+          width: SAVE_BUTTON_SIZE,
+          height: SAVE_BUTTON_SIZE,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <BookmarkGlyph saved={isSaved} width={10} height={14} />
+        <BookmarkGlyph saved={isSaved} width={12} height={17} />
       </TouchableOpacity>
 
       <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12 }}>
@@ -141,7 +158,7 @@ export default function FlyerCard({
               style={{
                 color: OVERLAY_TEXT,
                 fontFamily: 'Roboto-Flex-Medium',
-                fontSize: 12,
+                fontSize: 13,
                 flexShrink: 1,
               }}
               numberOfLines={1}
@@ -158,8 +175,8 @@ export default function FlyerCard({
           style={{
             color: OVERLAY_TEXT,
             fontFamily: 'Roboto-Flex-Bold',
-            fontSize: 17,
-            lineHeight: 21,
+            fontSize: 18,
+            lineHeight: 22,
           }}
           numberOfLines={2}
         >
@@ -171,7 +188,7 @@ export default function FlyerCard({
               to be white here and dims itself. */}
           <LocationIcon width={13} height={13} color={OVERLAY_TEXT} />
           <Text
-            style={{ color: OVERLAY_TEXT, fontFamily: 'Roboto-Flex', fontSize: 12, flexShrink: 1 }}
+            style={{ color: OVERLAY_TEXT, fontFamily: 'Roboto-Flex', fontSize: 13, flexShrink: 1 }}
             numberOfLines={1}
           >
             {item.location_short || 'TBD'}

@@ -55,6 +55,8 @@ module.exports = {
         lhlDestructiveSoft: 'rgb(var(--lhl-destructive-soft) / <alpha-value>)',
         // Informational, non-brand: the "Going" badge.
         lhlInfo: 'rgb(var(--lhl-info) / <alpha-value>)',
+        // Fill behind a solid info button with a white label.
+        lhlInfoFill: 'rgb(var(--lhl-info-fill) / <alpha-value>)',
         lhlScrim: 'rgb(var(--lhl-scrim) / <alpha-value>)',
         // Profile cover band behind the avatar (LOOP-312). Fill only.
         lhlCover: 'rgb(var(--lhl-cover) / <alpha-value>)',
