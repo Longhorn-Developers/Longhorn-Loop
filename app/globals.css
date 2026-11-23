@@ -89,6 +89,17 @@
      (LOOP-312, Figma "Profile - My Events V4"). A fill only -- nothing is ever
      written on it, which is why it is not held to a text-contrast bar. */
   --lhl-cover: 241 179 135; /* #F1B387 */
+
+  /* The org redesign's light-orange fill (Figma "LHL Light Orange Fill") --
+     date tiles, the Add/Going pills, "Open to new members", the pinned post.
+     Stronger than --lhl-brand-soft (#FFF5E5) on purpose: those chips sit on a
+     WHITE card, where brand-soft all but vanishes. Burnt-orange text on it
+     clears 4.5:1 (~5.7:1). */
+  --lhl-brand-tint: 246 233 219; /* #F6E9DB */
+  /* The salmon band behind an ORG's picture (Figma "Org Page"). Its own token
+     rather than --lhl-cover so a person's profile and an org's page stay
+     distinguishable at a glance, which is what the design is doing. Fill only. */
+  --lhl-org-cover: 243 151 127; /* #F3977F */
 }
 
 /* NativeWind does not put a real `.dark` wrapper around native views.
@@ -142,4 +153,10 @@
      same band, and dark enough that it doesn't glare above a #14171C page --
      the light value sits ~1.6:1 off its page, this sits ~1.7:1 off its own. */
   --lhl-cover: 92 54 28; /* #5C361C */
+
+  /* A step warmer and lighter than --lhl-brand-soft so the tint still reads as
+     a chip on the dark surface (#1D2128); --lhl-accent text on it clears 4.5:1 (~5.8:1). */
+  --lhl-brand-tint: 72 46 24; /* #482E18 */
+  /* The salmon taken down to a muted brick, same reasoning as --lhl-cover. */
+  --lhl-org-cover: 110 52 38; /* #6E3426 */
 }

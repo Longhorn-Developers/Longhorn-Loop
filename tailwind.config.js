@@ -60,6 +60,9 @@ module.exports = {
         lhlScrim: 'rgb(var(--lhl-scrim) / <alpha-value>)',
         // Profile cover band behind the avatar (LOOP-312). Fill only.
         lhlCover: 'rgb(var(--lhl-cover) / <alpha-value>)',
+        // Org redesign: light-orange chip/tile fill, and the org page's band.
+        lhlBrandTint: 'rgb(var(--lhl-brand-tint) / <alpha-value>)',
+        lhlOrgCover: 'rgb(var(--lhl-org-cover) / <alpha-value>)',
       },
       // Each weight is its own registered family (see app/_layout.tsx) because
       // React Native can't pick a weight off a single variable font. Use these
