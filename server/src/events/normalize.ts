@@ -62,9 +62,98 @@ export function parseCoordinate(raw: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Read width/height directly from PNG, GIF, or JPEG header bytes.
+// ISO-BMFF (the container AVIF and HEIC use) is a tree of boxes: a 32-bit size
+// that includes the 8-byte header, then a four-character type. Size 1 means a
+// 64-bit size follows the type; size 0 means "runs to the end of the parent".
+interface IsoBox {
+  type: string;
+  body: number;
+  end: number;
+}
+
+function isoChildBoxes(bytes: Uint8Array, start: number, end: number): IsoBox[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const boxes: IsoBox[] = [];
+  let offset = start;
+  while (offset + 8 <= end) {
+    let size = view.getUint32(offset);
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    let body = offset + 8;
+    if (size === 1) {
+      if (offset + 16 > end) break;
+      size = view.getUint32(offset + 8) * 2 ** 32 + view.getUint32(offset + 12);
+      body = offset + 16;
+    } else if (size === 0) {
+      size = end - offset;
+    }
+    // A size smaller than its own header is corrupt, and would loop forever.
+    if (size < body - offset) break;
+    boxes.push({ type, body, end: Math.min(offset + size, end) });
+    offset += size;
+  }
+  return boxes;
+}
+
+// AVIF keeps its dimensions in an 'ispe' (image spatial extent) property:
+// ftyp, then meta > iprp > ipco > ispe, all inside the first few hundred bytes.
+// 'meta' and 'ispe' are "full boxes" with 4 bytes of version/flags before their
+// content.
+//
+// A file can hold several ispe boxes -- one per image item, so a grid image
+// has the full canvas plus one per tile, and a thumbnail or alpha plane adds
+// its own. The largest is the picture that is displayed. Resolving the primary
+// item properly (pitm -> ipma) would be exact, but every file this has met
+// agrees with the largest, and the answer only feeds a three-way aspect
+// classification.
+//
+// 'irot' with an odd angle (90 or 270 degrees) means the stored pixels are
+// rotated relative to how the image is shown, so width and height swap.
+function parseIsoBmffDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const meta = isoChildBoxes(bytes, 0, bytes.length).find((b) => b.type === 'meta');
+  if (!meta) return null;
+  const iprp = isoChildBoxes(bytes, meta.body + 4, meta.end).find((b) => b.type === 'iprp');
+  if (!iprp) return null;
+  const ipco = isoChildBoxes(bytes, iprp.body, iprp.end).find((b) => b.type === 'ipco');
+  if (!ipco) return null;
+
+  let largest: { width: number; height: number } | null = null;
+  let quarterTurn = false;
+  for (const box of isoChildBoxes(bytes, ipco.body, ipco.end)) {
+    if (box.type === 'ispe' && box.body + 12 <= box.end) {
+      const width = view.getUint32(box.body + 4);
+      const height = view.getUint32(box.body + 8);
+      if (
+        width > 0 &&
+        height > 0 &&
+        (!largest || width * height > largest.width * largest.height)
+      ) {
+        largest = { width, height };
+      }
+    } else if (box.type === 'irot' && box.body < box.end) {
+      quarterTurn = (bytes[box.body] & 0x03) % 2 === 1;
+    }
+  }
+  if (!largest) return null;
+  return quarterTurn ? { width: largest.height, height: largest.width } : largest;
+}
+
+// Read width/height directly from PNG, GIF, JPEG, or AVIF header bytes.
 // Lets us know the shape without downloading the whole file.
 export function parseImageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  // AVIF / ISO-BMFF: an 'ftyp' box first. Webflow's CDN serves most uploads as
+  // AVIF (scrapers/civicLeadership.ts); before this branch every one of them
+  // came back null and was classified 'square' regardless of its shape.
+  if (
+    bytes.length >= 12 &&
+    bytes[4] === 0x66 && // f
+    bytes[5] === 0x74 && // t
+    bytes[6] === 0x79 && // y
+    bytes[7] === 0x70 // p
+  ) {
+    return parseIsoBmffDimensions(bytes);
+  }
+
   // PNG: 8-byte signature, then IHDR with width at offset 16, height at 20 (BE uint32).
   if (
     bytes.length >= 24 &&

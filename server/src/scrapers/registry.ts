@@ -9,6 +9,7 @@
 // NOTE: Manual is used for testing and shold not be called in production
 
 import type { Env } from '../worker';
+import { run as runCivicLeadership, scrapeCivicLeadership } from './civicLeadership';
 import { run as runCockrell, scrapeCockrell } from './cockrell';
 import { run as runEducation, scrapeEducation } from './education';
 import { run as runFineArts, scrapeFineArts } from './finearts';
@@ -48,6 +49,7 @@ export const SCRAPERS: ScraperEntry[] = [
   { name: 'cofa', run: runFineArts, manual: scrapeFineArts },
   { name: 'ischool', run: runIschool, manual: scrapeIschool },
   { name: 'nursing', run: runNursing, manual: scrapeNursing },
+  { name: 'civicLeadership', run: runCivicLeadership, manual: scrapeCivicLeadership },
   // cns and pharmacy are retired from the cron (LOOP-309), not deleted. Both
   // read calendar.utexas.edu scoped by group_id, and both groups are EMPTY:
   // 0 events over a 365-day window, re-checked with the corrected page size.
