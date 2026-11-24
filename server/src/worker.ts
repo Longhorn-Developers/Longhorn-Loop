@@ -12,6 +12,7 @@ import { savedRoutes } from './routes/saved.worker';
 import { settingsRoutes } from './routes/settings.worker';
 import { userRoutes } from './routes/users.worker';
 import { hasCronSecret } from './lib/cronAuth';
+import { getMigrationStatus } from './lib/migrationStatus';
 import { jobsDue } from './lib/schedule';
 import { ORG_DIRECTORY_SCRAPER, SCRAPERS } from './scrapers/registry';
 
@@ -71,8 +72,18 @@ app.use(
   }),
 );
 
-// Health check
+// Health check. Deliberately touches nothing: it answers "is the Worker up".
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// Is prod's schema behind the code? (LOOP-308, lib/migrationStatus.ts)
+// 503 while any migration is pending, so an uptime monitor pointed here goes
+// red the moment code that needs a new table is deployed without it. Public
+// like /health: it reveals migration file names, which are already public in
+// the repo, and nothing about the data.
+app.get('/health/schema', async (c) => {
+  const status = await getMigrationStatus(c.env.DB);
+  return c.json(status, status.status === 'behind' ? 503 : 200);
+});
 
 // Routes
 app.route('/auth', authRoutes);
@@ -211,12 +222,34 @@ function dispatchScrapers(env: Env, ctx: ExecutionContext): void {
   }
 }
 
+// Logs, never throws: a failed check must not take the tick's jobs with it.
+// 'unknown' (no d1_migrations table, e.g. a local DB built from schema.sql)
+// stays quiet so `wrangler dev` isn't noisy.
+async function warnIfSchemaBehind(db: D1Database): Promise<void> {
+  try {
+    const status = await getMigrationStatus(db);
+    if (status.status === 'behind') {
+      console.error(
+        `[cron] database is behind the code: ${status.pending.length} migration(s) not applied ` +
+          `(${status.pending.join(', ')}). Run \`npm run db:migrate:prod\` in server/.`,
+      );
+    }
+  } catch (err) {
+    console.error('[cron] migration check failed:', err);
+  }
+}
+
 // Export fetch + scheduled handlers together.
 // Hono's default export is a fetch handler; wrapping lets us add cron support.
 export default {
   fetch: app.fetch.bind(app),
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Every tick, not on a schedule of its own: it is one small query, and an
+    // unapplied migration is an outage for whatever reads that table, so it
+    // should be in the logs every 15 minutes until someone fixes it (LOOP-308).
+    ctx.waitUntil(warnIfSchemaBehind(env.DB));
+
     // Every job due at this tick, each in its own waitUntil with its own
     // catch, so one failing job can't take the others down with it.
     for (const job of jobsDue(event.scheduledTime)) {

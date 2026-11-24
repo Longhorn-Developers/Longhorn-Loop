@@ -40,3 +40,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # The Worker's list of expected migrations must name every file in
+      # server/migrations/, or /health/schema can't see prod falling behind
+      # (LOOP-308). No dependencies, so it needs nothing from server/.
+      - run: node scripts/check-migration-list.mjs
