@@ -197,6 +197,12 @@ function computeTiming(
   return { startDatetime, endDatetime, endMs };
 }
 
+// The dedup key described in the header, or null when the eid has no entity id.
+export function occurrenceId(ev: CalendarEvent): string | null {
+  const entityId = ev.eid?.match(/^(\d+)-/)?.[1];
+  return entityId && ev.start ? `${entityId}-${ev.start.slice(0, 10)}` : null;
+}
+
 // The calendar prefixes every title with a visually-hidden "October 21:" for
 // screen readers. It is not part of the title.
 export function cleanTitle(raw: string): string {
@@ -204,13 +210,18 @@ export function cleanTitle(raw: string): string {
 }
 
 // Detail page
+//
+// The readers below are exported for sites whose editors use the platform
+// differently enough that a site config can't describe them (lbj.ts: a host
+// per event, og:image banners, an "Event URL" field). Such a site keeps its own
+// orchestrator and builds its detail from these pieces.
 
 // The page's node: the <article> Drupal renders the linked entity into. That is
 // usually a utevent, but a calendar entry can also link to a plain flex page
 // (Nursing's pinning ceremony is a `node--type-utexas-flex-page`), so any node
 // type counts. A page without one (a template change) is read whole, which is
 // how every field was found before the scoping existed.
-function eventNode(html: string): string {
+export function eventNode(html: string): string {
   const start = html.search(/<article\b[^>]*\bnode--type-/);
   if (start < 0) return html;
   const end = html.indexOf('</article>', start);
@@ -220,7 +231,11 @@ function eventNode(html: string): string {
 // The slice of the event node for one Drupal field: from its wrapper class to
 // the next field. Matching inside a slice keeps one field's links (tag links,
 // buttons) from being read as another's.
-function fieldBlock(html: string, fieldClass: string): string | null {
+//
+// "The next field" includes one nested inside this one: an image embedded in
+// an event body is a field of its own, so a body's slice ends at its first
+// embedded image.
+export function fieldBlock(html: string, fieldClass: string): string | null {
   const start = html.indexOf(`field--name-${fieldClass}`);
   if (start < 0) return null;
   const next = html.indexOf('class="field field--name-', start + 1);
@@ -229,12 +244,12 @@ function fieldBlock(html: string, fieldClass: string): string | null {
 
 // Find the tag first, then read its attribute: attribute order differs
 // between Drupal templates and after a formatter has touched a saved fixture.
-function attr(tag: string, name: string): string | null {
+export function attr(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`\\s${name}="([^"]*)"`));
   return match ? decodeHtmlEntities(match[1]) : null;
 }
 
-function metaContent(html: string, property: string): string | null {
+export function metaContent(html: string, property: string): string | null {
   const tag = html.match(new RegExp(`<meta\\s[^>]*property="${property}"[^>]*>`));
   return tag ? attr(tag[0], 'content') : null;
 }
@@ -253,6 +268,37 @@ function jsonLdDescription(html: string): string | null {
     }
   }
   return null;
+}
+
+// The Event node's description in the page's JSON-LD, falling back to
+// og:description for pages that have none. JSON-LD descriptions arrive with
+// "\r\n" and doubled spaces from the editor; both collapse. Both live in
+// <head>, so pass the whole page, not the event node.
+export function parseDescription(html: string): string | null {
+  const description = (jsonLdDescription(html) ?? metaContent(html, 'og:description'))
+    ?.replace(/\s+/g, ' ')
+    .trim();
+  return description || null;
+}
+
+// The "Location" field: a room or venue as the editor wrote it ("NUR 5.178",
+// "Virtual via Zoom"). On some sites (LBJ) the value is a link to a filtered
+// listing; only its text is kept. `\s*>` because a saved, reformatted fixture
+// can put the tag's ">" on its own line.
+export function parseLocationField(html: string): string | null {
+  const block = fieldBlock(html, 'field-utevent-location');
+  const location = block?.match(/utevent-event-field__item"\s*>([\s\S]*?)<\/div>/)?.[1];
+  return location ? htmlToText(location) || null : null;
+}
+
+// The "Event tags" field. Each tag links to the site's listing filtered by it,
+// which is where its taxonomy id comes from.
+export function parseEventTags(html: string): { id: string; name: string }[] {
+  const block = fieldBlock(html, 'field-utevent-tags') ?? '';
+  return [...block.matchAll(/href="\/events\?type=(\d+)"\s*>([^<]+)<\/a>/g)].map((m) => ({
+    id: `event-type-${m[1]}`,
+    name: decodeHtmlEntities(m[2]).trim(),
+  }));
 }
 
 // "1710 Red River St., Austin, Texas": a house number, a street, then the city.
@@ -282,7 +328,7 @@ function joinLocation(location: string | null, address: string | null): string |
   return location ? `${location}, ${address}` : address;
 }
 
-function toNumberOrNull(value: string | null): number | null {
+export function toNumberOrNull(value: string | null): number | null {
   const parsed = value ? parseInt(value, 10) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -291,23 +337,7 @@ function toNumberOrNull(value: string | null): number | null {
 // is optional on these sites, so an empty page yields an all-null detail rather
 // than failing: the calendar already gave us a valid event.
 export function parseDetailPage(html: string, site: UtDrupalCalendarSite): EventDetail {
-  // JSON-LD descriptions arrive with "\r\n" and doubled spaces from the editor.
-  // Both live in <head>, so these read the whole page.
-  const description = (jsonLdDescription(html) ?? metaContent(html, 'og:description'))
-    ?.replace(/\s+/g, ' ')
-    .trim();
-
   const node = eventNode(html);
-
-  const locationBlock = fieldBlock(node, 'field-utevent-location');
-  const location =
-    locationBlock?.match(/utevent-event-field__item">([\s\S]*?)<\/div>/)?.[1] ?? null;
-
-  const tagBlock = fieldBlock(node, 'field-utevent-tags') ?? '';
-  const tags = [...tagBlock.matchAll(/href="\/events\?type=(\d+)">([^<]+)<\/a>/g)].map((m) => ({
-    id: `event-type-${m[1]}`,
-    name: decodeHtmlEntities(m[2]).trim(),
-  }));
 
   // The editors' call-to-action is a `ut-btn` link inside the event body (a
   // Zoom join link, a signup form, a livestream). Scoped to the body because
@@ -321,10 +351,10 @@ export function parseDetailPage(html: string, site: UtDrupalCalendarSite): Event
   const imgSrc = img ? attr(img, 'src') : null;
 
   return {
-    description: description || null,
-    location: location ? htmlToText(location) || null : null,
+    description: parseDescription(html),
+    location: parseLocationField(node),
     address: extractBodyAddress(body),
-    tags,
+    tags: parseEventTags(node),
     rsvpUrl: button ? attr(button, 'href') : null,
     image: imgSrc
       ? {
@@ -351,8 +381,8 @@ export function parseCalendarEvent(
   now = Date.now(),
 ): NormalizedEvent | null {
   const timing = resolveTiming(ev);
-  const entityId = ev.eid?.match(/^(\d+)-/)?.[1];
-  if (!timing || !entityId || !ev.url) {
+  const sourceEventId = occurrenceId(ev);
+  if (!timing || !sourceEventId || !ev.url) {
     console.warn(`[${site.source}] Unreadable calendar entry ${ev.eid} "${ev.start}" — skipping`);
     return null;
   }
@@ -363,7 +393,7 @@ export function parseCalendarEvent(
 
   return {
     source: site.source,
-    sourceEventId: `${entityId}-${ev.start.slice(0, 10)}`,
+    sourceEventId,
     title: cleanTitle(ev.title),
     description: detail.description,
     startDatetime: timing.startDatetime,

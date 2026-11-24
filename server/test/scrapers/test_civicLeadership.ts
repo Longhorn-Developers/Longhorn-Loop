@@ -363,7 +363,9 @@ describe('Civic Leadership venues resolve to map pins', () => {
     ['Patton Hall (RLP), 1.302E', 'RLP'],
     ['Joe C. Thompson Conference Center, Room 1.110', 'TCC'],
     ['William C. Powers, Jr. Student Activity Center, 2201 Speedway', 'WCP'],
-    ['LBJ School of Public Affairs', 'LBJ'],
+    // The School is in Sid Richardson Hall, not the LBJ Library next door
+    // (code LBJ). This read 'LBJ' until LOOP-275's alias in utBuildings.ts.
+    ['LBJ School of Public Affairs', 'SRH'],
   ])('%s -> %s', (location, code) => {
     expect(resolveBuilding(location)?.code).toBe(code);
   });
