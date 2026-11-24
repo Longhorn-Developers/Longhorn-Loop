@@ -7,7 +7,9 @@
     "dev": "wrangler dev --env local",
     "dev:lan": "wrangler dev --env local --ip 0.0.0.0",
     "build": "tsc",
-    "dev:cloud": "wrangler dev"
+    "dev:cloud": "wrangler dev",
+    "db:migrations:status": "wrangler d1 migrations list loop-db --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply loop-db --remote"
   },
   "keywords": [],
   "author": "",

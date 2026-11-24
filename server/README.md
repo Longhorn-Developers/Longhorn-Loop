@@ -145,6 +145,33 @@ to log what would be written without touching D1, or omit it (or set
 - `.dev.vars.example` — template, committed.
 - Production secrets — set via `wrangler secret put NAME` (needs Cloudflare access).
 
+## Migrations
+
+Schema changes go in `migrations/NNNN_*.sql`, mirrored in `schema.sql`
+(`test/test_schema_migration_parity.ts` checks the two agree).
+
+**Merging a migration does not apply it.** Nothing in CI or deploy touches the
+production database, so after a PR with a new migration merges, someone with
+Cloudflare access has to run:
+
+```bash
+npm run db:migrations:status   # what prod hasn't run yet
+npm run db:migrate:prod        # apply it; recorded in prod's d1_migrations
+```
+
+Apply it **before or with** the deploy that reads the new table. Skipping this
+is how 0020 and 0021 sat unapplied for weeks while
+`/events/:id/announcements` returned 500 on every event (LOOP-308).
+
+When you add a migration, also add its filename to `EXPECTED_MIGRATIONS` in
+`src/lib/migrationStatus.ts`. CI fails until you do
+(`scripts/check-migration-list.mjs`), because that list is how the Worker
+notices prod is behind:
+
+- `GET /health/schema` returns **503** with the `pending` migration names
+  while prod is missing any, 200 otherwise. Point an uptime monitor at it.
+- Every cron tick logs `[cron] database is behind the code: ...` while it is.
+
 ## Event Images
 
 User-created event uploads are stored in the `longhorn-loop-event-images`
@@ -186,4 +213,7 @@ npx wrangler d1 execute loop-db --local --file=schema.sql
 
 # tail prod Worker logs (needs Cloudflare access)
 npx wrangler tail
+
+# is prod's database behind the code?
+curl https://loop-db.longhorn-developers.workers.dev/health/schema
 ```
