@@ -3,6 +3,7 @@ import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import { OVERLAY_TEXT } from '@/app/components/home/overlay';
 import { formatDay, formatMonthDay, formatTime } from '@/app/components/home/when';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { useRouter } from 'expo-router';
 import { CaretRightIcon } from 'phosphor-react-native';
 import { useState } from 'react';
@@ -88,7 +89,7 @@ export default function ExploreTrendingHero({ event, now, onSeeAll }: Props) {
           marginBottom: 12,
         }}
       >
-        <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
+        <Text accessibilityRole="header" style={[TYPE.sectionTitle, { color: colors.ink }]}>
           TRENDING THIS WEEK
         </Text>
         <Pressable
@@ -98,10 +99,8 @@ export default function ExploreTrendingHero({ event, now, onSeeAll }: Props) {
           accessibilityLabel="See all trending events"
           style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
         >
-          <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
-            See all
-          </Text>
-          <CaretRightIcon size={14} color={colors.accent} weight="bold" />
+          <Text style={[TYPE.sectionLink, { color: colors.accent }]}>See all</Text>
+          <CaretRightIcon size={14} color={colors.brand} weight="bold" />
         </Pressable>
       </View>
 
@@ -157,23 +156,23 @@ export default function ExploreTrendingHero({ event, now, onSeeAll }: Props) {
               paddingVertical: 3.5,
             }}
           >
-            <Text className="font-roboto-semibold" style={{ fontSize: 12, color: OVERLAY_TEXT }}>
+            {/* On-image sizes are FlyerCard's (pill Medium 11, title Bold 18/22,
+                meta 13), so the hero and Home's flyers read as one card style. */}
+            <Text style={{ fontFamily: FONT.medium, fontSize: 11, color: OVERLAY_TEXT }}>
               POPULAR
             </Text>
           </View>
 
           <View style={{ gap: 4 }}>
             <Text
-              className="font-roboto-bold"
-              style={{ fontSize: 22, color: OVERLAY_TEXT }}
+              style={{ fontFamily: FONT.bold, fontSize: 18, lineHeight: 22, color: OVERLAY_TEXT }}
               numberOfLines={2}
             >
               {event.title}
             </Text>
             {when ? (
               <Text
-                className="font-roboto-semibold"
-                style={{ fontSize: 14, color: OVERLAY_TEXT }}
+                style={{ fontFamily: FONT.regular, fontSize: 13, color: OVERLAY_TEXT }}
                 numberOfLines={1}
               >
                 {when}

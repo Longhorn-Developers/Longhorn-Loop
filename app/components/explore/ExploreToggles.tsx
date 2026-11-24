@@ -1,4 +1,5 @@
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT } from '@/app/lib/typography';
 import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -151,8 +152,10 @@ export default function ExploreToggles({
           >
             <Text
               style={{
+                // A family toggle, not a fontWeight toggle: a bare weight renders in
+                // the system font, so the chip would switch typefaces on select.
+                fontFamily: chip.active ? FONT.bold : FONT.medium,
                 fontSize: 13,
-                fontWeight: chip.active ? '700' : '500',
                 color: chip.active ? colors.surface : colors.inkSecondary,
               }}
               numberOfLines={1}

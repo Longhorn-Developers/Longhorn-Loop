@@ -33,6 +33,7 @@ import type { ApiEvent } from '@/app/components/EventCard';
 import { formatEventDate } from '@/app/components/EventCard';
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -278,10 +279,12 @@ export default function ExploreListPanel({
         </View>
 
         <View style={{ flex: 1 }}>
-          <Text numberOfLines={2} style={{ fontSize: 13.5, fontWeight: '600', color: colors.ink }}>
+          {/* Same title / supporting-line pair as Home's CompactEventRow (TYPE.cardTitle
+              over TYPE.body). These used fontWeight with no family, i.e. the system font. */}
+          <Text numberOfLines={2} style={[TYPE.cardTitle, { color: colors.ink }]}>
             {item.title}
           </Text>
-          <Text numberOfLines={1} style={{ fontSize: 11.5, color: colors.inkMuted, marginTop: 2 }}>
+          <Text numberOfLines={1} style={[TYPE.body, { color: colors.inkSecondary, marginTop: 2 }]}>
             {formatEventDate(item.start_datetime)}
             {item.host_organization_name ? ` · ${item.host_organization_name}` : ''}
           </Text>
@@ -367,11 +370,12 @@ export default function ExploreListPanel({
                   <View style={{ flex: 1 }}>
                     <Text
                       numberOfLines={1}
-                      style={{ fontSize: 15, fontWeight: '700', color: colors.ink }}
+                      // The panel's own title: Bold 18, as the filter sheets' titles.
+                      style={{ fontFamily: FONT.bold, fontSize: 18, color: colors.ink }}
                     >
                       {venueName}
                     </Text>
-                    <Text style={{ fontSize: 11.5, color: colors.inkMuted, marginTop: 1 }}>
+                    <Text style={[TYPE.caption, { color: colors.inkMuted, marginTop: 1 }]}>
                       {sorted.length} {sorted.length === 1 ? 'event' : 'events'} here
                     </Text>
                   </View>

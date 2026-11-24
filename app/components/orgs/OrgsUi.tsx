@@ -14,6 +14,7 @@
 import type { ApiEvent } from '@/app/components/EventCard';
 import { hitSlopFor } from '@/app/lib/tapTarget';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { TYPE } from '@/app/lib/typography';
 import { ChevronRightIcon } from '@/assets/icons/LhlOrgsIcons';
 import CheckIcon from '@/assets/images/check-selected.svg';
 import { useRouter } from 'expo-router';
@@ -106,14 +107,25 @@ export function SectionHeading({
     <View className="flex-row items-end justify-between">
       <View className="shrink">
         {eyebrow ? (
-          <Text className="font-roboto-medium text-[10px] leading-[12px] text-lhlAccent">
+          // Home's SectionHeader roles (app/lib/typography.ts). Brand rather than
+          // accent for the eyebrow and "See all", as on Home; accent stays on the
+          // chevron and on text that sits on the brand-tint fill, where it was
+          // chosen for contrast.
+          <Text style={TYPE.sectionEyebrow} className="text-lhlAccent">
             {eyebrow}
           </Text>
         ) : null}
         <View className="flex-row items-center gap-[6px]">
+          {/* One line, shrinking rather than wrapping: at 22pt, "YOUR ORGS" plus
+              its three filter chips is wider than a 375pt phone, and a title
+              broken over two lines pushes the whole header out of alignment. */}
           <Text
             accessibilityRole="header"
-            className="font-roboto-bold text-[14px] uppercase leading-[18px] text-lhlSecondaryTextGrey"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            style={TYPE.sectionTitle}
+            className="uppercase text-lhlInk"
           >
             {title}
           </Text>
@@ -133,8 +145,10 @@ export function SectionHeading({
           hitSlop={hitSlopFor(18)}
           className="flex-row items-center"
         >
-          <Text className="font-roboto-semibold text-[12px] text-lhlAccent">See all</Text>
-          <ChevronRightIcon size={14} color={colors.accent} />
+          <Text style={TYPE.sectionLink} className="text-lhlAccent">
+            See all
+          </Text>
+          <ChevronRightIcon size={14} color={colors.brand} />
         </Pressable>
       ) : null}
     </View>
@@ -265,13 +279,17 @@ export function GoingPill({ going }: { going: boolean }) {
     return (
       <View className="h-[30px] flex-row items-center gap-[6px] rounded-[8px] bg-lhlBrandTint px-[8px]">
         <CheckIcon width={12} height={9} color={colors.accent} />
-        <Text className="font-roboto-semibold text-[12px] text-lhlAccent">Going</Text>
+        <Text style={TYPE.button} className="text-lhlAccent">
+          Going
+        </Text>
       </View>
     );
   }
   return (
     <View className="h-[30px] items-center justify-center rounded-[8px] border border-lhlDivider bg-lhlBackgroundColor px-[8px]">
-      <Text className="font-roboto-semibold text-[12px] text-lhlSecondaryTextGrey">RSVP</Text>
+      <Text style={TYPE.button} className="text-lhlSecondaryTextGrey">
+        RSVP
+      </Text>
     </View>
   );
 }
@@ -318,17 +336,11 @@ export function UpcomingEventRow({ event, going }: { event: ApiEvent; going: boo
     >
       <EventDateTile iso={event.start_datetime} />
       <View className="flex-1 gap-[2px]">
-        <Text
-          numberOfLines={1}
-          className="font-roboto-semibold text-[16px] leading-[19px] text-lhlInk"
-        >
+        <Text numberOfLines={1} style={TYPE.cardTitle} className="text-lhlInk">
           {event.title}
         </Text>
         {subtitle ? (
-          <Text
-            numberOfLines={1}
-            className="font-roboto text-[12px] leading-[14px] text-lhlSecondaryTextGrey"
-          >
+          <Text numberOfLines={1} style={TYPE.body} className="text-lhlSecondaryTextGrey">
             {subtitle}
           </Text>
         ) : null}
@@ -371,22 +383,16 @@ export function PastEventRow({ event }: { event: ApiEvent }) {
         <OrgLogo name={event.host_organization_name} uri={event.org_profile_picture} size={64} />
       )}
       <View className="flex-1 gap-[3px]">
-        <Text
-          numberOfLines={2}
-          className="font-roboto-semibold text-[14px] leading-[17px] text-lhlInk"
-        >
+        <Text numberOfLines={2} style={TYPE.cardTitle} className="text-lhlInk">
           {event.title}
         </Text>
         {meta ? (
-          <Text
-            numberOfLines={1}
-            className="font-roboto text-[12px] leading-[14px] text-lhlSecondaryTextGrey"
-          >
+          <Text numberOfLines={1} style={TYPE.body} className="text-lhlSecondaryTextGrey">
             {meta}
           </Text>
         ) : null}
         {went > 0 ? (
-          <Text className="font-roboto text-[12px] leading-[14px] text-lhlSecondaryTextGrey">
+          <Text style={TYPE.caption} className="text-lhlMutedText">
             {went.toLocaleString()} went
           </Text>
         ) : null}

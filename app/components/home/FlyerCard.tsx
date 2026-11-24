@@ -9,19 +9,13 @@
 
 import type { ApiEvent } from '@/app/components/EventCard';
 import EventFlyerPlaceholder from '@/app/components/EventFlyerPlaceholder';
-import {
-  DIM,
-  OVERLAY_TEXT,
-  PILL_FILL,
-  SCRIM_CLEAR,
-  SCRIM_DARK,
-} from '@/app/components/home/overlay';
+import CaptionScrim from '@/app/components/home/CaptionScrim';
+import { DIM, OVERLAY_TEXT, PILL_FILL } from '@/app/components/home/overlay';
 import { formatDay, formatMonthDay, formatTimeCompact } from '@/app/components/home/when';
 import BookmarkGlyph from '@/app/components/icons/BookmarkGlyph';
 import { useThemeColors } from '@/app/lib/themeColors';
 import LocationIcon from '@/assets/images/location.svg';
 import VerifiedIcon from '@/assets/images/verified.svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -99,12 +93,7 @@ export default function FlyerCard({
         <EventFlyerPlaceholder seed={item.id} variant={placeholderVariant} />
       )}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: DIM }]} pointerEvents="none" />
-      <LinearGradient
-        colors={[SCRIM_CLEAR, SCRIM_DARK]}
-        locations={[0.4, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <CaptionScrim />
 
       {when ? (
         <View
@@ -174,7 +163,10 @@ export default function FlyerCard({
         <Text
           style={{
             color: OVERLAY_TEXT,
-            fontFamily: 'Roboto-Flex-Bold',
+            // SemiBold, not Bold: with CaptionScrim behind it the title no longer
+            // needs the extra weight to hold up on a bright flyer, and SemiBold
+            // matches the Spotlight titles above.
+            fontFamily: 'Roboto-Flex-SemiBold',
             fontSize: 18,
             lineHeight: 22,
           }}

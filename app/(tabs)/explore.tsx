@@ -33,6 +33,7 @@ import {
 } from '@/app/lib/orgFilters';
 import { feed as feedKeys, org as orgKeys, user as userKeys } from '@/app/lib/queryKeys';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { TYPE } from '@/app/lib/typography';
 import { useDebounced } from '@/app/lib/useDebounced';
 import { useSavedEvents } from '@/app/lib/useSavedEvents';
 import LhlSearchIcon from '@/assets/icons/LhlSearchIcon';
@@ -171,11 +172,14 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       <View
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
       >
-        <Text style={{ fontSize: 17, fontWeight: '600', color: colors.ink, textAlign: 'center' }}>
+        {/* Every Text here names a Roboto Flex family via TYPE (app/lib/typography.ts):
+            a bare fontWeight with no fontFamily falls back to the SYSTEM font, which
+            is why Explore read differently from Home. */}
+        <Text style={[TYPE.cardTitle, { color: colors.ink, textAlign: 'center' }]}>
           Explore ran into a problem
         </Text>
         <Text
-          style={{ fontSize: 14, color: colors.inkMuted, textAlign: 'center', marginTop: 8 }}
+          style={[TYPE.body, { color: colors.inkSecondary, textAlign: 'center', marginTop: 8 }]}
           // Shown, not hidden: TestFlight feedback is the only crash channel
           // this app has while monitoring is stubbed, and a tester who can read
           // the message can paste it into a report.
@@ -190,7 +194,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
           hitSlop={8}
           style={{ marginTop: 20 }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.accent }}>Reload</Text>
+          <Text style={[TYPE.sectionLink, { color: colors.accent }]}>Reload</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -726,12 +730,9 @@ export default function ExploreScreen() {
         }}
       >
         <View style={{ gap: 2 }}>
-          <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
-            DISCOVER CAMPUS
-          </Text>
-          <Text className="font-roboto-medium" style={{ fontSize: 24, color: colors.ink }}>
-            Explore
-          </Text>
+          {/* Home's header treatment (TYPE.page*), so the tab titles match. */}
+          <Text style={[TYPE.pageEyebrow, { color: colors.accent }]}>DISCOVER CAMPUS</Text>
+          <Text style={[TYPE.pageTitle, { color: colors.ink }]}>Explore</Text>
         </View>
 
         {/* Toggle hidden on web — react-native-maps has no web renderer — and on
@@ -872,16 +873,14 @@ export default function ExploreScreen() {
             marginBottom: 14,
           }}
         >
-          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.inkSecondary }}>
-            {resultSummary}
-          </Text>
+          <Text style={[TYPE.body, { flex: 1, color: colors.inkSecondary }]}>{resultSummary}</Text>
           <TouchableOpacity
             onPress={() => setFilters(EMPTY_FILTERS)}
             accessibilityRole="button"
             accessibilityLabel="Clear all filters"
             hitSlop={10}
           >
-            <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.accent }}>Clear</Text>
+            <Text style={[TYPE.sectionLink, { color: colors.accent }]}>Clear</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -897,10 +896,7 @@ export default function ExploreScreen() {
   const orgEmptyState = (
     <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24, gap: 8 }}>
       <BuildingsIcon size={32} color={colors.inkMuted} />
-      <Text
-        className="font-roboto-semibold"
-        style={{ fontSize: 15, color: colors.ink, textAlign: 'center' }}
-      >
+      <Text style={[TYPE.cardTitle, { color: colors.ink, textAlign: 'center' }]}>
         {isSearching
           ? `No organizations match “${debouncedQuery}”`
           : orgFiltersApplied
@@ -908,10 +904,7 @@ export default function ExploreScreen() {
             : 'No organizations yet'}
       </Text>
       {isSearching || orgFiltersApplied ? (
-        <Text
-          className="font-roboto"
-          style={{ fontSize: 13, color: colors.inkMuted, textAlign: 'center' }}
-        >
+        <Text style={[TYPE.body, { color: colors.inkSecondary, textAlign: 'center' }]}>
           {isSearching
             ? 'Check the spelling, or try part of the name.'
             : 'Try turning a filter off.'}
@@ -925,9 +918,7 @@ export default function ExploreScreen() {
           hitSlop={10}
           style={{ marginTop: 4 }}
         >
-          <Text className="font-roboto-bold" style={{ fontSize: 14, color: colors.accent }}>
-            Clear filters
-          </Text>
+          <Text style={[TYPE.sectionLink, { color: colors.accent }]}>Clear filters</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -936,16 +927,10 @@ export default function ExploreScreen() {
   const orgSection = showOrgSection ? (
     <View style={{ paddingBottom: 8 }}>
       <Text
-        style={{
-          fontSize: 13,
-          fontWeight: '700',
-          color: colors.inkMuted,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-          marginBottom: 4,
-        }}
+        accessibilityRole="header"
+        style={[TYPE.sectionTitle, { color: colors.ink, marginBottom: 4 }]}
       >
-        Organizations
+        ORGANIZATIONS
       </Text>
 
       {orgsQuery.isPending ? (
@@ -982,21 +967,14 @@ export default function ExploreScreen() {
               {orgsQuery.isFetchingNextPage ? (
                 <ActivityIndicator color={colors.accent} />
               ) : (
-                <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.accent }}>
-                  Show more
-                </Text>
+                <Text style={[TYPE.button, { color: colors.accent }]}>Show more</Text>
               )}
             </TouchableOpacity>
           ) : (
             /* The end of the directory, said out loud. Without it a list that
                simply stops looks like one that failed to load the rest. */
             <Text
-              style={{
-                marginTop: 10,
-                textAlign: 'center',
-                fontSize: 11.5,
-                color: colors.inkMuted,
-              }}
+              style={[TYPE.caption, { marginTop: 10, textAlign: 'center', color: colors.inkMuted }]}
             >
               {orgResults.length} {orgResults.length === 1 ? 'organization' : 'organizations'}
               {isSearching ? '' : ' · that’s all of them'}
@@ -1029,7 +1007,7 @@ export default function ExploreScreen() {
         justifyContent: 'space-between',
       }}
     >
-      <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
+      <Text accessibilityRole="header" style={[TYPE.sectionTitle, { color: colors.ink }]}>
         {resultsHeading}
       </Text>
       <ExploreSortControl
@@ -1078,7 +1056,12 @@ export default function ExploreScreen() {
         orgsQuery.isPending ? (
           <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
         ) : orgsQuery.isError ? (
-          <Text style={{ color: colors.inkMuted, textAlign: 'center', paddingVertical: 24 }}>
+          <Text
+            style={[
+              TYPE.body,
+              { color: colors.inkSecondary, textAlign: 'center', paddingVertical: 24 },
+            ]}
+          >
             Could not load organizations. Check your connection.
           </Text>
         ) : (
@@ -1092,7 +1075,7 @@ export default function ExploreScreen() {
           // The end of the list, said out loud. Without it a list that simply
           // stops looks like one that failed to load the rest.
           <Text
-            style={{ textAlign: 'center', fontSize: 11.5, color: colors.inkMuted, paddingTop: 4 }}
+            style={[TYPE.caption, { textAlign: 'center', color: colors.inkMuted, paddingTop: 4 }]}
           >
             {orgResults.length} {orgResults.length === 1 ? 'organization' : 'organizations'}
             {isSearching || orgFiltersApplied ? '' : ' · that’s all of them'}
@@ -1118,7 +1101,7 @@ export default function ExploreScreen() {
         <View
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
         >
-          <Text style={{ fontSize: 16, color: colors.inkMuted, textAlign: 'center' }}>
+          <Text style={[TYPE.body, { color: colors.inkSecondary, textAlign: 'center' }]}>
             Could not load events. Check your connection.
           </Text>
         </View>
@@ -1176,7 +1159,7 @@ export default function ExploreScreen() {
           ListEmptyComponent={
             showEventSection ? (
               <View style={{ marginTop: 40, alignItems: 'center', paddingHorizontal: 24 }}>
-                <Text style={{ color: colors.inkMuted, textAlign: 'center' }}>
+                <Text style={[TYPE.body, { color: colors.inkSecondary, textAlign: 'center' }]}>
                   {isSearching
                     ? `No events match “${debouncedQuery}”.`
                     : hasActiveFilters(filters)
@@ -1195,9 +1178,7 @@ export default function ExploreScreen() {
                     style={{ marginTop: 12 }}
                     hitSlop={10}
                   >
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.accent }}>
-                      Clear filters
-                    </Text>
+                    <Text style={[TYPE.sectionLink, { color: colors.accent }]}>Clear filters</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>

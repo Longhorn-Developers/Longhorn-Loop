@@ -46,6 +46,7 @@ import {
   ORG_SORT_OPTIONS,
   isOrgCategory,
   isOrgSort,
+  type OrgCategory,
   type OrgClaimState,
   type OrgSortOption,
 } from '../../../shared/orgRegistration';
@@ -305,6 +306,43 @@ interface OrgSearchCursor {
   hasQuery: boolean;
   k: (string | number)[];
 }
+
+// GET /orgs/category-counts -- how many orgs are filed under each category,
+// for the "12 orgs" line on the Orgs tab's Browse by Category tiles.
+//
+// Its own endpoint rather than a total on /orgs/search: search is keyset-paged
+// and never counts, and the tiles would otherwise have to walk every page of
+// every category on each visit. One GROUP BY over `organizations` is cheap.
+//
+// Counts the same set the tile opens: a tile taps through to
+// /orgs/search?category=X with no other filter, so this applies none either.
+// Every category is present, zero included, so the client never has to tell
+// "no orgs" from "field missing". Rows whose category is NULL or a legacy
+// value outside ORG_CATEGORIES are ignored -- no tile could show them.
+//
+// MUST stay above /:orgId (see above).
+orgRoutes.get('/category-counts', async (c) => {
+  const auth = await getAuthUser(c.req.header('Authorization'), c.env.JWT_SECRET);
+  if (!auth) return c.json({ error: 'UNAUTHORIZED' }, 401);
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT category, COUNT(*) AS n
+       FROM organizations
+      WHERE category IN (${ORG_CATEGORIES.map(() => '?').join(', ')})
+      GROUP BY category`,
+  )
+    .bind(...ORG_CATEGORIES)
+    .all<{ category: string; n: number }>();
+
+  const counts = Object.fromEntries(ORG_CATEGORIES.map((cat) => [cat, 0])) as Record<
+    OrgCategory,
+    number
+  >;
+  for (const row of results ?? []) {
+    if (isOrgCategory(row.category)) counts[row.category] = Number(row.n);
+  }
+  return c.json({ counts });
+});
 
 // GET /orgs/search -- the org directory (LOOP-141 "Find your organization",
 // grown by LOOP-264 into the browsable list behind Explore's Orgs toggle).

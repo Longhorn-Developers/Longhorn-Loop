@@ -73,6 +73,10 @@ export const org = {
   // Orgs" list merges it with mine(). Under org.all so a follow from anywhere
   // (which invalidates the tree via useOrgFollow) refreshes the list.
   following: () => [...org.all, 'following'] as const,
+  // Orgs per category (GET /orgs/category-counts) for the Orgs tab's Browse by
+  // Category tiles. Under org.all so registering or re-filing an org, which
+  // invalidates the tree, refreshes the counts too.
+  categoryCounts: () => [...org.all, 'category-counts'] as const,
   detail: (id: number | string) => [...org.all, 'detail', String(id)] as const,
   members: (id: number | string) => [...org.all, 'members', String(id)] as const,
   // Events tab (LOOP-136). Search/filter/sort are part of the key so each

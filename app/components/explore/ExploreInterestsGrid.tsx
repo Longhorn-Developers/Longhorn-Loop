@@ -1,5 +1,6 @@
 import type { InterestCategory } from '@/app/lib/interestCategories';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { FONT, TYPE } from '@/app/lib/typography';
 import { CaretRightIcon } from 'phosphor-react-native';
 import { Pressable, Text, View } from 'react-native';
 
@@ -41,7 +42,9 @@ export default function ExploreInterestGrid({ tiles, onSeeAll, onSelect }: Props
             marginBottom: 12,
           }}
         >
-          <Text className="font-roboto-bold" style={{ fontSize: 16, color: colors.inkSecondary }}>
+          {/* Home's section header roles (TYPE.section*), so this reads as the same
+              kind of heading as Home's carousels. */}
+          <Text accessibilityRole="header" style={[TYPE.sectionTitle, { color: colors.ink }]}>
             BROWSE BY INTEREST
           </Text>
           <Pressable
@@ -51,10 +54,8 @@ export default function ExploreInterestGrid({ tiles, onSeeAll, onSelect }: Props
             accessibilityLabel="See all interests"
             style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
           >
-            <Text className="font-roboto-semibold" style={{ fontSize: 13, color: colors.accent }}>
-              See all
-            </Text>
-            <CaretRightIcon size={14} color={colors.accent} weight="bold" />
+            <Text style={[TYPE.sectionLink, { color: colors.accent }]}>See all</Text>
+            <CaretRightIcon size={14} color={colors.brand} weight="bold" />
           </Pressable>
         </View>
       ) : null}
@@ -95,14 +96,15 @@ export default function ExploreInterestGrid({ tiles, onSeeAll, onSelect }: Props
                     <Icon width={ICON_SIZE} height={ICON_SIZE} color={colors.accent} />
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
+                    {/* 13, not cardTitle's 16: the tile is half the row wide and
+                        a longer bucket name would truncate at 16. */}
                     <Text
-                      className="font-roboto-semibold"
-                      style={{ fontSize: 13, color: colors.ink }}
+                      style={{ fontFamily: FONT.semibold, fontSize: 13, color: colors.ink }}
                       numberOfLines={1}
                     >
                       {tile.label}
                     </Text>
-                    <Text className="font-roboto" style={{ fontSize: 11, color: colors.inkMuted }}>
+                    <Text style={[TYPE.caption, { color: colors.inkMuted }]}>
                       {tile.count} active {tile.count === 1 ? 'event' : 'events'}
                     </Text>
                   </View>

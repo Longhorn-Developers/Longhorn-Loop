@@ -14,6 +14,7 @@
 
 import ChevronIcon from '@/assets/images/dropdown-arrow.svg';
 import { useThemeColors } from '@/app/lib/themeColors';
+import { TYPE } from '@/app/lib/typography';
 import React from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -40,15 +41,9 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
       <View style={{ flex: 1, paddingRight: 12 }}>
         {eyebrow ? (
           <Text
-            style={{
-              fontFamily: 'Roboto-Flex-Medium',
-              // 15 (was 11, then 13). 11 is the smallest size iOS ships and read
-              // as fine print, and 13 was still small to read at a glance. 15 is
-              // iOS's subheadline size, the one used for a section's secondary line.
-              fontSize: 15,
-              color: colors.brand,
-              marginBottom: 2,
-            }}
+            // Sizes live in app/lib/typography.ts (TYPE.section*) so Explore and
+            // Orgs headers match this one; the reasoning for 15 / 22 is there.
+            style={[TYPE.sectionEyebrow, { color: colors.accent, marginBottom: 2 }]}
           >
             {eyebrow}
           </Text>
@@ -58,14 +53,7 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
         <Text
           accessibilityRole="header"
           numberOfLines={1}
-          style={{
-            fontFamily: 'Roboto-Flex-Bold',
-            // 22 (was 18, then 20): iOS's title-2 size, so the section names
-            // read as headings at a glance while scrolling.
-            fontSize: 22,
-            letterSpacing: 0.3,
-            color: colors.ink,
-          }}
+          style={[TYPE.sectionTitle, { color: colors.ink }]}
         >
           {title.toUpperCase()}
         </Text>
@@ -91,9 +79,7 @@ export default function SectionHeader({ eyebrow, title, onViewAll, style }: Sect
             paddingBottom: 2,
           }}
         >
-          <Text style={{ fontFamily: 'Roboto-Flex-Medium', fontSize: 15, color: colors.brand }}>
-            See all
-          </Text>
+          <Text style={[TYPE.sectionLink, { color: colors.accent }]}>See all</Text>
           {/* One chevron asset, turned a quarter turn — same approach as
               ExpandableText. */}
           <ChevronIcon

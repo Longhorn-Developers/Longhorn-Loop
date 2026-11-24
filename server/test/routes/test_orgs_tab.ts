@@ -4,6 +4,7 @@
  *   GET /orgs/following                 the "Following" half of Your Orgs
  *   GET /orgs/search  followers_this_week  the Trending card's "+N this week"
  *   GET /orgs/:id/profile  member_count, leadership  the People tab
+ *   GET /orgs/category-counts           Browse by Category's "N orgs"
  *
  * Same real-route, real-SQLite setup as test_org_search.ts. The case that
  * matters most is leadership's shape: the profile route is readable by any
@@ -197,5 +198,29 @@ describeOrSkip('Orgs tab server additions (LOOP-331/332/334)', () => {
     const body = (await (await get(`/${OTHER_ORG}/profile`)).json()) as any;
     expect(body.org.member_count).toBe(0);
     expect(body.leadership).toEqual([]);
+  });
+
+  it('GET /category-counts rejects an unauthenticated caller', async () => {
+    expect((await get('/category-counts', false)).status).toBe(401);
+  });
+
+  // Every category is reported, zeros included, and rows filed under a value
+  // outside ORG_CATEGORIES (the fixtures' 'Tech') are not counted anywhere.
+  it('GET /category-counts counts orgs per category and is not swallowed by /:orgId', async () => {
+    db.exec(`INSERT INTO organizations (id, name, category) VALUES
+      (930, 'Beta Rowing', 'Sports'),
+      (931, 'Debate Society', 'Academic'),
+      (932, 'No Category Club', NULL)`);
+
+    const res = await get('/category-counts');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.counts).toEqual({
+      Professional: 0,
+      Sports: 2,
+      Cultural: 0,
+      Academic: 1,
+      'Media / Publication': 0,
+    });
   });
 });
