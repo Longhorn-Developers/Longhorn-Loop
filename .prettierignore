@@ -4,7 +4,3 @@ dist
 android
 ios
 *.lock
-# Real, unedited captures of soa.utexas.edu (LOOP-227). The site's HTML has a
-# stray closing </div> that prettier refuses to parse, and formatting would
-# make them no longer byte-for-byte what the scraper sees.
-server/src/scrapers/__fixtures__/architecture/
