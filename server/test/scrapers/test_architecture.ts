@@ -212,6 +212,8 @@ describe('Architecture detail parser', () => {
         "Beginning October 30 at 5:00 pm, Don't Get Too Attached in on view. The exhibition is designed and curated by Assistant Professor of Interior Design Ria Bravo.",
       imageUrl: OG_IMAGE,
       imageAlt: 'a pink drawing of a woman at a sewing machine',
+      // From drupalSettings.path.currentPath ("node\/3465").
+      nodeId: '3465',
     });
   });
 
@@ -220,7 +222,16 @@ describe('Architecture detail parser', () => {
       description: null,
       imageUrl: null,
       imageAlt: null,
+      nodeId: null,
     });
+  });
+
+  it('reads the node id whether or not the slash is escaped', () => {
+    expect(parseDetailPage('<script>{"path":{"currentPath":"node/42"}}</script>').nodeId).toBe(
+      '42',
+    );
+    // The shared menu's /node/N links are not this page's node.
+    expect(parseDetailPage('<a href="/node/7">Menu</a>').nodeId).toBeNull();
   });
 });
 
@@ -232,8 +243,8 @@ describe('Architecture event mapping', () => {
   it('maps a card and its page into the shared event schema', () => {
     expect(parseEvent(exhibition, detail, NOW)).toEqual({
       source: 'soa',
-      // Slug plus start date: the site exposes no node id.
-      sourceEventId: 'dont-get-too-attached-2026-10-30',
+      // The page's Drupal node id: stable across retitles and reschedules.
+      sourceEventId: 'node-3465',
       title: 'Don’t Get Too Attached',
       description:
         "Beginning October 30 at 5:00 pm, Don't Get Too Attached in on view. The exhibition is designed and curated by Assistant Professor of Interior Design Ria Bravo.",
@@ -262,8 +273,19 @@ describe('Architecture event mapping', () => {
     });
   });
 
+  it('keeps the same id when an event is moved to another date', () => {
+    const moved = { ...exhibition, dateLine: 'Friday January 8, 2027, 5:00 - 7:00pm' };
+    expect(parseEvent(moved, detail, NOW)!.sourceEventId).toBe('node-3465');
+  });
+
+  it('adds the date when one page is listed more than once', () => {
+    const event = parseEvent(exhibition, detail, NOW, { repeatsOnListing: true })!;
+    expect(event.sourceEventId).toBe('node-3465-2026-10-30');
+  });
+
   it('falls back to the card when the page has no Open Graph tags', () => {
     const event = parseEvent(virtual, bare, NOW)!;
+    // No node id on the page: slug plus start date.
     expect(event.sourceEventId).toBe(
       'prospective-graduate-student-information-session-9-2026-12-01',
     );

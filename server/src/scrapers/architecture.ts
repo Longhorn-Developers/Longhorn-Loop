@@ -32,13 +32,14 @@
 //     flyer; og:image is the `large` style, which scales without cropping.
 //   - description: og:description, falling back to the card's teaser.
 //
-// Event id: the URL slug plus the start date ("dont-get-too-attached-2026-10-30").
-// The site exposes no Drupal node id: the event pages have no
-// <link rel="shortlink">, and the only /node/N links on them are the shared
-// menu's, identical on every page (checked across all 12 listed events,
-// 2026-11-27). The slug is a path alias, so an editor who retitles an event
-// and lets Drupal regenerate the alias changes the slug, and the next run
-// inserts a NEW row; the old one stays until it expires.
+// Event id: the page's Drupal node id ("node-3465"), read from
+// drupalSettings.path.currentPath on the event page we already fetch. It stays
+// the same when an editor retitles or reschedules the event, so neither makes a
+// second row. (The /node/N links elsewhere on the page are the shared menu's,
+// so only currentPath is trusted.) If one page is listed more than once, the
+// start date is added ("node-3465-2026-10-30") to keep one row per date. A page
+// without a node id falls back to the URL slug plus the start date
+// ("dont-get-too-attached-2026-10-30").
 //
 // Things we can't get:
 //   - organizer: every event is the school's own, so the host is the School of
@@ -528,6 +529,8 @@ export interface EventDetail {
   description: string | null;
   imageUrl: string | null;
   imageAlt: string | null;
+  /** Drupal node id from drupalSettings.path.currentPath, e.g. "3465". */
+  nodeId: string | null;
 }
 
 function metaContent(html: string, property: string): string | null {
@@ -545,6 +548,7 @@ export function parseDetailPage(html: string): EventDetail {
     description: description ? htmlToText(description) || null : null,
     imageUrl: image ? new URL(image, SITE_BASE).toString() : null,
     imageAlt: metaContent(html, 'og:image:alt')?.trim() || null,
+    nodeId: html.match(/"currentPath"\s*:\s*"node\\?\/(\d+)"/)?.[1] ?? null,
   };
 }
 
@@ -565,6 +569,7 @@ export function parseEvent(
   card: ListingCard,
   detail: EventDetail,
   now = Date.now(),
+  options: { repeatsOnListing?: boolean } = {},
 ): NormalizedEvent | null {
   const timing = parseDateLine(card.dateLine);
   if (!timing) {
@@ -576,14 +581,18 @@ export function parseEvent(
 
   const imageUrl = detail.imageUrl ?? card.imageUrl;
   const location = card.location;
-  // Slug plus start date (see "Event id" in the header). The start date pins
-  // the occurrence, so a series published as one page with several dates
-  // still gets one row per date.
+  // See "Event id" in the header.
+  const startDate = timing.startDatetime.slice(0, 10);
   const slug = card.path.replace(/^\/events\//, '');
+  const sourceEventId = detail.nodeId
+    ? options.repeatsOnListing
+      ? `node-${detail.nodeId}-${startDate}`
+      : `node-${detail.nodeId}`
+    : `${slug}-${startDate}`;
 
   return {
     source: SOURCE,
-    sourceEventId: `${slug}-${timing.startDatetime.slice(0, 10)}`,
+    sourceEventId,
     title: card.title,
     description: detail.description ?? card.teaser,
     startDatetime: timing.startDatetime,
@@ -669,6 +678,9 @@ export async function scrapeArchitecture(
   const details = new Map<string, EventDetail | null>();
   const normalized: NormalizedEvent[] = [];
   const now = Date.now();
+  // A page listed more than once gets the date in its id (see "Event id").
+  const timesListed = new Map<string, number>();
+  for (const card of cards) timesListed.set(card.path, (timesListed.get(card.path) ?? 0) + 1);
 
   for (const card of cards) {
     try {
@@ -692,7 +704,9 @@ export async function scrapeArchitecture(
         continue;
       }
 
-      const parsed = parseEvent(card, detail, now);
+      const parsed = parseEvent(card, detail, now, {
+        repeatsOnListing: (timesListed.get(card.path) ?? 0) > 1,
+      });
       if (!parsed) {
         eventsSkipped++;
         continue;
