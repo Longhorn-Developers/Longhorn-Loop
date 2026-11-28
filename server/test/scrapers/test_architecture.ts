@@ -12,8 +12,10 @@ import {
   parseDateLine,
   parseDetailPage,
   parseEvent,
+  scrapeArchitecture,
   tokenize,
 } from '../../src/scrapers/architecture';
+import type { Env } from '../../src/worker';
 
 function loadFixture(name: string): string {
   return readFileSync(
@@ -27,6 +29,7 @@ const NOW = new Date('2026-10-01T00:00:00Z').getTime();
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('Architecture listing parser', () => {
@@ -362,5 +365,46 @@ describe('fetchListingCards', () => {
       'https://soa.utexas.edu/events?page=1',
     ]);
     expect(cards).toHaveLength(12);
+  });
+});
+
+describe('scrapeArchitecture', () => {
+  it('does not fetch the pages of events it will skip', async () => {
+    // Nov 21: all 9 /past-events cards are over (the last ended Nov 20, 1:30pm);
+    // the 3 upcoming ones are not.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-21T18:00:00Z'));
+    const requested: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        requested.push(url);
+        if (url === 'https://soa.utexas.edu/events') {
+          return new Response(loadFixture('listing-paged.html'), { status: 200 });
+        }
+        if (url === 'https://soa.utexas.edu/events?page=1') {
+          return new Response(loadFixture('listing-upcoming.html'), { status: 200 });
+        }
+        if (url.startsWith('https://soa.utexas.edu/events/')) {
+          return new Response(loadFixture('detail.html'), { status: 200 });
+        }
+        return new Response('', { status: 200 }); // image metadata
+      }),
+    );
+
+    const result = await scrapeArchitecture({} as Env, { dryRun: true });
+
+    const pastPaths = extractListingCards(loadFixture('listing-paged.html')).map((c) => c.path);
+    const upcomingPaths = extractListingCards(loadFixture('listing-upcoming.html')).map(
+      (c) => c.path,
+    );
+    const eventPagesFetched = requested
+      .filter((u) => u.startsWith('https://soa.utexas.edu/events/'))
+      .map((u) => new URL(u).pathname);
+    expect(eventPagesFetched.sort()).toEqual([...upcomingPaths].sort());
+    for (const path of pastPaths) expect(eventPagesFetched).not.toContain(path);
+    expect(result.eventsProcessed).toBe(12);
+    expect(result.eventsSkipped).toBe(9);
+    expect(result.errors).toEqual([]);
   });
 });

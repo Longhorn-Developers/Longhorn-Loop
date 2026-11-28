@@ -562,6 +562,20 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+// True for a card worth fetching and ingesting: its date line can be read, it
+// isn't over, and it isn't cancelled. Checked from the card alone, so the run
+// doesn't spend requests on the pages of events it would throw away.
+export function isListable(card: ListingCard, now = Date.now()): boolean {
+  const timing = parseDateLine(card.dateLine);
+  if (!timing) {
+    console.warn(`[soa] Unreadable date "${card.dateLine}" on ${card.path} — skipping`);
+    return false;
+  }
+  if (endInstant(timing) < now) return false;
+  if (card.status && /cancel/i.test(card.status)) return false;
+  return true;
+}
+
 // Pure and sync so it's easy to test against saved fixtures. Returns null for
 // an event that is over, cancelled, or whose date line can't be read. Image
 // dimensions are filled in by the orchestrator (needs a network round-trip).
@@ -571,13 +585,9 @@ export function parseEvent(
   now = Date.now(),
   options: { repeatsOnListing?: boolean } = {},
 ): NormalizedEvent | null {
-  const timing = parseDateLine(card.dateLine);
-  if (!timing) {
-    console.warn(`[soa] Unreadable date "${card.dateLine}" on ${card.path} — skipping`);
-    return null;
-  }
-  if (endInstant(timing) < now) return null;
-  if (card.status && /cancel/i.test(card.status)) return null;
+  if (!isListable(card, now)) return null;
+  // isListable has already checked that the date line parses.
+  const timing = parseDateLine(card.dateLine)!;
 
   const imageUrl = detail.imageUrl ?? card.imageUrl;
   const location = card.location;
@@ -684,6 +694,12 @@ export async function scrapeArchitecture(
 
   for (const card of cards) {
     try {
+      // Past, cancelled and undated cards are dropped before their page is
+      // fetched: each fetch counts against the Workers subrequest limit.
+      if (!isListable(card, now)) {
+        eventsSkipped++;
+        continue;
+      }
       let detail = details.get(card.path);
       if (detail === undefined) {
         if (details.size > 0) await sleep(REQUEST_DELAY_MS);
