@@ -1,0 +1,357 @@
+<!doctype html>
+<!--
+  Real capture of https://soa.utexas.edu/events, fetched 2026-11-27.
+  Trimmed to what the scraper reads, like the other scrapers' fixtures: the
+  meta tags, the header menu (its "Events" link must not be read as a card),
+  the Upcoming/Past links and type filter, and <main>. Each piece is cut from
+  the page as served, at matching tags; the rest of the page (scripts, styles,
+  menus, footer) is dropped. One stray closing </div> after the footer was
+  removed so prettier can parse the page, then it was formatted.
+  Three upcoming events, one page (no pager).
+-->
+<html lang="en" dir="ltr" prefix="og: https://ogp.me/ns#" class="path-events">
+  <head>
+    <meta charset="utf-8" />
+    <meta property="og:site_name" content="School of Architecture" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://soa.utexas.edu/events" />
+    <meta property="og:title" content="Events" />
+    <meta
+      property="og:image"
+      content="https://soa.utexas.edu/sites/default/files/2022-11/soa_social_share_0.jpg"
+    />
+    <title>Events | School of Architecture</title>
+  </head>
+  <body>
+    <nav
+      role="navigation"
+      aria-labelledby="block-utsoa-theme-header-menu"
+      id="block-utsoa-theme-header"
+      class="block block-system block-system-menu-blockheader"
+    >
+      <h2 class="ut-headline--xl ut-headline visually-hidden" id="block-utsoa-theme-header-menu">
+        Header Menu
+      </h2>
+
+      <ul
+        menu-block-id="utsoa_theme_header"
+        block="block-utsoa-theme-header"
+        class="ut-menu--list header-menu__list"
+      >
+        <li class="header-menu__list-item">
+          <a
+            href="/events"
+            class="header-menu__link is-active"
+            data-drupal-link-system-path="events"
+            aria-current="page"
+            >Events</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/news" class="header-menu__link" data-drupal-link-system-path="news">News</a>
+        </li>
+        <li class="header-menu__list-item">
+          <a
+            href="https://utexas.us9.list-manage.com/subscribe?u=2da794b9b5244974a3576165e&amp;id=296a945394"
+            class="header-menu__link"
+            >Newsletter</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/alumni" class="header-menu__link" data-drupal-link-system-path="node/2592"
+            >Alumni</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/support" class="header-menu__link" data-drupal-link-system-path="node/1473"
+            >Support</a
+          >
+        </li>
+      </ul>
+    </nav>
+    <div class="container utsoa-exposed-filter-wrapper utsoa-orange">
+      <div class="row justify-content-center">
+        <div class="col-md-3">
+          <div class="soaevent--up-past-btn-wrapper">
+            <h2 class="ut-headline">View events</h2>
+            <a href="/events" class="upcoming-btn ut-btn">Upcoming</a>
+            <a href="/past-events" class="past-btn ut-btn--secondary">Past</a>
+          </div>
+        </div>
+        <div class="col-md-9">
+          <div
+            id="block-soaevent-page-exposed-form"
+            class="block block-views block-views-exposed-filter-blocksoaevent-listing-page-upcoming clearfix"
+          >
+            <form
+              class="views-exposed-form bef-exposed-form"
+              data-bef-auto-submit=""
+              data-bef-auto-submit-delay="500"
+              data-bef-auto-submit-minimum-length="3"
+              data-bef-auto-submit-full-form=""
+              data-drupal-selector="views-exposed-form-soaevent-listing-page-upcoming"
+              block="block-soaevent-page-exposed-form"
+              action="/events"
+              method="get"
+              id="views-exposed-form-soaevent-listing-page-upcoming"
+              accept-charset="UTF-8"
+            >
+              <div
+                class="js-form-item form-item form-type-select js-form-type-select form-item-type js-form-item-type"
+              >
+                <label for="edit-type--2">Filter events by <strong>type</strong></label>
+                <select
+                  data-drupal-selector="edit-type"
+                  id="edit-type--2"
+                  name="type"
+                  class="form-select"
+                >
+                  <option value="All" selected="selected">- Any -</option>
+                  <option value="16">Admissions</option>
+                  <option value="190">Alumni</option>
+                  <option value="271">Conference</option>
+                  <option value="120">CSD</option>
+                  <option value="116">Goldsmith Talks</option>
+                  <option value="22">Build Lab</option>
+                  <option value="93">CAAD</option>
+                  <option value="102">Career Services</option>
+                  <option value="18">Campus wide</option>
+                  <option value="101">City Forum</option>
+                  <option value="15">Development</option>
+                  <option value="20">Exhibition</option>
+                  <option value="21">Lecture Series</option>
+                  <option value="23">Materials Lab</option>
+                  <option value="19">Symposium</option>
+                </select>
+              </div>
+              <div
+                class="js-form-item form-item form-type-textfield js-form-type-textfield form-item-combine js-form-item-combine"
+              >
+                <label for="edit-combine--2">Search by <strong>keyword</strong></label>
+                <input
+                  data-drupal-selector="edit-combine"
+                  type="text"
+                  id="edit-combine--2"
+                  name="combine"
+                  value=""
+                  size="30"
+                  maxlength="128"
+                  class="form-text"
+                />
+              </div>
+              <div
+                data-drupal-selector="edit-actions"
+                class="form-actions js-form-wrapper form-wrapper"
+                id="edit-actions--2"
+              >
+                <input
+                  data-bef-auto-submit-click=""
+                  class="js-hide button js-form-submit form-submit"
+                  data-drupal-selector="edit-submit-soaevent-listing-page-2"
+                  type="submit"
+                  id="edit-submit-soaevent-listing-page--2"
+                  value="Search"
+                />
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <main role="main">
+      <a id="main-content" tabindex="-1"></a>
+      <div class="layout-content">
+        <div class="region region-content">
+          <div
+            id="block-utsoa-theme-main-page-content"
+            class="block block-system block-system-main-block clearfix"
+          >
+            <div class="views-element-container">
+              <div
+                class="soaevent-listing-page soaevent-listing-page--page-1 js-view-dom-id-510184c278cd3f1e1436c3ec678bde12c15955aa8bcc8f312d5b8ca62796a7eb"
+              >
+                <div class="views-view-grid vertical cols-1 clearfix">
+                  <div>
+                    <div class="views-row row-1">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-10/Screenshot%202026-10-21%20at%209.43.07%E2%80%AFAM.png?itok=wHG3Dpcb"
+                              width="848"
+                              height="540"
+                              alt="a pink drawing of a woman at a sewing machine "
+                            />
+
+                            <div class="utsoa--events-page-type">Exhibition</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Friday October 30, 2026, 5:00pm -
+                          Monday November 30, 2026, 7:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/dont-get-too-attached" hreflang="en"
+                            >Don’t Get Too Attached</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Beginning October 30 at 5:00 pm, Don't Get Too Attached in on view. The
+                          exhibition is designed and curated by Assistant Professor of Interior
+                          Design Ria Bravo.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a
+                            href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                            >Location: North Gallery of Goldsmith Hall</a
+                          ></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-2">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-09/grad%20info.jpg?itok=68H8991j"
+                              width="1000"
+                              height="668"
+                              alt="students in the couryard chatting with each other "
+                            />
+
+                            <div class="utsoa--events-page-type">Admissions</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Tuesday December 1, 2026, 6:00 -
+                          7:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a
+                            href="/events/prospective-graduate-student-information-session-9"
+                            hreflang="en"
+                            >Prospective Graduate Student Information Session</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Learn more about The University of Texas at Austin School of
+                          Architecture's graduate programs!
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content">Virtual</span>
+                      </div>
+                    </div>
+                    <div class="views-row row-3">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-10/Main%20Career%20Fair%20Flyer%202027_Web%20Image.jpg?itok=uVnAJCFj"
+                              width="6999"
+                              height="5466"
+                              alt="career fair graphic of burnt orange and the ut tower"
+                            />
+
+                            <div class="utsoa--events-page-type">Career Services</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Tuesday February 16, 2027, 10:00am -
+                          5:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/utsoa-career-fair-2027" hreflang="en"
+                            >UTSOA Career Fair 2027</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          The University of Texas at Austin School of Architecture will host its
+                          annual career fair on February 16, 2027 at the AT&amp;T Executive
+                          Education and Conference Center's Zlotnik Ballroom on campus. This fair
+                          provides a fantastic opportunity for employers to connect with UTSOA
+                          students and alumni while promoting their firm or organization.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          >Zlotnik Ballroom, AT&amp;T Hotel and Conference Center, 1900 University
+                          Ave, Austin, TX 78705</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

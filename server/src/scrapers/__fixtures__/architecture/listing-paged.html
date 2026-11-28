@@ -1,0 +1,752 @@
+<!doctype html>
+<!--
+  Real capture of https://soa.utexas.edu/past-events (first page), fetched
+  2026-11-27.
+  Trimmed to what the scraper reads, like the other scrapers' fixtures: the
+  meta tags, the header menu (its "Events" link must not be read as a card),
+  the Upcoming/Past links and type filter, and <main>. Each piece is cut from
+  the page as served, at matching tags; the rest of the page (scripts, styles,
+  menus, footer) is dropped. One stray closing </div> after the footer was
+  removed so prettier can parse the page, then it was formatted.
+  The same Drupal view as /events, with a pager; used for the card shapes the
+  short upcoming list doesn't show (a card with no type, an all-day range, an
+  unlinked "TBD", a venue off UT's building map).
+-->
+<html lang="en" dir="ltr" prefix="og: https://ogp.me/ns#" class="path-past-events">
+  <head>
+    <meta charset="utf-8" />
+    <meta property="og:site_name" content="School of Architecture" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://soa.utexas.edu/past-events" />
+    <meta property="og:title" content="Past Events" />
+    <meta
+      property="og:image"
+      content="https://soa.utexas.edu/sites/default/files/2022-11/soa_social_share_0.jpg"
+    />
+    <title>Past Events | School of Architecture</title>
+  </head>
+  <body>
+    <nav
+      role="navigation"
+      aria-labelledby="block-utsoa-theme-header-menu"
+      id="block-utsoa-theme-header"
+      class="block block-system block-system-menu-blockheader"
+    >
+      <h2 class="ut-headline--xl ut-headline visually-hidden" id="block-utsoa-theme-header-menu">
+        Header Menu
+      </h2>
+
+      <ul
+        menu-block-id="utsoa_theme_header"
+        block="block-utsoa-theme-header"
+        class="ut-menu--list header-menu__list"
+      >
+        <li class="header-menu__list-item">
+          <a href="/events" class="header-menu__link" data-drupal-link-system-path="events"
+            >Events</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/news" class="header-menu__link" data-drupal-link-system-path="news">News</a>
+        </li>
+        <li class="header-menu__list-item">
+          <a
+            href="https://utexas.us9.list-manage.com/subscribe?u=2da794b9b5244974a3576165e&amp;id=296a945394"
+            class="header-menu__link"
+            >Newsletter</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/alumni" class="header-menu__link" data-drupal-link-system-path="node/2592"
+            >Alumni</a
+          >
+        </li>
+        <li class="header-menu__list-item">
+          <a href="/support" class="header-menu__link" data-drupal-link-system-path="node/1473"
+            >Support</a
+          >
+        </li>
+      </ul>
+    </nav>
+    <div class="container utsoa-exposed-filter-wrapper utsoa-orange">
+      <div class="row justify-content-center">
+        <div class="col-md-3">
+          <div class="soaevent--up-past-btn-wrapper">
+            <h2 class="ut-headline">View events</h2>
+            <a href="/events" class="upcoming-btn ut-btn--secondary">Upcoming</a>
+            <a href="/past-events" class="past-btn ut-btn">Past</a>
+          </div>
+        </div>
+        <div class="col-md-9">
+          <div
+            id="block-soaevent-page-exposed-form-past"
+            class="block block-views block-views-exposed-filter-blocksoaevent-listing-page-past clearfix"
+          >
+            <form
+              class="views-exposed-form bef-exposed-form"
+              data-bef-auto-submit=""
+              data-bef-auto-submit-delay="500"
+              data-bef-auto-submit-minimum-length="3"
+              data-bef-auto-submit-full-form=""
+              data-drupal-selector="views-exposed-form-soaevent-listing-page-past"
+              block="block-soaevent-page-exposed-form-past"
+              action="/past-events"
+              method="get"
+              id="views-exposed-form-soaevent-listing-page-past"
+              accept-charset="UTF-8"
+            >
+              <div
+                class="js-form-item form-item form-type-select js-form-type-select form-item-type js-form-item-type"
+              >
+                <label for="edit-type--2">Filter events by <strong>type</strong></label>
+                <select
+                  data-drupal-selector="edit-type"
+                  id="edit-type--2"
+                  name="type"
+                  class="form-select"
+                >
+                  <option value="All" selected="selected">- Any -</option>
+                  <option value="16">Admissions</option>
+                  <option value="190">Alumni</option>
+                  <option value="271">Conference</option>
+                  <option value="120">CSD</option>
+                  <option value="116">Goldsmith Talks</option>
+                  <option value="22">Build Lab</option>
+                  <option value="93">CAAD</option>
+                  <option value="102">Career Services</option>
+                  <option value="18">Campus wide</option>
+                  <option value="101">City Forum</option>
+                  <option value="15">Development</option>
+                  <option value="20">Exhibition</option>
+                  <option value="21">Lecture Series</option>
+                  <option value="23">Materials Lab</option>
+                  <option value="19">Symposium</option>
+                </select>
+              </div>
+              <div
+                class="js-form-item form-item form-type-textfield js-form-type-textfield form-item-combine js-form-item-combine"
+              >
+                <label for="edit-combine--2">Search by <strong>keyword</strong></label>
+                <input
+                  data-drupal-selector="edit-combine"
+                  type="text"
+                  id="edit-combine--2"
+                  name="combine"
+                  value=""
+                  size="30"
+                  maxlength="128"
+                  class="form-text"
+                />
+              </div>
+              <div
+                data-drupal-selector="edit-actions"
+                class="form-actions js-form-wrapper form-wrapper"
+                id="edit-actions--2"
+              >
+                <input
+                  data-bef-auto-submit-click=""
+                  class="js-hide button js-form-submit form-submit"
+                  data-drupal-selector="edit-submit-soaevent-listing-page-2"
+                  type="submit"
+                  id="edit-submit-soaevent-listing-page--2"
+                  value="Search"
+                />
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    <main role="main">
+      <a id="main-content" tabindex="-1"></a>
+      <div class="layout-content">
+        <div class="region region-content">
+          <div
+            id="block-utsoa-theme-main-page-content"
+            class="block block-system block-system-main-block clearfix"
+          >
+            <div class="views-element-container">
+              <div
+                class="soaevent-listing-page soaevent-listing-page--page-1 js-view-dom-id-6ee11af78e95d38273d4247d358f549432608eedb0545c28679ebd4c3cf8d5c6"
+              >
+                <div class="views-view-grid vertical cols-1 clearfix">
+                  <div>
+                    <div class="views-row row-1">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2025-10/CF_logo_orange_4.png?itok=ba_NlP3v"
+                              width="831"
+                              height="724"
+                              alt="White text on an orange background reads CITY FORUM presents with CITY in large letters, FORUM in medium letters, and presents in smaller letters below."
+                            />
+
+                            <div class="utsoa--events-page-type">City Forum</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Friday November 20, 2026, 12:00 -
+                          1:30pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/steve-adler-city-forum" hreflang="en"
+                            >Steve Adler | City Forum</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Steve Adler, former Mayor of Austin, presents the City Forum on Nov. 20.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a
+                            href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                            >Location: GOL 3.120
+                          </a></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-2">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-09/grad%20info.jpg?itok=68H8991j"
+                              width="1000"
+                              height="668"
+                              alt="students in the couryard chatting with each other "
+                            />
+
+                            <div class="utsoa--events-page-type">Admissions</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Tuesday November 17, 2026, 11:00am -
+                          12:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a
+                            href="/events/prospective-graduate-student-information-session-8"
+                            hreflang="en"
+                            >Prospective Graduate Student Information Session</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Learn more about The University of Texas at Austin School of
+                          Architecture's graduate programs!
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content">Virtual</span>
+                      </div>
+                    </div>
+                    <div class="views-row row-3">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-10/5%20Ray%20Harlem%20Amenities%20I130374.jpg?itok=swk77c0m"
+                              width="2150"
+                              height="2688"
+                              alt="image of harlem amenities"
+                            />
+
+                            <div class="utsoa--events-page-type">Lecture Series</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Monday November 9, 2026, 5:00 - 6:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/lecture-little-wing-lee" hreflang="en"
+                            >Lecture: Little Wing Lee</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Little Wing Lee presents a lecture on Nov. 9 at 5 pm in Goldsmith Lecture
+                          Hall.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a
+                            href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                            >Location: Goldsmith Hall Auditorium
+                          </a></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-4">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-09/grad%20info.jpg?itok=68H8991j"
+                              width="1000"
+                              height="668"
+                              alt="students in the couryard chatting with each other "
+                            />
+
+                            <div class="utsoa--events-page-type"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Thursday November 5, 2026, 11:00am -
+                          12:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a
+                            href="/events/prospective-graduate-student-information-session-7"
+                            hreflang="en"
+                            >Prospective Graduate Student Information Session</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Learn more about The University of Texas at Austin School of
+                          Architecture's graduate programs!
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content">Virtual</span>
+                      </div>
+                    </div>
+                    <div class="views-row row-5">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-08/UT%20Meet%20and%20Greet%20Flyers-1.jpeg?itok=vImOjSVj"
+                              width="1920"
+                              height="1080"
+                              alt="photo of the moody center"
+                            />
+
+                            <div class="utsoa--events-page-type">Career Services</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Thursday November 5, 2026, 11:00am -
+                          12:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/gensler-meet-greet-0" hreflang="en"
+                            >Gensler Meet &amp; Greet</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Join Career Services and Gensler for a presentation on the firm, their
+                          current work, and hiring practices.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a
+                            href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                            >Location: Dean&#039;s Conference Room (GOL 2.302B)</a
+                          ></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-6">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-08/capri1909-089.jpg?itok=MubZ4cLW"
+                              width="3600"
+                              height="2400"
+                              alt="photo of a nature landscape"
+                            />
+
+                            <div class="utsoa--events-page-type">Lecture Series</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Monday November 2, 2026, 5:00 - 6:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/lecture-christine-ten-eyck" hreflang="en"
+                            >Lecture: Christine Ten Eyck</a
+                          ></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Join us on November 2 for a lecture by Christine Ten Eyck, Ten Eyck
+                          Landscape Architects.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a href="https://www.hrc.utexas.edu/"
+                            >Location: Harry Ransom Center - Prothro Theater</a
+                          ></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-7">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2025-10/CF_logo_orange_4.png?itok=ba_NlP3v"
+                              width="831"
+                              height="724"
+                              alt="White text on an orange background reads CITY FORUM presents with CITY in large letters, FORUM in medium letters, and presents in smaller letters below."
+                            />
+
+                            <div class="utsoa--events-page-type">City Forum</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Friday October 30, 2026, 12:00 -
+                          1:30pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/ariel-h-bierbaum-city-forum" hreflang="en"
+                            >Ariel H. Bierbaum | City Forum
+                          </a></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Dr. Ariel Bierbaum, Associate Professor of Urban Studies and Planning at
+                          the University of Maryland, presents "Schools for Sale: Disinvestment,
+                          Dispossession, and the Promise of Reparative Planning in School Building
+                          Reuse."
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a
+                            href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                            >Location: GOL 3.120</a
+                          ></span
+                        >
+                      </div>
+                    </div>
+                    <div class="views-row row-8">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-08/F26_Headshots_Web.png?itok=oQNVy3vL"
+                              width="7000"
+                              height="5467"
+                              alt="Photo of a girl smiling "
+                            />
+
+                            <div class="utsoa--events-page-type">Career Services</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Wednesday October 28 - Friday October
+                          30, 2026, All day
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/headshots-0" hreflang="en">Headshots</a></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Career Services will provide current students with the opportunity to have
+                          complimentary professional headshots taken.
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content">TBD</span>
+                      </div>
+                    </div>
+                    <div class="views-row row-9">
+                      <div class="views-field views-field-field-soaevent-main-media">
+                        <div class="field-content">
+                          <div class="utsoa--events-page-image-wrapper">
+                            <img
+                              loading="lazy"
+                              src="/sites/default/files/styles/utexas_image_style_840w_656h/public/2026-08/Performing%20Art%20Center%20at%20RIT_photo%20by%20Iwan%20Baan.jpg?itok=jHX-sKSG"
+                              width="8192"
+                              height="5464"
+                              alt="Performing Art Center at RIT, photo by Iwan Baan "
+                            />
+
+                            <div class="utsoa--events-page-type">Lecture Series</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-status">
+                        <div class="field-content">
+                          <div
+                            class="field field--name-field-soaevent-status field--type-list-string field--label-above soaevent-event-field soaevent-event-field--field-soaevent-status soaevent-event-field--status-scheduled"
+                          >
+                            <div class="field__label soaevent-event-field__label">Event status</div>
+                            <div
+                              class="field__item soaevent-event-field__item soaevent-event-field__item--scheduled"
+                            >
+                              Scheduled
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Monday October 26, 2026, 5:00 - 6:00pm
+                        </div>
+                      </div>
+                      <div class="views-field views-field-title">
+                        <span class="field-content"
+                          ><a href="/events/scales-city-michael-maltzan" hreflang="en"
+                            >Scales of the city | Michael Maltzan
+                          </a></span
+                        >
+                      </div>
+                      <div class="views-field views-field-field-soaevent-body ut-copy">
+                        <div class="field-content">
+                          Join us on October 26 for Michael Maltzan's lecture, "Scales of the City."
+                        </div>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-location-link">
+                        <span class="field-content"
+                          ><a href="https://universityunions.utexas.edu/visit/wcp"
+                            >Location: William C. Powers, Jr. Student Activity Center (WCP)
+                            Auditorium</a
+                          ></span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <nav class="pager" aria-labelledby="pagination-heading">
+                  <h3 id="pagination-heading" class="visually-hidden">Pagination</h3>
+                  <ul class="pager__items js-pager__items">
+                    <li class="pager__item is-active">
+                      <a href="?page=0" title="Current page" aria-current="page">
+                        <span class="visually-hidden"> Page </span>1</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=1" title="Go to page 2">
+                        <span class="visually-hidden"> Page </span>2</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=2" title="Go to page 3">
+                        <span class="visually-hidden"> Page </span>3</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=3" title="Go to page 4">
+                        <span class="visually-hidden"> Page </span>4</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=4" title="Go to page 5">
+                        <span class="visually-hidden"> Page </span>5</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=5" title="Go to page 6">
+                        <span class="visually-hidden"> Page </span>6</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=6" title="Go to page 7">
+                        <span class="visually-hidden"> Page </span>7</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=7" title="Go to page 8">
+                        <span class="visually-hidden"> Page </span>8</a
+                      >
+                    </li>
+                    <li class="pager__item">
+                      <a href="?page=8" title="Go to page 9">
+                        <span class="visually-hidden"> Page </span>9</a
+                      >
+                    </li>
+                    <li class="pager__item pager__item--ellipsis" role="presentation">&hellip;</li>
+                    <li class="pager__item pager__item--next">
+                      <a href="?page=1" title="Go to next page" rel="next">
+                        <span class="visually-hidden">Next page</span>
+                        <span aria-hidden="true">››</span>
+                      </a>
+                    </li>
+                    <li class="pager__item pager__item--last">
+                      <a href="?page=115" title="Go to last page">
+                        <span class="visually-hidden">Last page</span>
+                        <span aria-hidden="true">Last »</span>
+                      </a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
