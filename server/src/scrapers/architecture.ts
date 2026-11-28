@@ -17,14 +17,15 @@
 //     UT's building map, or at a venue's own site), or plain text for places
 //     with no link ("Virtual", "TBD", a street address).
 //
-// The card is parsed by that ORDER, not by CSS class. The first draft was
-// written from the page as read in a browser, before the raw HTML had been
-// fetched, so the class names weren't known; the fixtures are now real
-// captures, but parsing on text, links and images and their order still keeps
-// the scraper independent of the theme's wrapper markup, which is also the
-// part a theme update is most likely to change. The type is recognised against
-// the page's own "Filter events by type" <select>, so a new type the school
-// adds is picked up without a code change.
+// The card is parsed by that ORDER, not by theme CSS classes, so a theme update
+// doesn't break it. The one exception is telling the teaser from the location:
+// both are optional, and by order alone a short teaser looks like a place. The
+// Drupal view wraps them in wrappers named after the fields' machine names
+// (views-field-field-soaevent-body / -location-link), which are part of the
+// content model, not the theme, so those are used when present; reading by
+// order is the fallback. The type is recognised against the page's own
+// "Filter events by type" <select>, so a new type the school adds is picked up
+// without a code change.
 //
 // Each event's own page is fetched once, for what the card lacks:
 //   - image: og:image. The card's picture is a fixed 840x656 crop
@@ -94,10 +95,25 @@ interface ScraperResult {
 // The page reduced to what a person sees, in order: runs of text, links and
 // images. Inline formatting (<em>, <strong>, <br>, ...) does not split a run,
 // so a teaser with an italic title stays one token; any other tag does.
+// The card field a text or link token sits in, when the markup says so.
+export type CardField = 'teaser' | 'location';
+
 export type Token =
-  | { kind: 'text'; text: string }
-  | { kind: 'link'; href: string; text: string }
+  | { kind: 'text'; text: string; field?: CardField }
+  | { kind: 'link'; href: string; text: string; field?: CardField }
   | { kind: 'img'; src: string; alt: string | null };
+
+// The Drupal view wraps a card's teaser and location in wrappers named after
+// the fields' machine names, not theme classes, so they survive a theme update.
+// When present they say exactly which text is the teaser and which the
+// location; without them a card falls back to reading by order (see
+// extractListingCards).
+function fieldOfDiv(tag: string): CardField | null {
+  const cls = attr(tag, 'class') ?? '';
+  if (/\bviews-field-field-soaevent-body\b/.test(cls)) return 'teaser';
+  if (/\bviews-field-field-soaevent-location-link\b/.test(cls)) return 'location';
+  return null;
+}
 
 const INLINE_TAGS = new Set(['em', 'strong', 'b', 'i', 'u', 'small', 'sup', 'sub', 'br', 'wbr']);
 
@@ -114,9 +130,14 @@ export function tokenize(html: string): Token[] {
 
   const tokens: Token[] = [];
   let text = '';
+  // The field wrapper we're inside, and the <div> depth it opened at, so the
+  // field ends exactly where its wrapper closes.
+  let field: CardField | undefined;
+  let fieldDepth = -1;
+  let divDepth = 0;
   const flushText = () => {
     const t = htmlToText(text);
-    if (t) tokens.push({ kind: 'text', text: t });
+    if (t) tokens.push(field ? { kind: 'text', text: t, field } : { kind: 'text', text: t });
     text = '';
   };
 
@@ -136,7 +157,13 @@ export function tokenize(html: string): Token[] {
         link.inner += between;
         const linkText = htmlToText(link.inner);
         tokens.push(...link.imgs);
-        if (linkText) tokens.push({ kind: 'link', href: link.href, text: linkText });
+        if (linkText) {
+          tokens.push(
+            field
+              ? { kind: 'link', href: link.href, text: linkText, field }
+              : { kind: 'link', href: link.href, text: linkText },
+          );
+        }
         link = null;
       } else {
         link.inner += `${between} `;
@@ -154,6 +181,22 @@ export function tokenize(html: string): Token[] {
       continue;
     }
     flushText();
+    if (name === 'div') {
+      if (!closing) {
+        divDepth++;
+        const opened = fieldOfDiv(m[0]);
+        if (opened) {
+          field = opened;
+          fieldDepth = divDepth;
+        }
+      } else {
+        if (divDepth === fieldDepth) {
+          field = undefined;
+          fieldDepth = -1;
+        }
+        divDepth--;
+      }
+    }
 
     if (name === 'a' && !closing) {
       link = { href: attr(m[0], 'href') ?? '', inner: '', imgs: [] };
@@ -302,7 +345,18 @@ export function extractListingCards(html: string): ListingCard[] {
     let teaser: string | null = null;
     let location: string | null = null;
     const locIdx = body.findIndex((t) => t.kind === 'link' && LOCATION_PREFIX.test(t.text));
-    if (locIdx >= 0) {
+    const fieldText = (name: CardField) =>
+      body
+        .filter((t) => (t.kind === 'text' || t.kind === 'link') && t.field === name)
+        .map((t) => (t as { text: string }).text)
+        .join(' ')
+        .trim() || null;
+    if (body.some((t) => t.field)) {
+      // Field wrappers: everything in the teaser wrapper is the teaser, links
+      // included; the location is the location wrapper's text or link.
+      teaser = fieldText('teaser');
+      location = fieldText('location')?.replace(LOCATION_PREFIX, '').trim() || null;
+    } else if (locIdx >= 0) {
       location = (body[locIdx] as { text: string }).text.replace(LOCATION_PREFIX, '').trim();
       const before = body.slice(0, locIdx).filter((t) => t.kind === 'text');
       teaser = before.length ? before.map((t) => (t as { text: string }).text).join(' ') : null;

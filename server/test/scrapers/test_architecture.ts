@@ -129,6 +129,64 @@ describe('Architecture listing parser', () => {
   });
 });
 
+// SYNTHETIC, not a capture: none of the 12 live cards (2026-11-27) is missing a
+// teaser or a location, so these cards are built in the site's own markup to
+// cover the shapes the order-based reading used to get wrong.
+function syntheticListing(body: string | null, location: string | null): string {
+  const field = (name: string, inner: string) =>
+    `<div class="views-field views-field-field-soaevent-${name}"><div class="field-content">${inner}</div></div>`;
+  return `<main><div class="views-row row-1">
+    ${field('datetime', 'Tuesday December 1, 2026, 6:00 - 7:00pm')}
+    <div class="views-field views-field-title"><span class="field-content"><a href="/events/test-event">Test Event</a></span></div>
+    ${body === null ? '' : field('body ut-copy', body)}
+    ${location === null ? '' : field('location-link', location)}
+  </div></main>`;
+}
+
+describe('Architecture teaser and location fields', () => {
+  const read = (body: string | null, location: string | null) => {
+    const [card] = extractListingCards(syntheticListing(body, location));
+    return { teaser: card.teaser, location: card.location };
+  };
+
+  it('keeps a two-paragraph teaser whole when there is no location', () => {
+    expect(read('<p>First paragraph.</p><p>Second paragraph.</p>', null)).toEqual({
+      teaser: 'First paragraph. Second paragraph.',
+      location: null,
+    });
+  });
+
+  it('keeps a link inside the teaser as teaser text', () => {
+    expect(
+      read('<p>Please <a href="https://example.com/rsvp">RSVP</a> for the talk.</p>', null),
+    ).toEqual({
+      teaser: 'Please RSVP for the talk.',
+      location: null,
+    });
+  });
+
+  it('does not mistake a short teaser for a location', () => {
+    expect(read('Join us!', null)).toEqual({ teaser: 'Join us!', location: null });
+  });
+
+  it('reads a long unlinked location when there is no teaser', () => {
+    const address = 'Zlotnik Ballroom, AT&amp;T Hotel and Conference Center, 1900 University Ave';
+    expect(read(null, address)).toEqual({
+      teaser: null,
+      location: 'Zlotnik Ballroom, AT&T Hotel and Conference Center, 1900 University Ave',
+    });
+  });
+
+  it('strips the "Location:" prefix from a linked location', () => {
+    expect(
+      read('A talk.', '<a href="https://maps.example/gol">Location: Goldsmith Hall</a>'),
+    ).toEqual({
+      teaser: 'A talk.',
+      location: 'Goldsmith Hall',
+    });
+  });
+});
+
 describe('parseDateLine', () => {
   it.each([
     [
