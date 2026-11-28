@@ -2,8 +2,11 @@
 <!--
   Real capture of https://soa.utexas.edu/events/dont-get-too-attached,
   fetched 2026-11-27.
-  Edited only to pass prettier, like the other scrapers' fixtures: one stray
-  closing </div> after the footer was removed, then the file was formatted.
+  Trimmed to what the scraper reads, like the other scrapers' fixtures: the
+  meta tags, the drupalSettings script (for the node id) and <main>. Each piece
+  is cut from the page as served, at matching tags; the rest of the page
+  (scripts, styles, menus, footer) is dropped. One stray closing </div> after
+  the footer was removed so prettier can parse the page, then it was formatted.
   Like every event page on the site it has Open Graph tags and no
   <link rel="shortlink">.
 -->
@@ -15,7 +18,6 @@
 >
   <head>
     <meta charset="utf-8" />
-    <link rel="canonical" href="https://soa.utexas.edu/events/dont-get-too-attached" />
     <meta property="og:site_name" content="School of Architecture" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://soa.utexas.edu/events/dont-get-too-attached" />
@@ -30,136 +32,7 @@
     />
     <meta property="og:updated_time" content="2026-10-21T11:23:36-05:00" />
     <meta property="og:image:alt" content="a pink drawing of a woman at a sewing machine" />
-    <meta name="twitter:card" content="summary" />
-    <meta
-      name="twitter:description"
-      content="Beginning October 30 at 5:00 pm, Don&#039;t Get Too Attached in on view. The exhibition is designed and curated by Assistant Professor of Interior Design Ria Bravo."
-    />
-    <meta name="twitter:site" content="@UTSOA" />
-    <meta name="twitter:title" content="Don’t Get Too Attached" />
-    <meta name="twitter:image:alt" content="a pink drawing of a woman at a sewing machine" />
-    <meta
-      name="twitter:image"
-      content="https://soa.utexas.edu/sites/default/files/styles/large/public/2026-10/Screenshot%202026-10-21%20at%209.43.07%E2%80%AFAM.png?itok=rPH4Cl0y"
-    />
-    <meta name="google-site-verification" content="Dppt-L8_eJOOvUet_aul_q4b8wfHCw2Q_6DLX-trd2A" />
-    <meta name="Generator" content="Drupal 11 (https://www.drupal.org)" />
-    <meta name="MobileOptimized" content="width" />
-    <meta name="HandheldFriendly" content="true" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "Event",
-            "url": "https://soa.utexas.edu/events/dont-get-too-attached",
-            "name": "Don’t Get Too Attached",
-            "description": "Beginning October 30 at 5:00 pm, Don\u0027t Get Too Attached in on view. The exhibition is designed and curated by Assistant Professor of Interior Design Ria Bravo.",
-            "image": {
-              "@type": "ImageObject",
-              "url": "https://soa.utexas.edu/sites/default/files/styles/large/public/2026-10/Screenshot%202026-10-21%20at%209.43.07%E2%80%AFAM.png?itok=rPH4Cl0y",
-              "width": "480",
-              "height": "480"
-            },
-            "eventStatus": "EventScheduled",
-            "startDate": "1793397600",
-            "isAccessibleForFree": "True",
-            "endDate": "1796086800"
-          }
-        ]
-      }
-    </script>
-    <link rel="manifest" href="/site.webmanifest" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="icon" sizes="16x16" href="/favicon.ico" />
-    <link rel="icon" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" sizes="48x48" href="/favicon-48x48.png" />
-    <link rel="icon" sizes="150x150" href="/mstile-150x150.png" />
-    <link rel="icon" sizes="192x192" href="/android-chrome-192x192.png" />
-    <link rel="icon" sizes="512x512" href="/android-chrome-512x512.png" />
-    <link rel="mask-icon" sizes="400x400" href="/safari-pinned-tab.svg" color="#bf5700" />
-    <link rel="icon" href="/favicon.ico" type="image/vnd.microsoft.icon" />
-    <meta name="utexas-utdk-version" content="3" />
-    <style>
-      #utsoa-header-bg {
-        background: url('');
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        opacity: 0.4;
-        background-size: cover;
-        background-position: top;
-      }
-    </style>
-    <style>
-      .block__ut-social-links--link.facebook {
-        mask: url('/sites/default/files/social_icons/facebook.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.flickr {
-        mask: url('/sites/default/files/social_icons/flickr.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.instagram {
-        mask: url('/sites/default/files/social_icons/instagram.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.linkedin {
-        mask: url('/sites/default/files/social_icons/linkedin.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.pinterest {
-        mask: url('/sites/default/files/social_icons/pinterest.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.reddit {
-        mask: url('/sites/default/files/social_icons/reddit.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.snapchat {
-        mask: url('/sites/default/files/social_icons/snapchat.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.tumblr {
-        mask: url('/sites/default/files/social_icons/tumblr.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.twitter {
-        mask: url('/sites/default/files/social_icons/twitter.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.vimeo {
-        mask: url('/sites/default/files/social_icons/vimeo.svg');
-        mask-size: cover;
-      }
-      .block__ut-social-links--link.youtube {
-        mask: url('/sites/default/files/social_icons/youtube.svg');
-        mask-size: cover;
-      }
-    </style>
-    <script>
-      window.a2a_config = window.a2a_config || {};
-      a2a_config.callbacks = [];
-      a2a_config.overlays = [];
-      a2a_config.templates = {};
-      a2a_config.icon_color = '#bf5700';
-    </script>
-
     <title>Don’t Get Too Attached | School of Architecture</title>
-    <link
-      rel="stylesheet"
-      media="all"
-      href="/sites/default/files/css/css_lv1U9C-tRDL3v2lLXax0B3XQBT49YsD7dLwc7GEgEhA.css?delta=0&amp;language=en&amp;theme=utsoa_theme&amp;include=eJxVkN1yxCAIhV9I41Wfx0ElqbsoGcHt5u1r3KQzvQI-fuYcICVlqIeDK1nWxlXNLCOQh74VrOoKJyATuaFLre9ACzzgbQqmDG7NpNiWCLtmrkYY8DWWfBynzqjHjn4i98r4Y8cxtGsnMnKIYnEBBE1XfIO4wKyiDfYvG0VuOkT0u_CBOD69cMxDIeX6FJey7ATHPTFS7upDz5SwedGDUNyH2ovaD_2_cg_9rfZ8D0yv08spZ-SWsQRMoz8c-w0rNiB3xYvqNxZ0G3EY6DQv8wWyjB90wl-4opfI"
-    />
-    <link
-      rel="stylesheet"
-      media="all"
-      href="/sites/default/files/css/css_HAj4EFc8jHW070aJbs1QKCilkuVkwRrt9xS8prhjmjE.css?delta=1&amp;language=en&amp;theme=utsoa_theme&amp;include=eJxVkN1yxCAIhV9I41Wfx0ElqbsoGcHt5u1r3KQzvQI-fuYcICVlqIeDK1nWxlXNLCOQh74VrOoKJyATuaFLre9ACzzgbQqmDG7NpNiWCLtmrkYY8DWWfBynzqjHjn4i98r4Y8cxtGsnMnKIYnEBBE1XfIO4wKyiDfYvG0VuOkT0u_CBOD69cMxDIeX6FJey7ATHPTFS7upDz5SwedGDUNyH2ovaD_2_cg_9rfZ8D0yv08spZ-SWsQRMoz8c-w0rNiB3xYvqNxZ0G3EY6DQv8wWyjB90wl-4opfI"
-    />
-
     <script type="application/json" data-drupal-selector="drupal-settings-json">
       {
         "path": {
@@ -196,1541 +69,218 @@
         }
       }
     </script>
-    <script src="/sites/default/files/js/js_lW4NIl4YITsSI1l9JzQbl6AgLip1TwRBu-hYBIAWAAc.js?scope=header&amp;delta=0&amp;language=en&amp;theme=utsoa_theme&amp;include=eJxdiEEOgzAMBD8U8In3WAtJXVASo8SW4PetWji0l52dQYymqCfhOuOjabXw0QWZ4VJSNSoakYOoSk5sEJL3_PuIDcdvLMEtHegENx1Ql6e2frdZ1bo17NOw3ZEzTnXr9CXPvuaYGvv6Ao7HQz0"></script>
-    <script src="/modules/contrib/google_tag/js/gtag.js?tp2w3f"></script>
-    <script src="/modules/contrib/google_tag/js/gtm.js?tp2w3f"></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;400;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body class="page__soaevent_event">
-    <a href="#main-content" class="visually-hidden focusable"> Skip to main content </a>
-    <noscript
-      ><iframe
-        src="https://www.googletagmanager.com/ns.html?id=GTM-K627S5V"
-        height="0"
-        width="0"
-        style="display: none; visibility: hidden"
-      ></iframe
-    ></noscript>
+    <main role="main">
+      <a id="main-content" tabindex="-1"></a>
+      <div class="layout-content">
+        <div class="region region-content">
+          <div
+            id="block-utsoa-theme-main-page-content"
+            class="block block-system block-system-main-block clearfix"
+          >
+            <article class="full soaevent-event clearfix">
+              <div class="row">
+                <div class="col-md-5">
+                  <h1>
+                    <span>Don’t Get Too Attached</span>
+                  </h1>
 
-    <div class="dialog-off-canvas-main-canvas" data-off-canvas-main-canvas>
-      <div class="header-brandbar-wrapper">
-        <section role="region" aria-label="University Brand Bar" class="ut-brandbar">
-          <div class="container-md">
-            <div class="row">
-              <div class="ut-logo--wrapper col">
-                <div class="header-flex-wrapper">
-                  <div class="flex-lg-row region region-header-secondary">
-                    <nav
-                      role="navigation"
-                      aria-labelledby="block-utsoa-theme-header-menu"
-                      id="block-utsoa-theme-header"
-                      class="block block-system block-system-menu-blockheader"
-                    >
-                      <h2
-                        class="ut-headline--xl ut-headline visually-hidden"
-                        id="block-utsoa-theme-header-menu"
-                      >
-                        Header Menu
-                      </h2>
+                  <div
+                    class="field field--name-field-soaevent-datetime field--type-smartdate field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-datetime field__items soaevent-event-field__items"
+                  >
+                    <div class="field__item soaevent-event-field__item">
+                      Oct. 30 to Nov. 30, 2026, 5 to 7 p.m.
+                      <dialog class="add-to-calendar modal" data-type="add_to_cal_modal">
+                        <button autofocus class="close" aria-label="Close">X</button>
+                        <a
+                          href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;ctz=America%2FChicago&amp;text=Don%E2%80%99t+Get+Too+Attached&amp;dates=20261030T170000%2F20261130T190000&amp;details=Beginning+October+30+at+5%3A00+pm%2C+Don%27t+Get+Too+Attached+in+on+view.+The+exhibition+is+designed+and+curated+by+Assistant+Professor+of+Interior+Design+Ria+Bravo.&amp;location=North+Gallery+of+Goldsmith+Hall"
+                          target="_blank"
+                          class="addtocal__link addtocal__google"
+                          >Google</a
+                        >
+                        <a
+                          href="data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0D%0APRODID:School of Architecture%0D%0AVERSION:2.0%0D%0ABEGIN:VEVENT%0D%0AUID:5b4aa3fe-dbf1-415c-a5ea-84c6ecfaf3ec%0D%0ASUMMARY:Don%E2%80%99t%20Get%20Too%20Attached%0D%0ADTSTAMP:20261127T074600Z%0D%0ADTSTART:20261030T220000Z%0D%0ADTEND:20261201T010000Z%0D%0ADESCRIPTION:Beginning%20October%2030%20at%205%3A00%20pm%2C%20Don%27t%20Get%20Too%20Attached%20in%20on%20view.%20The%20exhibition%20is%20designed%20and%20curated%20by%20Assistant%20Professor%20of%20Interior%20Design%20Ria%20Bravo.%0D%0ALOCATION:North%20Gallery%20of%20Goldsmith%20Hall%0D%0AEND:VEVENT%0D%0AEND:VCALENDAR"
+                          download="event.ics"
+                          class="addtocal__link addtocal__outlook"
+                          >Outlook</a
+                        >
+                        <a
+                          href="data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0D%0APRODID:School of Architecture%0D%0ABEGIN:VTIMEZONE%0D%0ATZID:America/Chicago%0D%0ABEGIN:STANDARD%0D%0ATZOFFSETFROM:-0500%0D%0ATZOFFSETTO:-0600%0D%0AEND:STANDARD%0D%0AEND:VTIMEZONE%0D%0AVERSION:2.0%0D%0ABEGIN:VEVENT%0D%0AUID:5b4aa3fe-dbf1-415c-a5ea-84c6ecfaf3ec%0D%0ASUMMARY:Don%E2%80%99t%20Get%20Too%20Attached%0D%0ADTSTAMP:20261127T074600Z%0D%0ADTSTART;TZID=America/Chicago:20261030T170000%0D%0ADTEND;TZID=America/Chicago:20261130T190000%0D%0ADESCRIPTION:Beginning%20October%2030%20at%205%3A00%20pm%2C%20Don%27t%20Get%20Too%20Attached%20in%20on%20view.%20The%20exhibition%20is%20designed%20and%20curated%20by%20Assistant%20Professor%20of%20Interior%20Design%20Ria%20Bravo.%0D%0ALOCATION:North%20Gallery%20of%20Goldsmith%20Hall%0D%0AEND:VEVENT%0D%0AEND:VCALENDAR"
+                          download="event.ics"
+                          class="addtocal__link addtocal__ical"
+                          >iCal</a
+                        >
+                      </dialog>
+                      <button type="button" class="button">Add to calendar</button>
+                    </div>
+                  </div>
 
-                      <ul
-                        menu-block-id="utsoa_theme_header"
-                        block="block-utsoa-theme-header"
-                        class="ut-menu--list header-menu__list"
-                      >
-                        <li class="header-menu__list-item">
-                          <a
-                            href="/events"
-                            class="header-menu__link"
-                            data-drupal-link-system-path="events"
-                            >Events</a
-                          >
-                        </li>
-                        <li class="header-menu__list-item">
-                          <a
-                            href="/news"
-                            class="header-menu__link"
-                            data-drupal-link-system-path="news"
-                            >News</a
-                          >
-                        </li>
-                        <li class="header-menu__list-item">
-                          <a
-                            href="https://utexas.us9.list-manage.com/subscribe?u=2da794b9b5244974a3576165e&amp;id=296a945394"
-                            class="header-menu__link"
-                            >Newsletter</a
-                          >
-                        </li>
-                        <li class="header-menu__list-item">
-                          <a
-                            href="/alumni"
-                            class="header-menu__link"
-                            data-drupal-link-system-path="node/2592"
-                            >Alumni</a
-                          >
-                        </li>
-                        <li class="header-menu__list-item">
-                          <a
-                            href="/support"
-                            class="header-menu__link"
-                            data-drupal-link-system-path="node/1473"
-                            >Support</a
-                          >
-                        </li>
-                      </ul>
-                    </nav>
-                    <div
-                      role="search"
-                      id="block-utsoa-theme-search-form"
-                      class="block block-utexas-google-search clearfix"
+                  <div class="soaevent--location">
+                    <a
+                      href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
+                      >Location: North Gallery of Goldsmith Hall</a
                     >
-                      <form
-                        class="utexas-search-form"
-                        data-drupal-selector="utexas-search-form"
-                        action="/search/google"
-                        method="get"
-                        id="utexas-search-form"
-                        accept-charset="UTF-8"
-                      >
-                        <div
-                          class="js-form-item form-item form-type-search js-form-type-search form-item-keys js-form-item-keys form-no-label"
-                        >
-                          <label for="google-cse-query" class="visually-hidden">Search</label>
-                          <input
-                            title="Enter the terms you wish to search for."
-                            data-drupal-selector="google-cse-query"
-                            type="search"
-                            id="google-cse-query"
-                            name="keys"
-                            value=""
-                            size="40"
-                            maxlength="128"
-                            placeholder="Search the site..."
-                            class="form-search"
-                          />
-                        </div>
-                        <div
-                          data-drupal-selector="edit-actions"
-                          class="form-actions js-form-wrapper form-wrapper"
-                          id="edit-actions"
-                        >
-                          <input
-                            data-drupal-selector="edit-submit"
-                            type="submit"
-                            id="edit-submit"
-                            value="Search"
-                            class="button js-form-submit form-submit"
-                          />
-                        </div>
-                      </form>
+                  </div>
+                  <div class="soaevent--full-summary">
+                    Beginning October 30 at 5:00 pm, Don't Get Too Attached in on view. The
+                    exhibition is designed and curated by Assistant Professor of Interior Design Ria
+                    Bravo.
+                  </div>
+                </div>
+                <div class="col-md-7">
+                  <div
+                    class="field field--name-field-soaevent-main-media field--type-entity-reference field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-main-media"
+                  >
+                    <div class="field__item soaevent-event-field__item">
+                      <img
+                        loading="lazy"
+                        src="/sites/default/files/styles/utexas_image_style_1000w/public/2026-10/Screenshot%202026-10-21%20at%209.43.07%E2%80%AFAM.png?itok=h1nI6ye4"
+                        width="848"
+                        height="540"
+                        alt="a pink drawing of a woman at a sewing machine "
+                      />
                     </div>
                   </div>
                 </div>
-                <a href="https://www.utexas.edu" class="ut-logo--shieldtexas">
-                  <span class="img-fluid logo--formal">
-                    <img
-                      src="/themes/utsoa/utsoa_theme/images/utexas-brandbar-shield.svg"
-                      alt="Texas Shield Logo"
-                    />
-                  </span>
-                </a>
               </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <nav class="navbar navbar-expand-xl short_logo">
-        <div class="utexas-menu-wrapper container-lg">
-          <div class="mobile-header-primary-wrapper d-xl-none w-100">
+              <div class="soaevent--main-content-bottom">
+                <div class="row justify-content-between">
+                  <div class="col-md-7">
+                    <div
+                      class="field field--name-field-soaevent-body field--type-text-with-summary field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-body ut-copy"
+                    >
+                      <div class="field__item soaevent-event-field__item">
+                        <div>
+                          Interiors are among the most frequently altered layers of the built
+                          environment, yet they are rarely constructed with change in mind. Don’t
+                          Get Too Attached begins with this contradiction, looking closely at the
+                          architectural detail and its potential to accommodate a more provisional
+                          approach to interior construction.
+                        </div>
+                        <div dir="ltr">&nbsp;</div>
+                        <div>
+                          Through speculative sectional drawings, material investigations, and
+                          textile assemblies built at full scale, the exhibition explores how
+                          reversible joints might change the way interiors are made and remade.
+                          Borrowing from the language of garments and temporary structures, the work
+                          examines six modes of attachment: buttoned, clipped, hinged, laced,
+                          socketed, and zipped.&nbsp;<span
+                            >Don’t Get Too Attached imagines an interior that is never quite
+                            finished, one that can be adjusted, taken apart, and reassembled by the
+                            people who inhabit it.</span
+                          >
+                        </div>
+                        <div dir="ltr">&nbsp;</div>
+                        <div>
+                          Organized by
+                          <a href="https://soa.utexas.edu/faculty/ria-bravo"
+                            ><strong>Ria Bravo</strong></a
+                          >, Assistant Professor of Interior Design at The University of Texas at
+                          Austin School of Architecture, the exhibition includes research and
+                          drawings developed with Graduate Research Assistant Tran Do (M.Arch. ’27)
+                          and full-scale prototypes produced in collaboration with students in the
+                          Interior Fabrications seminar.
+                        </div>
+                        <hr />
+                        <h6>About the Exhibitor</h6>
+                        <div dir="ltr">&nbsp;</div>
+                        <div>
+                          <strong>Ria Bravo</strong> is a designer, educator, and researcher trained
+                          in both architecture and interior design. She is an Assistant Professor of
+                          Interior Design at The University of Texas at Austin School of
+                          Architecture, where her research focuses on provisional methods of
+                          interior construction, architectural representation, and material
+                          assembly. Her work moves between speculative drawing, experimental
+                          fabrication, and full-scale installation, questioning how the details of
+                          construction influence the ways interiors are made, experienced, and
+                          changed over time.
+                        </div>
+                        <div dir="ltr">&nbsp;</div>
+                        <div>
+                          Bravo holds a Bachelor of Science in Interior Design and a Master of
+                          Architecture from the University of Tennessee, Knoxville. Before joining
+                          UT Austin, she practiced at Morphosis and Gensler in Los Angeles. Her
+                          creative scholarship has received recognition from the Interior Design
+                          Educators Council, and in spring 2026 she held the Nadine Carter Russell
+                          Endowed Chair at Louisiana State University.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div
+                      class="field field--name-field-soaevent-sidebar field--type-text-long field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-sidebar"
+                    >
+                      <div class="field__item soaevent-event-field__item">
+                        <div>
+                          <div>
+                            <img
+                              loading="lazy"
+                              src="https://soa.utexas.edu/sites/default/files/styles/utexas_image_style_1600w/public/2026-10/dgta%20poster%20update.png?itok=zGYWzTCe"
+                              width="1600"
+                              height="2473"
+                              alt="a pink graphic of an exhibition opening"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
             <div
-              class="mobile-header-primary container d-flex align-items-center justify-content-between"
+              class="layout breakout utexas-layout--onecol container-fluid utexas-layout-no-padding utsoa-background-orange-section"
             >
-              <div class="region region-header-primary">
-                <div
-                  id="block-utsoa-theme-site-branding-header"
-                  class="block block-system block-system-branding-block clearfix"
-                >
-                  <span class="site-title sr-only"></span>
-                  <a href="/" title="Home" rel="home">
-                    <img
-                      class="img-fluid ut-logo--main"
-                      src="/sites/default/files/knockout_formal_architecture.png"
-                      alt="Home"
-                    />
-                  </a>
-                </div>
-              </div>
-
-              <button
-                class="navbar-toggler"
-                data-bs-toggle="collapse"
-                data-bs-target="#PrimaryMenuNavbar"
-                aria-controls="PrimaryMenuNavbar"
-                aria-expanded="false"
-                aria-label="Toggle navigation"
-              >
-                <span class="navbar-text navbar-text-closed">Menu</span>
-                <span class="navbar-visualisation-closed"></span>
-                <span class="navbar-text navbar-text-open">Close</span>
-                <span class="navbar-visualisation-open"></span>
-              </button>
-            </div>
-            <div class="mobile-menu-wrapper collapse navbar-collapse" id="PrimaryMenuNavbar">
-              <div class="region region-primary-menu">
-                <nav
-                  role="navigation"
-                  aria-labelledby="block-utsoa-theme-main-menu"
-                  id="block-utsoa-theme-main"
-                  class="block block-system block-system-menu-blockmain"
-                >
-                  <h2
-                    class="ut-headline--xl ut-headline visually-hidden"
-                    id="block-utsoa-theme-main-menu"
-                  >
-                    Main navigation
-                  </h2>
-
-                  <ul
-                    menu-block-id="utsoa_theme_main"
-                    block="block-utsoa-theme-main"
-                    class="utexas-primary-menu navbar-nav my-xl-0 ms-xl-n3"
-                  >
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Programs</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="programs"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Programs pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="programs">
-                        <li>
-                          <a
-                            href="/architecture"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1223"
-                            >Architecture</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/architectural-history"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1300"
-                            >Architectural History</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/planning"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1039"
-                            >Community and Regional Planning</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/interior-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1014"
-                            >Interior Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/historic-preservation"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1302"
-                            >Historic Preservation</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/landscape-architecture"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1125"
-                            >Landscape Architecture</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/sustainable-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1303"
-                            >Sustainable Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/urban-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1271"
-                            >Urban Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/doctoral-programs"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1314"
-                            >Doctoral Programs</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/opportunities"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1278"
-                            >Other Academic Opportunities</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <a href="/apply" class="l1-link" data-drupal-link-system-path="node/2992"
-                        >Admissions</a
-                      >
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="admissions"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Admissions pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="admissions">
-                        <li>
-                          <a
-                            href="/undergraduate-admissions"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1141"
-                            >Undergraduate Admissions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/graduate-admissions"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/3167"
-                            >Graduate Admissions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/undergraduate-admissions/undergraduate-minors"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1195"
-                            >Undergraduate Minors</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/apply/why-utsoa"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1146"
-                            >Why UTSOA?</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/apply/financial-support"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1147"
-                            >Financial Support</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Resources</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="resources"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Resources pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="resources">
-                        <li>
-                          <a
-                            href="/build-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1168"
-                            >Build Lab</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/career-services"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1156"
-                            >Career Services</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/materials-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1120"
-                            >Materials Lab</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://soa.utexas.edu/resources/campus-life"
-                            class="dropdown-item"
-                            >Campus Life</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/student-affairs"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1257"
-                            >Student Affairs</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/technology-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1041"
-                            >Technology Lab</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Libraries &amp; Centers</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="libraries-centers"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Libraries &amp; Centers pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="libraries-centers">
-                        <li>
-                          <a
-                            href="https://www.lib.utexas.edu/about/locations/alexander-architectural-archives"
-                            class="dropdown-item"
-                            >Alexander Architectural Archives</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://www.lib.utexas.edu/about/locations/architecture-planning"
-                            class="dropdown-item"
-                            >Architecture &amp; Planning Library</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/caad"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1139"
-                            >Center for American Architecture and Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/center-sustainable-development"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1154"
-                            >Center for Sustainable Development</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/affiliated-research-units"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1153"
-                            >Affiliated Research Units</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">About</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="about"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More About pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="about">
-                        <li>
-                          <a
-                            href="/mission-vision"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1352"
-                            >Mission &amp; Vision</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://soa.utexas.edu/spring-2027-courses-0"
-                            class="dropdown-item"
-                            >Courses</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/community"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2808"
-                            >Culture and Community</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/strategic-plan"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/3444"
-                            >Strategic Plan</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/publications"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1132"
-                            >Publications</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/leadership"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1148"
-                            >Leadership</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/faculty"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="faculty"
-                            >Faculty</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/staff"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1150"
-                            >Staff</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/fellowships"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2810"
-                            >Fellowships</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://faculty.utexas.edu/career?q=&amp;units=School%20of%20Architecture&amp;p=1"
-                            class="dropdown-item"
-                            >Open Positions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/visit-us"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2355"
-                            >Visit Us</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                  </ul>
-                </nav>
-              </div>
-
-              <div class="header-secondary-wrapper">
-                <div class="flex-lg-row region region-header-secondary">
-                  <nav
-                    role="navigation"
-                    aria-labelledby="block-utsoa-theme-header-menu"
-                    id="block-utsoa-theme-header"
-                    class="block block-system block-system-menu-blockheader"
-                  >
-                    <h2
-                      class="ut-headline--xl ut-headline visually-hidden"
-                      id="block-utsoa-theme-header-menu"
-                    >
-                      Header Menu
-                    </h2>
-
-                    <ul
-                      menu-block-id="utsoa_theme_header"
-                      block="block-utsoa-theme-header"
-                      class="ut-menu--list header-menu__list"
-                    >
-                      <li class="header-menu__list-item">
-                        <a
-                          href="/events"
-                          class="header-menu__link"
-                          data-drupal-link-system-path="events"
-                          >Events</a
-                        >
-                      </li>
-                      <li class="header-menu__list-item">
-                        <a
-                          href="/news"
-                          class="header-menu__link"
-                          data-drupal-link-system-path="news"
-                          >News</a
-                        >
-                      </li>
-                      <li class="header-menu__list-item">
-                        <a
-                          href="https://utexas.us9.list-manage.com/subscribe?u=2da794b9b5244974a3576165e&amp;id=296a945394"
-                          class="header-menu__link"
-                          >Newsletter</a
-                        >
-                      </li>
-                      <li class="header-menu__list-item">
-                        <a
-                          href="/alumni"
-                          class="header-menu__link"
-                          data-drupal-link-system-path="node/2592"
-                          >Alumni</a
-                        >
-                      </li>
-                      <li class="header-menu__list-item">
-                        <a
-                          href="/support"
-                          class="header-menu__link"
-                          data-drupal-link-system-path="node/1473"
-                          >Support</a
-                        >
-                      </li>
-                    </ul>
-                  </nav>
-                  <div
-                    role="search"
-                    id="block-utsoa-theme-search-form"
-                    class="block block-utexas-google-search clearfix"
-                  >
-                    <form
-                      class="utexas-search-form"
-                      data-drupal-selector="utexas-search-form"
-                      action="/search/google"
-                      method="get"
-                      id="utexas-search-form"
-                      accept-charset="UTF-8"
-                    >
-                      <div
-                        class="js-form-item form-item form-type-search js-form-type-search form-item-keys js-form-item-keys form-no-label"
-                      >
-                        <label for="google-cse-query" class="visually-hidden">Search</label>
-                        <input
-                          title="Enter the terms you wish to search for."
-                          data-drupal-selector="google-cse-query"
-                          type="search"
-                          id="google-cse-query"
-                          name="keys"
-                          value=""
-                          size="40"
-                          maxlength="128"
-                          placeholder="Search the site..."
-                          class="form-search"
-                        />
-                      </div>
-                      <div
-                        data-drupal-selector="edit-actions"
-                        class="form-actions js-form-wrapper form-wrapper"
-                        id="edit-actions"
-                      >
-                        <input
-                          data-drupal-selector="edit-submit"
-                          type="submit"
-                          id="edit-submit"
-                          value="Search"
-                          class="button js-form-submit form-submit"
-                        />
-                      </div>
-                    </form>
-                  </div>
-                </div>
-
-                <a href="https://www.utexas.edu" class="ut-logo--shieldtexas" data-once="link">
-                  <span class="img-fluid logo--formal">
-                    <img
-                      src="/themes/utsoa/utsoa_theme/images/utexas-brandbar-shield.svg"
-                      alt="Texas Shield Logo"
-                    />
-                  </span>
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div class="d-none d-xl-block w-100">
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="region region-header-primary">
-                <div
-                  id="block-utsoa-theme-site-branding-header"
-                  class="block block-system block-system-branding-block clearfix"
-                >
-                  <span class="site-title sr-only"></span>
-                  <a href="/" title="Home" rel="home">
-                    <img
-                      class="img-fluid ut-logo--main"
-                      src="/sites/default/files/knockout_formal_architecture.png"
-                      alt="Home"
-                    />
-                  </a>
-                </div>
-              </div>
-
-              <div class="region region-primary-menu">
-                <nav
-                  role="navigation"
-                  aria-labelledby="block-utsoa-theme-main-menu"
-                  id="block-utsoa-theme-main"
-                  class="block block-system block-system-menu-blockmain"
-                >
-                  <h2
-                    class="ut-headline--xl ut-headline visually-hidden"
-                    id="block-utsoa-theme-main-menu"
-                  >
-                    Main navigation
-                  </h2>
-
-                  <ul
-                    menu-block-id="utsoa_theme_main"
-                    block="block-utsoa-theme-main"
-                    class="utexas-primary-menu navbar-nav my-xl-0 ms-xl-n3"
-                  >
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Programs</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="programs"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Programs pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="programs">
-                        <li>
-                          <a
-                            href="/architecture"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1223"
-                            >Architecture</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/architectural-history"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1300"
-                            >Architectural History</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/planning"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1039"
-                            >Community and Regional Planning</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/interior-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1014"
-                            >Interior Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/historic-preservation"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1302"
-                            >Historic Preservation</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/landscape-architecture"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1125"
-                            >Landscape Architecture</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/sustainable-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1303"
-                            >Sustainable Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/urban-design"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1271"
-                            >Urban Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/doctoral-programs"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1314"
-                            >Doctoral Programs</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/opportunities"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1278"
-                            >Other Academic Opportunities</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <a href="/apply" class="l1-link" data-drupal-link-system-path="node/2992"
-                        >Admissions</a
-                      >
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="admissions"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Admissions pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="admissions">
-                        <li>
-                          <a
-                            href="/undergraduate-admissions"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1141"
-                            >Undergraduate Admissions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/graduate-admissions"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/3167"
-                            >Graduate Admissions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/undergraduate-admissions/undergraduate-minors"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1195"
-                            >Undergraduate Minors</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/apply/why-utsoa"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1146"
-                            >Why UTSOA?</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/apply/financial-support"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1147"
-                            >Financial Support</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Resources</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="resources"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Resources pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="resources">
-                        <li>
-                          <a
-                            href="/build-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1168"
-                            >Build Lab</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/career-services"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1156"
-                            >Career Services</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/materials-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1120"
-                            >Materials Lab</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://soa.utexas.edu/resources/campus-life"
-                            class="dropdown-item"
-                            >Campus Life</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/student-affairs"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1257"
-                            >Student Affairs</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/technology-lab"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1041"
-                            >Technology Lab</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">Libraries &amp; Centers</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="libraries-centers"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More Libraries &amp; Centers pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="libraries-centers">
-                        <li>
-                          <a
-                            href="https://www.lib.utexas.edu/about/locations/alexander-architectural-archives"
-                            class="dropdown-item"
-                            >Alexander Architectural Archives</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://www.lib.utexas.edu/about/locations/architecture-planning"
-                            class="dropdown-item"
-                            >Architecture &amp; Planning Library</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/caad"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1139"
-                            >Center for American Architecture and Design</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/center-sustainable-development"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1154"
-                            >Center for Sustainable Development</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/affiliated-research-units"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1153"
-                            >Affiliated Research Units</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                      <span class="l1-link">About</span>
-                      <a
-                        class="dropdown-toggle"
-                        href="#"
-                        id="about"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <span class="sr-only">More About pages</span>
-                      </a>
-                      <ul class="dropdown-menu" aria-labelledby="about">
-                        <li>
-                          <a
-                            href="/mission-vision"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1352"
-                            >Mission &amp; Vision</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://soa.utexas.edu/spring-2027-courses-0"
-                            class="dropdown-item"
-                            >Courses</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/community"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2808"
-                            >Culture and Community</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/strategic-plan"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/3444"
-                            >Strategic Plan</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/publications"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1132"
-                            >Publications</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/leadership"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1148"
-                            >Leadership</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/faculty"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="faculty"
-                            >Faculty</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/staff"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/1150"
-                            >Staff</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/fellowships"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2810"
-                            >Fellowships</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="https://faculty.utexas.edu/career?q=&amp;units=School%20of%20Architecture&amp;p=1"
-                            class="dropdown-item"
-                            >Open Positions</a
-                          >
-                        </li>
-                        <li>
-                          <a
-                            href="/visit-us"
-                            class="dropdown-item"
-                            data-drupal-link-system-path="node/2355"
-                            >Visit Us</a
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                  </ul>
-                </nav>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div class="container">
-        <div class="row">
-          <div class="col-sm-12">
-            <div class="region region-breadcrumb">
               <div
-                id="block-utsoa-theme-breadcrumbs"
-                class="block block-system block-system-breadcrumb-block clearfix"
+                class="soaevent-related js-view-dom-id-dae1a82e1637cc165848600ac7021687be2828eed84e6a678f807c5e6cdfabbb"
               >
-                <nav role="navigation" aria-labelledby="system-breadcrumb">
-                  <h2 id="system-breadcrumb" class="visually-hidden">Breadcrumb</h2>
-                  <ul>
-                    <li>
-                      <a href="/">Home</a>
-                    </li>
-                    <li>
-                      <a href="/events">Events</a>
-                    </li>
-                    <li>Don’t Get Too Attached</li>
-                    <li>Don’t Get Too Attached</li>
-                  </ul>
-                </nav>
-              </div>
-              <div
-                id="block-addtoany-soanews"
-                class="block block-addtoany block-addtoany-block clearfix"
-              >
-                <h2 class="ut-headline d-inline-block">SHARE</h2>
-                <div class="d-inline-block">
-                  <span
-                    class="a2a_kit a2a_kit_size_20 addtoany_list"
-                    data-a2a-url="https://soa.utexas.edu/events/dont-get-too-attached"
-                    data-a2a-title="Don’t Get Too Attached"
-                    ><a class="a2a_button_email"
-                      ><svg
-                        width="17"
-                        height="13"
-                        viewBox="0 0 17 13"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M16.668 4.4668C15.9043 5.06445 14.9414 5.79492 11.5547 8.25195C10.8906 8.75 9.66211 9.8457 8.5 9.8457C7.30469 9.8457 6.10938 8.75 5.41211 8.25195C2.02539 5.79492 1.0625 5.06445 0.298828 4.4668C0.166016 4.36719 0 4.4668 0 4.63281V11.4062C0 12.3027 0.697266 13 1.59375 13H15.4062C16.2695 13 17 12.3027 17 11.4062V4.63281C17 4.4668 16.8008 4.36719 16.668 4.4668ZM8.5 8.75C9.26367 8.7832 10.3594 7.78711 10.9238 7.38867C15.3398 4.20117 15.6719 3.90234 16.668 3.10547C16.8672 2.97266 17 2.74023 17 2.47461V1.84375C17 0.980469 16.2695 0.25 15.4062 0.25H1.59375C0.697266 0.25 0 0.980469 0 1.84375V2.47461C0 2.74023 0.0996094 2.97266 0.298828 3.10547C1.29492 3.90234 1.62695 4.20117 6.04297 7.38867C6.60742 7.78711 7.70312 8.7832 8.5 8.75Z"
-                          fill="#BF5700"
-                        /></svg
-                      ><span class="visually-hidden">Email</span></a
-                    ><a class="a2a_button_facebook"
-                      ><svg
-                        width="19"
-                        height="19"
-                        viewBox="0 0 19 19"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M18.7031 9.875C18.7031 4.79102 14.584 0.671875 9.5 0.671875C4.41602 0.671875 0.296875 4.79102 0.296875 9.875C0.296875 14.4766 3.63672 18.2988 8.05273 18.9668V12.5469H5.71484V9.875H8.05273V7.87109C8.05273 5.57031 9.42578 4.27148 11.5039 4.27148C12.543 4.27148 13.582 4.45703 13.582 4.45703V6.7207H12.4316C11.2812 6.7207 10.9102 7.42578 10.9102 8.16797V9.875H13.4707L13.0625 12.5469H10.9102V18.9668C15.3262 18.2988 18.7031 14.4766 18.7031 9.875Z"
-                          fill="#BF5700"
-                        /></svg
-                      ><span class="visually-hidden">Facebook</span></a
-                    ><a class="a2a_button_pinterest"
-                      ><svg
-                        width="19"
-                        height="20"
-                        viewBox="0 0 19 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M18.4062 9.875C18.4062 4.79102 14.2871 0.671875 9.20312 0.671875C4.11914 0.671875 0 4.79102 0 9.875C0 13.8086 2.41211 17.1113 5.82617 18.4473C5.75195 17.7422 5.67773 16.6289 5.86328 15.8125C6.04883 15.1074 6.93945 11.248 6.93945 11.248C6.93945 11.248 6.67969 10.6914 6.67969 9.875C6.67969 8.61328 7.42188 7.64844 8.34961 7.64844C9.12891 7.64844 9.5 8.24219 9.5 8.94727C9.5 9.72656 8.98047 10.9141 8.7207 12.0273C8.53516 12.918 9.20312 13.6602 10.0938 13.6602C11.7266 13.6602 12.9883 11.9531 12.9883 9.4668C12.9883 7.24023 11.3926 5.71875 9.16602 5.71875C6.53125 5.71875 5.00977 7.68555 5.00977 9.68945C5.00977 10.5059 5.30664 11.3594 5.67773 11.8047C5.75195 11.8789 5.75195 11.9902 5.75195 12.0645C5.67773 12.3613 5.49219 12.9922 5.49219 13.1035C5.45508 13.2891 5.34375 13.3262 5.1582 13.252C4.00781 12.6953 3.30273 11.0254 3.30273 9.65234C3.30273 6.75781 5.41797 4.08594 9.38867 4.08594C12.5801 4.08594 15.0664 6.38672 15.0664 9.42969C15.0664 12.584 13.0625 15.1445 10.2793 15.1445C9.35156 15.1445 8.46094 14.6621 8.16406 14.0684C8.16406 14.0684 7.71875 15.8496 7.60742 16.2578C7.38477 17.0742 6.82812 18.0762 6.45703 18.6699C7.31055 18.9668 8.23828 19.0781 9.20312 19.0781C14.2871 19.0781 18.4062 14.959 18.4062 9.875Z"
-                          fill="#BF5700"
-                        /></svg
-                      ><span class="visually-hidden">Pinterest</span></a
-                    ><a class="a2a_button_twitter"
-                      ><svg
-                        width="19"
-                        height="16"
-                        viewBox="0 0 19 16"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M17.0332 4.01562C17.7754 3.45898 18.4434 2.79102 18.9629 2.01172C18.2949 2.30859 17.5156 2.53125 16.7363 2.60547C17.5527 2.12305 18.1465 1.38086 18.4434 0.453125C17.7012 0.898438 16.8477 1.23242 15.9941 1.41797C15.252 0.638672 14.25 0.193359 13.1367 0.193359C10.9844 0.193359 9.24023 1.9375 9.24023 4.08984C9.24023 4.38672 9.27734 4.68359 9.35156 4.98047C6.12305 4.79492 3.22852 3.23633 1.29883 0.898438C0.964844 1.45508 0.779297 2.12305 0.779297 2.86523C0.779297 4.20117 1.44727 5.38867 2.52344 6.09375C1.89258 6.05664 1.26172 5.9082 0.742188 5.61133V5.64844C0.742188 7.54102 2.07812 9.09961 3.85938 9.4707C3.5625 9.54492 3.19141 9.61914 2.85742 9.61914C2.59766 9.61914 2.375 9.58203 2.11523 9.54492C2.59766 11.1035 4.04492 12.2168 5.75195 12.2539C4.41602 13.293 2.74609 13.9238 0.927734 13.9238C0.59375 13.9238 0.296875 13.8867 0 13.8496C1.70703 14.9629 3.74805 15.5938 5.97461 15.5938C13.1367 15.5938 17.0332 9.69336 17.0332 4.53516C17.0332 4.34961 17.0332 4.20117 17.0332 4.01562Z"
-                          fill="#BF5700"
-                        />
-                        <span class="visually-hidden">X</span>
-                      </svg></a
-                    ></span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                <header>
+                  <h2>Related events</h2>
+                  <a href="https://soa.utexas.edu/events">See all events</a>
+                </header>
 
-      <div class="container">
-        <div class="row">
-          <div class="col-sm-12">
-            <div class="region region-highlighted"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="container">
-        <div class="row">
-          <div class="col-sm-12">
-            <main role="main">
-              <a id="main-content" tabindex="-1"></a>
-              <div class="layout-content">
-                <div class="region region-content">
-                  <div
-                    id="block-utsoa-theme-main-page-content"
-                    class="block block-system block-system-main-block clearfix"
-                  >
-                    <article class="full soaevent-event clearfix">
-                      <div class="row">
-                        <div class="col-md-5">
-                          <h1>
-                            <span>Don’t Get Too Attached</span>
-                          </h1>
-
-                          <div
-                            class="field field--name-field-soaevent-datetime field--type-smartdate field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-datetime field__items soaevent-event-field__items"
+                <div class="views-view-grid horizontal cols-3 clearfix">
+                  <div class="row">
+                    <div class="col-md-4">
+                      <div class="views-field views-field-title">
+                        <h3 class="field-content ut-headline">
+                          <a
+                            href="/events/prospective-graduate-student-information-session-9"
+                            hreflang="en"
+                            >Prospective Graduate Student Information Session</a
                           >
-                            <div class="field__item soaevent-event-field__item">
-                              Oct. 30 to Nov. 30, 2026, 5 to 7 p.m.
-                              <dialog class="add-to-calendar modal" data-type="add_to_cal_modal">
-                                <button autofocus class="close" aria-label="Close">X</button>
-                                <a
-                                  href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;ctz=America%2FChicago&amp;text=Don%E2%80%99t+Get+Too+Attached&amp;dates=20261030T170000%2F20261130T190000&amp;details=Beginning+October+30+at+5%3A00+pm%2C+Don%27t+Get+Too+Attached+in+on+view.+The+exhibition+is+designed+and+curated+by+Assistant+Professor+of+Interior+Design+Ria+Bravo.&amp;location=North+Gallery+of+Goldsmith+Hall"
-                                  target="_blank"
-                                  class="addtocal__link addtocal__google"
-                                  >Google</a
-                                >
-                                <a
-                                  href="data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0D%0APRODID:School of Architecture%0D%0AVERSION:2.0%0D%0ABEGIN:VEVENT%0D%0AUID:5b4aa3fe-dbf1-415c-a5ea-84c6ecfaf3ec%0D%0ASUMMARY:Don%E2%80%99t%20Get%20Too%20Attached%0D%0ADTSTAMP:20261127T074600Z%0D%0ADTSTART:20261030T220000Z%0D%0ADTEND:20261201T010000Z%0D%0ADESCRIPTION:Beginning%20October%2030%20at%205%3A00%20pm%2C%20Don%27t%20Get%20Too%20Attached%20in%20on%20view.%20The%20exhibition%20is%20designed%20and%20curated%20by%20Assistant%20Professor%20of%20Interior%20Design%20Ria%20Bravo.%0D%0ALOCATION:North%20Gallery%20of%20Goldsmith%20Hall%0D%0AEND:VEVENT%0D%0AEND:VCALENDAR"
-                                  download="event.ics"
-                                  class="addtocal__link addtocal__outlook"
-                                  >Outlook</a
-                                >
-                                <a
-                                  href="data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0D%0APRODID:School of Architecture%0D%0ABEGIN:VTIMEZONE%0D%0ATZID:America/Chicago%0D%0ABEGIN:STANDARD%0D%0ATZOFFSETFROM:-0500%0D%0ATZOFFSETTO:-0600%0D%0AEND:STANDARD%0D%0AEND:VTIMEZONE%0D%0AVERSION:2.0%0D%0ABEGIN:VEVENT%0D%0AUID:5b4aa3fe-dbf1-415c-a5ea-84c6ecfaf3ec%0D%0ASUMMARY:Don%E2%80%99t%20Get%20Too%20Attached%0D%0ADTSTAMP:20261127T074600Z%0D%0ADTSTART;TZID=America/Chicago:20261030T170000%0D%0ADTEND;TZID=America/Chicago:20261130T190000%0D%0ADESCRIPTION:Beginning%20October%2030%20at%205%3A00%20pm%2C%20Don%27t%20Get%20Too%20Attached%20in%20on%20view.%20The%20exhibition%20is%20designed%20and%20curated%20by%20Assistant%20Professor%20of%20Interior%20Design%20Ria%20Bravo.%0D%0ALOCATION:North%20Gallery%20of%20Goldsmith%20Hall%0D%0AEND:VEVENT%0D%0AEND:VCALENDAR"
-                                  download="event.ics"
-                                  class="addtocal__link addtocal__ical"
-                                  >iCal</a
-                                >
-                              </dialog>
-                              <button type="button" class="button">Add to calendar</button>
-                            </div>
-                          </div>
-
-                          <div class="soaevent--location">
-                            <a
-                              href="https://utdirect.utexas.edu/apps/campus/buildings/information/nlogon/maps/utm/gol/"
-                              >Location: North Gallery of Goldsmith Hall</a
-                            >
-                          </div>
-                          <div class="soaevent--full-summary">
-                            Beginning October 30 at 5:00 pm, Don't Get Too Attached in on view. The
-                            exhibition is designed and curated by Assistant Professor of Interior
-                            Design Ria Bravo.
-                          </div>
-                        </div>
-                        <div class="col-md-7">
-                          <div
-                            class="field field--name-field-soaevent-main-media field--type-entity-reference field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-main-media"
-                          >
-                            <div class="field__item soaevent-event-field__item">
-                              <img
-                                loading="lazy"
-                                src="/sites/default/files/styles/utexas_image_style_1000w/public/2026-10/Screenshot%202026-10-21%20at%209.43.07%E2%80%AFAM.png?itok=h1nI6ye4"
-                                width="848"
-                                height="540"
-                                alt="a pink drawing of a woman at a sewing machine "
-                              />
-                            </div>
-                          </div>
+                        </h3>
+                      </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Tuesday Dec. 1, 2026 , 6 to 7 p.m.
                         </div>
                       </div>
-                      <div class="soaevent--main-content-bottom">
-                        <div class="row justify-content-between">
-                          <div class="col-md-7">
-                            <div
-                              class="field field--name-field-soaevent-body field--type-text-with-summary field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-body ut-copy"
-                            >
-                              <div class="field__item soaevent-event-field__item">
-                                <div>
-                                  Interiors are among the most frequently altered layers of the
-                                  built environment, yet they are rarely constructed with change in
-                                  mind. Don’t Get Too Attached begins with this contradiction,
-                                  looking closely at the architectural detail and its potential to
-                                  accommodate a more provisional approach to interior construction.
-                                </div>
-                                <div dir="ltr">&nbsp;</div>
-                                <div>
-                                  Through speculative sectional drawings, material investigations,
-                                  and textile assemblies built at full scale, the exhibition
-                                  explores how reversible joints might change the way interiors are
-                                  made and remade. Borrowing from the language of garments and
-                                  temporary structures, the work examines six modes of attachment:
-                                  buttoned, clipped, hinged, laced, socketed, and zipped.&nbsp;<span
-                                    >Don’t Get Too Attached imagines an interior that is never quite
-                                    finished, one that can be adjusted, taken apart, and reassembled
-                                    by the people who inhabit it.</span
-                                  >
-                                </div>
-                                <div dir="ltr">&nbsp;</div>
-                                <div>
-                                  Organized by
-                                  <a href="https://soa.utexas.edu/faculty/ria-bravo"
-                                    ><strong>Ria Bravo</strong></a
-                                  >, Assistant Professor of Interior Design at The University of
-                                  Texas at Austin School of Architecture, the exhibition includes
-                                  research and drawings developed with Graduate Research Assistant
-                                  Tran Do (M.Arch. ’27) and full-scale prototypes produced in
-                                  collaboration with students in the Interior Fabrications seminar.
-                                </div>
-                                <hr />
-                                <h6>About the Exhibitor</h6>
-                                <div dir="ltr">&nbsp;</div>
-                                <div>
-                                  <strong>Ria Bravo</strong> is a designer, educator, and researcher
-                                  trained in both architecture and interior design. She is an
-                                  Assistant Professor of Interior Design at The University of Texas
-                                  at Austin School of Architecture, where her research focuses on
-                                  provisional methods of interior construction, architectural
-                                  representation, and material assembly. Her work moves between
-                                  speculative drawing, experimental fabrication, and full-scale
-                                  installation, questioning how the details of construction
-                                  influence the ways interiors are made, experienced, and changed
-                                  over time.
-                                </div>
-                                <div dir="ltr">&nbsp;</div>
-                                <div>
-                                  Bravo holds a Bachelor of Science in Interior Design and a Master
-                                  of Architecture from the University of Tennessee, Knoxville.
-                                  Before joining UT Austin, she practiced at Morphosis and Gensler
-                                  in Los Angeles. Her creative scholarship has received recognition
-                                  from the Interior Design Educators Council, and in spring 2026 she
-                                  held the Nadine Carter Russell Endowed Chair at Louisiana State
-                                  University.
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div class="col-md-4">
-                            <div
-                              class="field field--name-field-soaevent-sidebar field--type-text-long field--label-hidden soaevent-event-field soaevent-event-field--field-soaevent-sidebar"
-                            >
-                              <div class="field__item soaevent-event-field__item">
-                                <div>
-                                  <div>
-                                    <img
-                                      loading="lazy"
-                                      src="https://soa.utexas.edu/sites/default/files/styles/utexas_image_style_1600w/public/2026-10/dgta%20poster%20update.png?itok=zGYWzTCe"
-                                      width="1600"
-                                      height="2473"
-                                      alt="a pink graphic of an exhibition opening"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="views-field views-field-title">
+                        <h3 class="field-content ut-headline">
+                          <a href="/events/utsoa-career-fair-2027" hreflang="en"
+                            >UTSOA Career Fair 2027</a
+                          >
+                        </h3>
                       </div>
-                    </article>
-                    <div
-                      class="layout breakout utexas-layout--onecol container-fluid utexas-layout-no-padding utsoa-background-orange-section"
-                    >
-                      <div
-                        class="soaevent-related js-view-dom-id-dae1a82e1637cc165848600ac7021687be2828eed84e6a678f807c5e6cdfabbb"
-                      >
-                        <header>
-                          <h2>Related events</h2>
-                          <a href="https://soa.utexas.edu/events">See all events</a>
-                        </header>
-
-                        <div class="views-view-grid horizontal cols-3 clearfix">
-                          <div class="row">
-                            <div class="col-md-4">
-                              <div class="views-field views-field-title">
-                                <h3 class="field-content ut-headline">
-                                  <a
-                                    href="/events/prospective-graduate-student-information-session-9"
-                                    hreflang="en"
-                                    >Prospective Graduate Student Information Session</a
-                                  >
-                                </h3>
-                              </div>
-                              <div class="views-field views-field-field-soaevent-datetime">
-                                <div class="field-content">
-                                  <span class="calendar-icon"></span> Tuesday Dec. 1, 2026 , 6 to 7
-                                  p.m.
-                                </div>
-                              </div>
-                            </div>
-                            <div class="col-md-4">
-                              <div class="views-field views-field-title">
-                                <h3 class="field-content ut-headline">
-                                  <a href="/events/utsoa-career-fair-2027" hreflang="en"
-                                    >UTSOA Career Fair 2027</a
-                                  >
-                                </h3>
-                              </div>
-                              <div class="views-field views-field-field-soaevent-datetime">
-                                <div class="field-content">
-                                  <span class="calendar-icon"></span> Tuesday Feb. 16, 2027 , 10
-                                  a.m. to 5 p.m.
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                      <div class="views-field views-field-field-soaevent-datetime">
+                        <div class="field-content">
+                          <span class="calendar-icon"></span> Tuesday Feb. 16, 2027 , 10 a.m. to 5
+                          p.m.
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </main>
+            </div>
           </div>
         </div>
       </div>
-      <footer class="ut-footer short_logo" role="contentinfo">
-        <div class="container">
-          <div class="row footer-top pb-4">
-            <div class="col-12 col-sm-12 col-md-5">
-              <div class="ut-logo-footer">
-                <a href="https://utexas.edu"
-                  ><img
-                    src="/themes/utsoa/utsoa_theme/images/logo-ut-svg.png"
-                    alt="University of Texas at Austin website"
-                /></a>
-              </div>
-              <div class="region region-footer-top-left">
-                <div
-                  id="block-utsoaaddress"
-                  class="block-bundle-basic block block-block-content block-block-content8e2e011d-c4f0-4963-8001-acf5d4b993f3 clearfix"
-                >
-                  <div class="ut-copy">
-                    <p>
-                      310 Inner Campus Drive (B7500)<br />
-                      Austin, TX 78712-1009<br />
-                      <a href="tel:5124711922">(512) 471-1922</a>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-sm-12 col-md-7">
-              <div class="region region-footer-top-right">
-                <div
-                  id="block-footersociallinks"
-                  class="block-bundle-social-links block block-block-content block-block-content38715876-200c-4c4d-9028-5f59f71d7a8d clearfix"
-                >
-                  <h2 class="ut-headline--xl ut-headline">Follow UTSOA</h2>
-
-                  <div class="block__ut-social-links ut-social-links--medium">
-                    <div class="block__ut-social-links--items">
-                      <div class="block__ut-social-links--item">
-                        <a
-                          href="https://www.facebook.com/UTSOA"
-                          class="block__ut-social-links--link facebook"
-                          ><span class="visually-hidden">Find us on Facebook</span></a
-                        >
-                      </div>
-                      <div class="block__ut-social-links--item">
-                        <a
-                          href="https://twitter.com/UTSOA"
-                          class="block__ut-social-links--link twitter"
-                          ><span class="visually-hidden">Find us on Twitter</span></a
-                        >
-                      </div>
-                      <div class="block__ut-social-links--item">
-                        <a
-                          href="https://www.instagram.com/utsoa/"
-                          class="block__ut-social-links--link instagram"
-                          ><span class="visually-hidden">Find us on Instagram</span></a
-                        >
-                      </div>
-                      <div class="block__ut-social-links--item">
-                        <a
-                          href="https://www.youtube.com/c/TexasArchitecture"
-                          class="block__ut-social-links--link youtube"
-                          ><span class="visually-hidden">Find us on Youtube</span></a
-                        >
-                      </div>
-                      <div class="block__ut-social-links--item">
-                        <a
-                          href="https://www.linkedin.com/school/ut-austin-school-of-architecture/"
-                          class="block__ut-social-links--link linkedin"
-                          ><span class="visually-hidden">Find us on Linkedin</span></a
-                        >
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  id="block-footerquicklinks"
-                  class="block-bundle-basic block block-block-content block-block-contentc56ee7c0-c03b-49ae-8dff-738c0d385597 clearfix"
-                >
-                  <div class="ut-copy">
-                    <h2 class="ut-headline">
-                      <a href="https://wikis.utexas.edu/display/soa/quick+links"
-                        >INTERNAL QUICKLINKS</a
-                      >
-                    </h2>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="row footer-bottom pb-8">
-            <div class="col-12 col-sm-12 col-md-5">
-              <div class="text--copyright">© The University of Texas at Austin 2026</div>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
-
-    <script src="/core/assets/vendor/jquery/jquery.min.js?v=4.0.0"></script>
-    <script src="/sites/default/files/js/js_XyfJTNDdmy437dzPVjANh0kDRtCHZCTMOK0xkOwnU1A.js?scope=footer&amp;delta=1&amp;language=en&amp;theme=utsoa_theme&amp;include=eJxdiEEOgzAMBD8U8In3WAtJXVASo8SW4PetWji0l52dQYymqCfhOuOjabXw0QWZ4VJSNSoakYOoSk5sEJL3_PuIDcdvLMEtHegENx1Ql6e2frdZ1bo17NOw3ZEzTnXr9CXPvuaYGvv6Ao7HQz0"></script>
-    <script src="https://static.addtoany.com/menu/page.js" defer></script>
-    <script src="/sites/default/files/js/js_UlTqLH-mFxOSXFE1e3l1sXuLT0x7Ah9qRzFr5-JRBq8.js?scope=footer&amp;delta=3&amp;language=en&amp;theme=utsoa_theme&amp;include=eJxdiEEOgzAMBD8U8In3WAtJXVASo8SW4PetWji0l52dQYymqCfhOuOjabXw0QWZ4VJSNSoakYOoSk5sEJL3_PuIDcdvLMEtHegENx1Ql6e2frdZ1bo17NOw3ZEzTnXr9CXPvuaYGvv6Ao7HQz0"></script>
+    </main>
   </body>
 </html>
